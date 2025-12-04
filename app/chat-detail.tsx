@@ -15,6 +15,7 @@ import {
   Modal,
   Platform,
   Keyboard,
+  InteractionManager,
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
@@ -87,7 +88,8 @@ export default function ChatDetail() {
   const [chat, setChat] = useState<Chat | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false) // Start as false - show cached immediately
+  const [initialLoad, setInitialLoad] = useState(true) // Track if we've done initial load
   const [sending, setSending] = useState(false)
   const [participantName, setParticipantName] = useState<string>(otherUserName || 'Unknown')
   const [participantAvatarUrl, setParticipantAvatarUrl] = useState<string | null>(null)
@@ -103,6 +105,7 @@ export default function ChatDetail() {
   const [optionsVisible, setOptionsVisible] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT)
+  const [keyboardInset, setKeyboardInset] = useState(0)
 
   const flatListRef = useRef<FlatList>(null)
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -119,10 +122,20 @@ export default function ChatDetail() {
     }
   }, [insets.bottom])
 
+  // Optimized sorting - cache timestamps to avoid repeated Date parsing
+  const timestampCache = useRef<Map<string, number>>(new Map())
   const sortedMessages = useMemo(() => {
-    return [...messages].sort(
-      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-    )
+    if (messages.length === 0) return []
+    // Pre-compute timestamps only once per message ID
+    return [...messages].sort((a, b) => {
+      if (!timestampCache.current.has(a.created_at)) {
+        timestampCache.current.set(a.created_at, new Date(a.created_at).getTime())
+      }
+      if (!timestampCache.current.has(b.created_at)) {
+        timestampCache.current.set(b.created_at, new Date(b.created_at).getTime())
+      }
+      return (timestampCache.current.get(a.created_at) || 0) - (timestampCache.current.get(b.created_at) || 0)
+    })
   }, [messages])
 
   useEffect(() => {
@@ -133,6 +146,16 @@ export default function ChatDetail() {
 
   useEffect(() => {
     if (chatId && user?.id) {
+      // Load cached messages synchronously if available
+      const cached = ChatService['messageCache'].get(chatId)
+      if (cached && cached.length > 0) {
+        setMessages(cached)
+        setLoading(false)
+      } else {
+        setLoading(true)
+      }
+      
+      // Load fresh data immediately (no delay)
       loadChatData()
     }
   }, [chatId, user?.id])
@@ -162,20 +185,33 @@ export default function ChatDetail() {
     }, [chatId, user?.id])
   )
 
-  // Scroll to end when keyboard appears (debounced to prevent lag)
+  // Scroll to end when keyboard appears and increase bottom padding so overlapped messages stay scrollable
   useEffect(() => {
-    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
-      // Clear any pending scroll
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow'
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide'
+
+    const handleKeyboardShow = (event: any) => {
+      const height = event?.endCoordinates?.height || 0
+      setKeyboardInset(height)
+      // Immediate scroll when keyboard appears - no animation delay
+      if (messages.length > 0) {
+        flatListRef.current?.scrollToEnd({ animated: false })
+      }
+    }
+
+    const handleKeyboardHide = () => {
       if (scrollTimeoutRef.current) {
         clearTimeout(scrollTimeoutRef.current)
       }
-      // Delay scroll to avoid conflicts with keyboard animation
-      scrollTimeoutRef.current = setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true })
-      }, 0)
-    })
+      setKeyboardInset(0)
+    }
+
+    const showSubscription = Keyboard.addListener(showEvent, handleKeyboardShow)
+    const hideSubscription = Keyboard.addListener(hideEvent, handleKeyboardHide)
+
     return () => {
       showSubscription.remove()
+      hideSubscription.remove()
       if (scrollTimeoutRef.current) {
         clearTimeout(scrollTimeoutRef.current)
       }
@@ -231,38 +267,55 @@ export default function ChatDetail() {
   const loadChatData = async () => {
     if (!user?.id) return
     try {
-      setLoading(true)
-      let chatData = null
+      const targetChatId = chatId || null
+      
+      // Load chat data and messages in parallel - no waiting for cached check
+      const [chatDataResult, messagesResult] = await Promise.all([
+        targetChatId 
+          ? ChatService.getChatById(targetChatId)
+          : (taskId ? ChatService.getOrCreateChat(taskId, user.id, 'temp-tasker-id') : null),
+        targetChatId ? ChatService.getChatMessagesFast(targetChatId) : null
+      ])
 
-      if (chatId) {
-        chatData = await ChatService.getChatById(chatId)
-      } else if (taskId) {
-        chatData = await ChatService.getOrCreateChat(taskId, user.id, 'temp-tasker-id')
-      }
-
-      if (!chatData) throw new Error('Chat not found')
-      setChat(chatData)
-      await loadParticipantName(chatData)
-
-      const targetChatId = chatId || chatData.id
-      const { cached, fresh } = await ChatService.getChatMessagesFast(targetChatId)
-
-      if (cached && cached.length > 0) {
-        setMessages(cached.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()))
-      }
-
-      fresh.then((msgs) => {
-        if (msgs) {
-          setMessages(msgs.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()))
+      if (!chatDataResult) throw new Error('Chat not found')
+      
+      // Batch all state updates together
+      setChat(chatDataResult)
+      
+      // Extract participant info from chat data immediately (no extra query)
+      if (chatDataResult.customer && chatDataResult.tasker) {
+        const isCustomer = user.id === chatDataResult.customer_id
+        const otherParticipant = isCustomer ? chatDataResult.tasker : chatDataResult.customer
+        if (otherParticipant?.full_name && otherParticipant.full_name !== 'Unknown') {
+          setParticipantName(otherParticipant.full_name)
         }
-      })
+        if (otherParticipant?.avatar_url) {
+          setParticipantAvatarUrl(otherParticipant.avatar_url)
+        }
+      }
 
-      subscribeToRealtimeChat().catch(() => {})
-      ChatService.markMessagesAsRead(chatData.id, user.id)
+      // Update messages if we got fresh ones
+      if (messagesResult?.fresh) {
+        messagesResult.fresh.then((freshMessages) => {
+          if (freshMessages && freshMessages.length > 0) {
+            setMessages(freshMessages)
+          }
+        })
+      }
+
+      // Set up realtime subscription and mark as read (non-blocking background tasks)
+      Promise.all([
+        subscribeToRealtimeChat().catch(() => {}),
+        ChatService.markMessagesAsRead(chatDataResult.id, user.id).catch(() => {})
+      ])
+
+      setInitialLoad(false)
+      setLoading(false)
     } catch (error) {
       console.error('Error loading chat:', error)
-      Alert.alert('Error', 'Failed to load chat')
-    } finally {
+      if (initialLoad) {
+        Alert.alert('Error', 'Failed to load chat')
+      }
       setLoading(false)
     }
   }
@@ -311,7 +364,8 @@ export default function ChatDetail() {
       status: 'sending'
     }
 
-    setMessages(prev => [...prev, tempMsg].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()))
+    // Add message - sorting will be handled by sortedMessages memo
+    setMessages(prev => [...prev, tempMsg])
 
     try {
       setSending(true)
@@ -326,12 +380,23 @@ export default function ChatDetail() {
 
       if (success) {
         setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'sent' } : m))
-        // Reload chat data immediately to ensure everything is up to date
-        await loadChatData()
-        // Scroll to end after reload to show the new message
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true })
-        }, 100)
+        // Reload messages in background without blocking UI
+        const targetChatId = chat?.id || chatId
+        if (targetChatId) {
+          ChatService.getChatMessagesFast(targetChatId).then(({ fresh }) => {
+            fresh.then((msgs) => {
+              if (msgs && msgs.length > 0) {
+                // Sort messages (timestamp cache will optimize future sorts)
+                const sorted = [...msgs].sort((a: any, b: any) => 
+                  new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+                )
+                setMessages(sorted)
+                // Scroll immediately after update
+                flatListRef.current?.scrollToEnd({ animated: false })
+              }
+            })
+          })
+        }
       } else {
         setMessages(prev => prev.filter(m => m.id !== tempId))
         Alert.alert('Error', 'Message failed to send')
@@ -405,11 +470,22 @@ export default function ChatDetail() {
     )
   })
 
+  // Memoize date formatting to avoid repeated calculations
+  const dateCache = useRef<Map<string, string>>(new Map())
+  const getCachedDate = useCallback((dateString: string) => {
+    if (!dateCache.current.has(dateString)) {
+      dateCache.current.set(dateString, formatDate(dateString))
+    }
+    return dateCache.current.get(dateString)!
+  }, [])
+
   const renderMessage = useCallback(({ item, index }: { item: Message; index: number }) => {
     const prev = sortedMessages[index - 1]
     const next = sortedMessages[index + 1]
     const isMine = isMyMessage(item)
-    const showDate = !prev || formatDate(item.created_at) !== formatDate(prev.created_at)
+    const prevDate = prev ? getCachedDate(prev.created_at) : null
+    const itemDate = getCachedDate(item.created_at)
+    const showDate = !prev || itemDate !== prevDate
     const showAvatar = !isMine && (!next || next.sender_id !== item.sender_id)
     const isGroupStart = !prev || prev.sender_id !== item.sender_id
     const isGroupEnd = !next || next.sender_id !== item.sender_id
@@ -424,21 +500,12 @@ export default function ChatDetail() {
         isGroupEnd={isGroupEnd}
       />
     )
-  }, [sortedMessages, participantName])
+  }, [sortedMessages, getCachedDate])
 
   const keyExtractor = useCallback((item: Message) => item.id, [])
 
-  if (isLoading || loading) {
-    return (
-      <SafeAreaView style={styles.container} edges={['left', 'right']}>
-        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
-        <View style={styles.loadingHeader}>
-          <SkeletonProfile />
-        </View>
-        <SkeletonList count={4} />
-      </SafeAreaView>
-    )
-  }
+  // Don't block rendering - show UI immediately even while loading
+  const showLoading = isLoading || (loading && messages.length === 0)
 
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right']}>
@@ -449,13 +516,8 @@ export default function ChatDetail() {
         <LinearGradient colors={['#f8f9fc', '#ffffff']} style={StyleSheet.absoluteFill} />
         <TouchableOpacity
           onPress={() => {
-            // Prefer going back in history; otherwise fall back to chats list
-            // @ts-ignore - canGoBack is available on router in Expo Router
-            if (router.canGoBack && router.canGoBack()) {
-              router.back()
-            } else {
-              router.replace('/chats')
-            }
+            // Always navigate to chats list (replace to avoid stack issues)
+            router.replace('/chats')
           }}
           style={styles.backButton}
         >
@@ -480,48 +542,55 @@ export default function ChatDetail() {
 
       {/* Main Content with Smooth Keyboard Animation */}
       <View style={{ flex: 1 }}>
-        <FlatList
+        {showLoading ? (
+          <View style={{ flex: 1, paddingTop: 20 }}>
+            <SkeletonList count={4} />
+          </View>
+        ) : (
+          <FlatList
           ref={flatListRef}
           data={sortedMessages}
           renderItem={renderMessage}
           keyExtractor={keyExtractor}
-          contentContainerStyle={styles.messagesList}
+          contentContainerStyle={[
+            styles.messagesList,
+            { paddingBottom: keyboardInset + Math.max(insets.bottom, 10) },
+          ]}
           showsVerticalScrollIndicator={false}
           removeClippedSubviews={true}
-          maxToRenderPerBatch={10}
-          updateCellsBatchingPeriod={50}
-          windowSize={10}
-          initialNumToRender={15}
+          maxToRenderPerBatch={3}
+          updateCellsBatchingPeriod={150}
+          windowSize={3}
+          initialNumToRender={8}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="none"
           nestedScrollEnabled={true}
-          scrollEventThrottle={16}
+          scrollEventThrottle={50}
           onContentSizeChange={() => {
-            // Debounce scroll to prevent lag during keyboard animations
-            if (scrollTimeoutRef.current) {
-              clearTimeout(scrollTimeoutRef.current)
+            // Only scroll if we have messages and not during initial load
+            if (sortedMessages.length > 0 && !initialLoad) {
+              // Use immediate scroll for better performance
+              flatListRef.current?.scrollToEnd({ animated: false })
             }
-            scrollTimeoutRef.current = setTimeout(() => {
-              flatListRef.current?.scrollToEnd({ animated: true })
-            }, 100)
           }}
           onLayout={(e) => {
             // Only scroll on initial layout when content is loaded
-            if (sortedMessages.length > 0 && e.nativeEvent.layout.height > 0) {
-              // Use requestAnimationFrame to avoid conflicts with keyboard animation
-              requestAnimationFrame(() => {
-                flatListRef.current?.scrollToEnd({ animated: false })
-              })
+            if (sortedMessages.length > 0 && e.nativeEvent.layout.height > 0 && !loading && !initialLoad) {
+              flatListRef.current?.scrollToEnd({ animated: false })
             }
           }}
           ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Ionicons name="chatbubble-ellipses-outline" size={64} color={Colors.primary[400]} />
-              <Text style={styles.emptyTitle}>Say hi to {participantFirstName}</Text>
-              <Text style={styles.emptySubtitle}>Start the conversation!</Text>
-            </View>
+            // Only show empty state if we're not loading and truly have no messages
+            !loading && sortedMessages.length === 0 && !initialLoad ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="chatbubble-ellipses-outline" size={64} color={Colors.primary[400]} />
+                <Text style={styles.emptyTitle}>Say hi to {participantFirstName}</Text>
+                <Text style={styles.emptySubtitle}>Start the conversation!</Text>
+              </View>
+            ) : null
           }
         />
+        )}
 
         {/* Input - Animated to stay above keyboard */}
         <Animated.View
@@ -628,7 +697,6 @@ const styles = StyleSheet.create({
   messagesList: {
     paddingHorizontal: 8,
     paddingTop: 8,
-    paddingBottom: 10,
   },
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 100 },
   emptyTitle: { fontSize: 20, fontWeight: '600', marginTop: 16, color: '#333' },

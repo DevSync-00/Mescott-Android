@@ -114,7 +114,10 @@ export default function Chats() {
     if (!user?.id) return
 
     try {
-      setLoading(true)
+      // Only show loading on initial load, not on refresh
+      if (chats.length === 0) {
+        setLoading(true)
+      }
       const userChats = await RealtimeChatService.getUserChats(user.id)
       // Sort by most recent activity (last_message_at desc, fallback to updated_at or created_at)
       const sorted = [...userChats].sort((a, b) => {
@@ -154,18 +157,15 @@ export default function Chats() {
       return next
     })
     
-    if (user?.id) {
-      // Mark as read in background and refresh the chat list
-      try {
-        await RealtimeChatService.markMessagesAsRead(chatId, user.id)
-        // Reload chats to get updated unread counts
-        await loadChats()
-      } catch (error) {
-        console.error('Error marking messages as read:', error)
-      }
-    }
-    
+    // Navigate immediately to chats detail (not replace, so back button works)
     router.push(`/chat-detail?chatId=${chatId}`)
+    
+    if (user?.id) {
+      // Mark as read in background (non-blocking)
+      RealtimeChatService.markMessagesAsRead(chatId, user.id).catch(() => {})
+      // Reload chats in background without blocking navigation
+      loadChats().catch(() => {})
+    }
   }
 
   const formatLastMessageTime = (timestamp: string | null) => {

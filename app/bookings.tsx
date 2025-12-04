@@ -7,6 +7,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  RefreshControl,
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StatusBar } from 'react-native'
@@ -52,6 +53,7 @@ export default function Bookings() {
   const [selectedStatus, setSelectedStatus] = useState('all')
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -87,6 +89,7 @@ export default function Bookings() {
     if (!user) return
     
     if (isRefresh) {
+      setRefreshing(true)
     } else {
       setLoading(true)
     }
@@ -99,10 +102,15 @@ export default function Bookings() {
       Alert.alert('Error', 'Failed to load bookings')
     } finally {
       if (isRefresh) {
+        setRefreshing(false)
       } else {
         setLoading(false)
       }
     }
+  }
+  
+  const onRefresh = () => {
+    loadBookings(true)
   }
 
   const filteredBookings = selectedStatus === 'all' 
@@ -260,6 +268,14 @@ export default function Bookings() {
         alwaysBounceVertical={true}
         overScrollMode="always"
         scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[Colors.primary[500]]}
+            tintColor={Colors.primary[500]}
+          />
+        }
       >
         {loading ? (
           <SkeletonList count={5} />
