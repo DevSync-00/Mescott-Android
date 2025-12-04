@@ -1,0 +1,49 @@
+# Gradle build files and caches
+**/.gradle/
+**/android/.gradle/
+**/android/app/build/
+**/android/build/
+**/android/.idea/
+**/android/local.properties
+
+# Android build artifacts
+**/android/app/build/
+**/android/app/.cxx/
+**/android/.externalNativeBuild/
+**/android/app/debug.keystore
+
+# Node modules (already handled but explicit)
+node_modules/
+**/node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Lock files that can cause issues
+**/checksums.lock
+**/*.lock
+

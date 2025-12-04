@@ -1,43 +1,47 @@
-const { getDefaultConfig } = require('expo/metro-config');
+const { getDefaultConfig } = require('expo/metro-config')
 
-const config = getDefaultConfig(__dirname);
+const config = getDefaultConfig(__dirname)
 
 // Force cache reset to fix InternalBytecode.js errors
-config.resetCache = true;
+config.resetCache = true
 
 // Disable problematic cache features
-config.cacheStores = [];
+config.cacheStores = []
 
-// Add resolver configuration to handle OneDrive paths
+// Resolver configuration tuned for Windows/OneDrive paths
 config.resolver = {
   ...config.resolver,
-  // Handle OneDrive path issues
   platforms: ['ios', 'android', 'native', 'web'],
-  // Disable symlinks to avoid OneDrive issues
   useGlobalHotkey: false,
-};
+  sourceExts: [...(config.resolver?.sourceExts || []), 'tsx', 'ts', 'jsx', 'js'],
+}
 
 // Transformer configuration
 config.transformer = {
   ...config.transformer,
-  // Disable source maps temporarily to avoid InternalBytecode.js
   minifierConfig: {
     keep_fnames: true,
     mangle: {
       keep_fnames: true,
     },
   },
-};
+  getTransformOptions: async () => ({
+    transform: {
+      experimentalImportSupport: false,
+      inlineRequires: true,
+    },
+  }),
+}
 
 // Serializer configuration
 config.serializer = {
   ...config.serializer,
-  // Custom module ID factory to avoid path issues
-  createModuleIdFactory: () => (path) => {
-    // Use a hash of the path to avoid OneDrive path issues
-    const crypto = require('crypto');
-    return crypto.createHash('md5').update(path).digest('hex').substring(0, 8);
+  createModuleIdFactory: () => (filePath) => {
+    const normalizedPath = filePath.replace(/\\/g, '/')
+    const crypto = require('crypto')
+    return crypto.createHash('md5').update(normalizedPath).digest('hex').substring(0, 8)
   },
-};
+}
 
-module.exports = config;
+module.exports = config
+
