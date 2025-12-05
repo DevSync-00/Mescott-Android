@@ -37,7 +37,7 @@ function RatingModal({
   customerUserId,
   technicianUserId,
   taskTitle,
-  technicianName
+  technicianName,
 }: RatingModalProps) {
   const [rating, setRating] = useState(0)
   const [review, setReview] = useState('')
@@ -59,7 +59,7 @@ function RatingModal({
         rating: rating,
         review: review.trim(),
         customer_user_id: customerUserId,
-        technician_user_id: technicianUserId
+        technician_user_id: technicianUserId,
       }
 
       const result = await RatingService.createRating(ratingData)
@@ -67,30 +67,25 @@ function RatingModal({
       if (result) {
         // Update task status to completed
         await RatingService.updateTaskAfterRating(taskId)
-        
+
         // Update technician's profile rating
         await RatingService.updateTechnicianProfileRating(technicianId)
 
-        Alert.alert(
-          'Thank You!',
-          'Your rating and review have been submitted successfully.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                onRatingSubmitted()
-                onClose()
-                // Reset form
-                setRating(0)
-                setReview('')
-              }
-            }
-          ]
-        )
+        Alert.alert('Thank You!', 'Your rating and review have been submitted successfully.', [
+          {
+            text: 'OK',
+            onPress: () => {
+              onRatingSubmitted()
+              onClose()
+              // Reset form
+              setRating(0)
+              setReview('')
+            },
+          },
+        ])
       } else {
         Alert.alert('Error', 'Failed to submit rating. Please try again.')
       }
-
     } catch (error) {
       console.error('Error submitting rating:', error)
       Alert.alert('Error', 'Failed to submit rating. Please try again.')
@@ -103,11 +98,7 @@ function RatingModal({
     return (
       <View style={styles.starsContainer}>
         {[1, 2, 3, 4, 5].map((star) => (
-          <TouchableOpacity
-            key={star}
-            onPress={() => setRating(star)}
-            style={styles.starButton}
-          >
+          <TouchableOpacity key={star} onPress={() => setRating(star)} style={styles.starButton}>
             <Ionicons
               name={star <= rating ? 'star' : 'star-outline'}
               size={40}
@@ -121,12 +112,18 @@ function RatingModal({
 
   const getRatingText = () => {
     switch (rating) {
-      case 1: return 'Poor'
-      case 2: return 'Fair'
-      case 3: return 'Good'
-      case 4: return 'Very Good'
-      case 5: return 'Excellent'
-      default: return 'Select a rating'
+      case 1:
+        return 'Poor'
+      case 2:
+        return 'Fair'
+      case 3:
+        return 'Good'
+      case 4:
+        return 'Very Good'
+      case 5:
+        return 'Excellent'
+      default:
+        return 'Select a rating'
     }
   }
 
@@ -181,9 +178,13 @@ function RatingModal({
           <View style={styles.guidelinesCard}>
             <Text style={styles.guidelinesTitle}>Review Guidelines</Text>
             <Text style={styles.guidelineText}>• Be honest and constructive</Text>
-            <Text style={styles.guidelineText}>• Focus on the technician's work quality</Text>
-            <Text style={styles.guidelineText}>• Avoid personal attacks or inappropriate language</Text>
-            <Text style={styles.guidelineText}>• Your review helps other customers make informed decisions</Text>
+            <Text style={styles.guidelineText}>• Focus on the technician&apos;s work quality</Text>
+            <Text style={styles.guidelineText}>
+              • Avoid personal attacks or inappropriate language
+            </Text>
+            <Text style={styles.guidelineText}>
+              • Your review helps other customers make informed decisions
+            </Text>
           </View>
         </ScrollView>
 

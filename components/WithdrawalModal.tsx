@@ -29,7 +29,7 @@ export default function WithdrawalModal({
   onClose,
   onWithdrawalSuccess,
   currentBalance,
-  userId
+  userId,
 }: WithdrawalModalProps) {
   const bottomSheetRef = useRef<BottomSheetRef>(null)
   const [loading, setLoading] = useState(false)
@@ -37,7 +37,6 @@ export default function WithdrawalModal({
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null)
   const [amount, setAmount] = useState('')
   const [showAddMethod, setShowAddMethod] = useState(false)
-
 
   useEffect(() => {
     if (visible) {
@@ -49,9 +48,9 @@ export default function WithdrawalModal({
     try {
       const methods = await PaymentMethodService.getPaymentMethods(userId)
       setPaymentMethods(methods)
-      
+
       // Auto-select default method if available
-      const defaultMethod = methods.find(m => m.is_default)
+      const defaultMethod = methods.find((m) => m.is_default)
       if (defaultMethod) {
         setSelectedMethod(defaultMethod)
       }
@@ -61,7 +60,7 @@ export default function WithdrawalModal({
   }
 
   const handlePaymentMethodAdded = (method: PaymentMethod) => {
-    setPaymentMethods(prev => [method, ...prev])
+    setPaymentMethods((prev) => [method, ...prev])
     setSelectedMethod(method)
     setShowAddMethod(false)
   }
@@ -80,14 +79,14 @@ export default function WithdrawalModal({
 
     if (withdrawAmount > currentBalance) {
       Alert.alert(
-        'Insufficient Funds', 
+        'Insufficient Funds',
         `You have ${currentBalance.toFixed(2)} ETB available. Please enter an amount less than or equal to your current balance.`,
         [
           {
             text: 'OK',
-            style: 'default'
-          }
-        ]
+            style: 'default',
+          },
+        ],
       )
       return
     }
@@ -105,7 +104,7 @@ export default function WithdrawalModal({
         selectedMethod.id,
         withdrawAmount,
         selectedMethod.type as any,
-        selectedMethod.withdrawal_details
+        selectedMethod.withdrawal_details,
       )
 
       Alert.alert(
@@ -117,9 +116,9 @@ export default function WithdrawalModal({
             onPress: () => {
               onWithdrawalSuccess()
               onClose()
-            }
-          }
-        ]
+            },
+          },
+        ],
       )
     } catch (error) {
       console.error('Error creating withdrawal order:', error)
@@ -176,7 +175,9 @@ export default function WithdrawalModal({
           {/* Balance Display */}
           <View style={[styles.balanceCard, currentBalance <= 0 && styles.balanceCardWarning]}>
             <Text style={styles.balanceLabel}>Available Balance</Text>
-            <Text style={[styles.balanceAmount, currentBalance <= 0 && styles.balanceAmountWarning]}>
+            <Text
+              style={[styles.balanceAmount, currentBalance <= 0 && styles.balanceAmountWarning]}
+            >
               {formatCurrency(currentBalance)}
             </Text>
             {currentBalance <= 0 && (
@@ -218,9 +219,7 @@ export default function WithdrawalModal({
               <View style={styles.emptyMethods}>
                 <Ionicons name="card-outline" size={48} color={Colors.neutral[300]} />
                 <Text style={styles.emptyTitle}>No Payment Methods</Text>
-                <Text style={styles.emptySubtitle}>
-                  Add a payment method to withdraw funds
-                </Text>
+                <Text style={styles.emptySubtitle}>Add a payment method to withdraw funds</Text>
                 <TouchableOpacity
                   style={styles.addMethodButton}
                   onPress={() => setShowAddMethod(true)}
@@ -235,26 +234,30 @@ export default function WithdrawalModal({
                     key={method.id}
                     style={[
                       styles.methodItem,
-                      selectedMethod?.id === method.id && styles.methodItemSelected
+                      selectedMethod?.id === method.id && styles.methodItemSelected,
                     ]}
                     onPress={() => setSelectedMethod(method)}
                   >
                     <View style={styles.methodIcon}>
                       <Ionicons
                         name={
-                          method.type === 'bank_account' ? 'card-outline' :
-                          method.type === 'mobile_money' ? 'phone-portrait-outline' :
-                          'location-outline'
+                          method.type === 'bank_account'
+                            ? 'card-outline'
+                            : method.type === 'mobile_money'
+                              ? 'phone-portrait-outline'
+                              : 'location-outline'
                         }
                         size={20}
-                        color={selectedMethod?.id === method.id ? Colors.primary[500] : Colors.neutral[500]}
+                        color={
+                          selectedMethod?.id === method.id
+                            ? Colors.primary[500]
+                            : Colors.neutral[500]
+                        }
                       />
                     </View>
                     <View style={styles.methodInfo}>
                       <Text style={styles.methodName}>{method.display_name}</Text>
-                      <Text style={styles.methodType}>
-                        {getWithdrawalMethodName(method.type)}
-                      </Text>
+                      <Text style={styles.methodType}>{getWithdrawalMethodName(method.type)}</Text>
                     </View>
                     {method.is_default && (
                       <View style={styles.defaultBadge}>
@@ -284,7 +287,7 @@ export default function WithdrawalModal({
                   <Text style={styles.summaryValue}>{selectedMethod.display_name}</Text>
                 </View>
                 <View style={[styles.summaryRow, styles.summaryTotal]}>
-                  <Text style={styles.summaryTotalLabel}>You'll Receive:</Text>
+                  <Text style={styles.summaryTotalLabel}>You&apos;ll Receive:</Text>
                   <Text style={styles.summaryTotalValue}>{formatCurrency(netAmount)}</Text>
                 </View>
               </View>
@@ -297,10 +300,20 @@ export default function WithdrawalModal({
           <TouchableOpacity
             style={[
               styles.withdrawButton,
-              (!selectedMethod || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) && styles.withdrawButtonDisabled
+              (!selectedMethod ||
+                !amount ||
+                isNaN(parseFloat(amount)) ||
+                parseFloat(amount) <= 0) &&
+                styles.withdrawButtonDisabled,
             ]}
             onPress={handleWithdraw}
-            disabled={!selectedMethod || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0 || loading}
+            disabled={
+              !selectedMethod ||
+              !amount ||
+              isNaN(parseFloat(amount)) ||
+              parseFloat(amount) <= 0 ||
+              loading
+            }
           >
             {loading ? (
               <ActivityIndicator color="#fff" />

@@ -382,7 +382,7 @@ export default function TaskerProfile() {
           <Ionicons name="person-outline" size={48} color={Colors.neutral[400]} />
           <Text style={styles.errorText}>Profile not found</Text>
           <Text style={styles.errorSubtext}>
-            This tasker hasn't completed their profile setup yet.
+            This tasker hasn&apos;t completed their profile setup yet.
           </Text>
         </View>
       )}

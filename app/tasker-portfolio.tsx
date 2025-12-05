@@ -17,7 +17,14 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
-import { PortfolioService, TaskerPortfolio, PortfolioProject, PortfolioSkill, PortfolioCertification, PortfolioTestimonial } from '../services/PortfolioService'
+import {
+  PortfolioService,
+  TaskerPortfolio,
+  PortfolioProject,
+  PortfolioSkill,
+  PortfolioCertification,
+  PortfolioTestimonial,
+} from '../services/PortfolioService'
 import { ImageService } from '../services/ImageService'
 import * as ImagePicker from 'expo-image-picker'
 import Colors from '../constants/Colors'
@@ -26,8 +33,17 @@ const { width } = Dimensions.get('window')
 
 const SKILL_LEVELS = ['beginner', 'intermediate', 'advanced', 'expert'] as const
 const PROJECT_CATEGORIES = [
-  'Web Development', 'Mobile Development', 'Design', 'Photography', 'Writing',
-  'Marketing', 'Consulting', 'Cleaning', 'Handyman', 'Delivery', 'Tutoring'
+  'Web Development',
+  'Mobile Development',
+  'Design',
+  'Photography',
+  'Writing',
+  'Marketing',
+  'Consulting',
+  'Cleaning',
+  'Handyman',
+  'Delivery',
+  'Tutoring',
 ]
 
 interface PortfolioData {
@@ -74,8 +90,10 @@ export default function TaskerPortfolioPage() {
   const insets = useSafeAreaInsets()
   const [loading, setLoading] = useState(false)
   const [portfolio, setPortfolio] = useState<TaskerPortfolio | null>(null)
-  const [activeTab, setActiveTab] = useState<'overview' | 'projects' | 'skills' | 'certifications'>('overview')
-  
+  const [activeTab, setActiveTab] = useState<'overview' | 'projects' | 'skills' | 'certifications'>(
+    'overview',
+  )
+
   // Form states
   const [portfolioData, setPortfolioData] = useState<PortfolioData>({
     portfolio_title: '',
@@ -103,33 +121,34 @@ export default function TaskerPortfolioPage() {
   const [projectData, setProjectData] = useState<FormData>({})
   const [skillData, setSkillData] = useState<FormData>({})
   const [certificationData, setCertificationData] = useState<FormData>({})
-  
+
   // File upload states
   const [certificateImage, setCertificateImage] = useState<string | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
 
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadPortfolio()
+    }
+  }, [isAuthenticated])
 
   if (!isAuthenticated) {
     router.replace('/auth')
     return null
   }
 
-  useEffect(() => {
-    loadPortfolio()
-  }, [])
-
   const loadPortfolio = async () => {
     if (!user?.user_id) {
       console.log('No user ID available')
       return
     }
-    
+
     try {
       setLoading(true)
       console.log('Loading portfolio for user:', user.user_id)
       const portfolioData = await PortfolioService.getTaskerPortfolioByUserId(user.user_id)
       console.log('Portfolio data received:', portfolioData)
-      
+
       if (portfolioData) {
         setPortfolio(portfolioData)
         setPortfolioData({
@@ -311,7 +330,6 @@ export default function TaskerPortfolioPage() {
     }
   }
 
-
   const handleEditItem = (item: any, type: string) => {
     setEditingItem(item)
     switch (type) {
@@ -331,61 +349,62 @@ export default function TaskerPortfolioPage() {
   }
 
   const handleDeleteItem = async (id: string, type: string) => {
-    Alert.alert(
-      'Delete Item',
-      'Are you sure you want to delete this item?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setLoading(true)
-              let success = false
-              
-              switch (type) {
-                case 'project':
-                  success = await PortfolioService.deleteProject(id)
-                  break
-                case 'skill':
-                  success = await PortfolioService.deleteSkill(id)
-                  break
-                case 'certification':
-                  success = await PortfolioService.deleteCertification(id)
-                  break
-              }
+    Alert.alert('Delete Item', 'Are you sure you want to delete this item?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            setLoading(true)
+            let success = false
 
-              if (success) {
-                Alert.alert('Success', 'Item deleted successfully!')
-                loadPortfolio()
-              } else {
-                Alert.alert('Error', 'Failed to delete item')
-              }
-            } catch (error) {
-              console.error('Error deleting item:', error)
-              Alert.alert('Error', 'Failed to delete item')
-            } finally {
-              setLoading(false)
+            switch (type) {
+              case 'project':
+                success = await PortfolioService.deleteProject(id)
+                break
+              case 'skill':
+                success = await PortfolioService.deleteSkill(id)
+                break
+              case 'certification':
+                success = await PortfolioService.deleteCertification(id)
+                break
             }
+
+            if (success) {
+              Alert.alert('Success', 'Item deleted successfully!')
+              loadPortfolio()
+            } else {
+              Alert.alert('Error', 'Failed to delete item')
+            }
+          } catch (error) {
+            console.error('Error deleting item:', error)
+            Alert.alert('Error', 'Failed to delete item')
+          } finally {
+            setLoading(false)
           }
-        }
-      ]
-    )
+        },
+      },
+    ])
   }
 
-
   const renderOverviewTab = () => (
-    <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 48 }}>
+    <ScrollView
+      style={styles.tabContent}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: 48 }}
+    >
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Portfolio Information</Text>
-        
+
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Portfolio Title *</Text>
           <TextInput
             style={styles.input}
             value={portfolioData.portfolio_title}
-            onChangeText={(text) => setPortfolioData((prev: PortfolioData) => ({ ...prev, portfolio_title: text }))}
+            onChangeText={(text) =>
+              setPortfolioData((prev: PortfolioData) => ({ ...prev, portfolio_title: text }))
+            }
             placeholder="e.g., Professional Web Developer"
           />
         </View>
@@ -395,7 +414,9 @@ export default function TaskerPortfolioPage() {
           <TextInput
             style={[styles.input, styles.textArea]}
             value={portfolioData.portfolio_description}
-            onChangeText={(text) => setPortfolioData((prev: PortfolioData) => ({ ...prev, portfolio_description: text }))}
+            onChangeText={(text) =>
+              setPortfolioData((prev: PortfolioData) => ({ ...prev, portfolio_description: text }))
+            }
             placeholder="Tell potential clients about your expertise and what makes you unique..."
             multiline
             numberOfLines={4}
@@ -407,7 +428,9 @@ export default function TaskerPortfolioPage() {
           <TextInput
             style={styles.input}
             value={portfolioData.portfolio_website}
-            onChangeText={(text) => setPortfolioData((prev: PortfolioData) => ({ ...prev, portfolio_website: text }))}
+            onChangeText={(text) =>
+              setPortfolioData((prev: PortfolioData) => ({ ...prev, portfolio_website: text }))
+            }
             placeholder="https://yourwebsite.com"
             keyboardType="url"
           />
@@ -416,13 +439,15 @@ export default function TaskerPortfolioPage() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Social Media & Links</Text>
-        
+
         <View style={styles.inputGroup}>
           <Text style={styles.label}>LinkedIn</Text>
           <TextInput
             style={styles.input}
             value={portfolioData.portfolio_linkedin}
-            onChangeText={(text) => setPortfolioData((prev: PortfolioData) => ({ ...prev, portfolio_linkedin: text }))}
+            onChangeText={(text) =>
+              setPortfolioData((prev: PortfolioData) => ({ ...prev, portfolio_linkedin: text }))
+            }
             placeholder="https://linkedin.com/in/yourprofile"
             keyboardType="url"
           />
@@ -433,7 +458,9 @@ export default function TaskerPortfolioPage() {
           <TextInput
             style={styles.input}
             value={portfolioData.portfolio_github}
-            onChangeText={(text) => setPortfolioData((prev: PortfolioData) => ({ ...prev, portfolio_github: text }))}
+            onChangeText={(text) =>
+              setPortfolioData((prev: PortfolioData) => ({ ...prev, portfolio_github: text }))
+            }
             placeholder="https://github.com/yourusername"
             keyboardType="url"
           />
@@ -444,7 +471,9 @@ export default function TaskerPortfolioPage() {
           <TextInput
             style={styles.input}
             value={portfolioData.portfolio_instagram}
-            onChangeText={(text) => setPortfolioData((prev: PortfolioData) => ({ ...prev, portfolio_instagram: text }))}
+            onChangeText={(text) =>
+              setPortfolioData((prev: PortfolioData) => ({ ...prev, portfolio_instagram: text }))
+            }
             placeholder="https://instagram.com/yourusername"
             keyboardType="url"
           />
@@ -455,7 +484,9 @@ export default function TaskerPortfolioPage() {
           <TextInput
             style={styles.input}
             value={portfolioData.portfolio_youtube}
-            onChangeText={(text) => setPortfolioData((prev: PortfolioData) => ({ ...prev, portfolio_youtube: text }))}
+            onChangeText={(text) =>
+              setPortfolioData((prev: PortfolioData) => ({ ...prev, portfolio_youtube: text }))
+            }
             placeholder="https://youtube.com/yourchannel"
             keyboardType="url"
           />
@@ -467,9 +498,7 @@ export default function TaskerPortfolioPage() {
         onPress={handleSavePortfolio}
         disabled={loading}
       >
-        <Text style={styles.saveButtonText}>
-          {loading ? 'Saving...' : 'Save Portfolio'}
-        </Text>
+        <Text style={styles.saveButtonText}>{loading ? 'Saving...' : 'Save Portfolio'}</Text>
       </TouchableOpacity>
     </ScrollView>
   )
@@ -514,12 +543,8 @@ export default function TaskerPortfolioPage() {
                   </TouchableOpacity>
                 </View>
               </View>
-              {item.description && (
-                <Text style={styles.itemDescription}>{item.description}</Text>
-              )}
-              {item.category && (
-                <Text style={styles.itemCategory}>{item.category}</Text>
-              )}
+              {item.description && <Text style={styles.itemDescription}>{item.description}</Text>}
+              {item.category && <Text style={styles.itemCategory}>{item.category}</Text>}
             </View>
           )}
         />
@@ -634,13 +659,15 @@ export default function TaskerPortfolioPage() {
               </View>
               <Text style={styles.itemDescription}>{item.issuing_organization}</Text>
               {item.issue_date && (
-                <Text style={styles.itemDate}>Issued: {new Date(item.issue_date).toLocaleDateString()}</Text>
+                <Text style={styles.itemDate}>
+                  Issued: {new Date(item.issue_date).toLocaleDateString()}
+                </Text>
               )}
               {item.certificate_image_url && (
                 <View style={styles.certificateImageContainer}>
-                  <Image 
-                    source={{ uri: item.certificate_image_url }} 
-                    style={styles.certificateImage} 
+                  <Image
+                    source={{ uri: item.certificate_image_url }}
+                    style={styles.certificateImage}
                   />
                 </View>
               )}
@@ -657,7 +684,6 @@ export default function TaskerPortfolioPage() {
     </View>
   )
 
-
   const renderProjectModal = () => (
     <Modal
       visible={showProjectModal}
@@ -671,14 +697,12 @@ export default function TaskerPortfolioPage() {
             <Text style={styles.cancelButton}>Cancel</Text>
           </TouchableOpacity>
           <Text style={styles.modalTitle}>Add Project</Text>
-          <TouchableOpacity 
-            style={[styles.modalSaveButton, loading && styles.modalSaveButtonDisabled]} 
-            onPress={handleAddProject} 
+          <TouchableOpacity
+            style={[styles.modalSaveButton, loading && styles.modalSaveButtonDisabled]}
+            onPress={handleAddProject}
             disabled={loading}
           >
-            <Text style={styles.modalSaveButtonText}>
-              {loading ? 'Saving...' : 'Save'}
-            </Text>
+            <Text style={styles.modalSaveButtonText}>{loading ? 'Saving...' : 'Save'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -688,7 +712,9 @@ export default function TaskerPortfolioPage() {
             <TextInput
               style={styles.input}
               value={projectData.title || ''}
-              onChangeText={(text) => setProjectData((prev: FormData) => ({ ...prev, title: text }))}
+              onChangeText={(text) =>
+                setProjectData((prev: FormData) => ({ ...prev, title: text }))
+              }
               placeholder="Enter project title"
             />
           </View>
@@ -698,7 +724,9 @@ export default function TaskerPortfolioPage() {
             <TextInput
               style={[styles.input, styles.textArea]}
               value={projectData.description || ''}
-              onChangeText={(text) => setProjectData((prev: FormData) => ({ ...prev, description: text }))}
+              onChangeText={(text) =>
+                setProjectData((prev: FormData) => ({ ...prev, description: text }))
+              }
               placeholder="Describe your project..."
               multiline
               numberOfLines={4}
@@ -710,7 +738,9 @@ export default function TaskerPortfolioPage() {
             <TextInput
               style={styles.input}
               value={projectData.category || ''}
-              onChangeText={(text) => setProjectData((prev: FormData) => ({ ...prev, category: text }))}
+              onChangeText={(text) =>
+                setProjectData((prev: FormData) => ({ ...prev, category: text }))
+              }
               placeholder="e.g., Web Development"
             />
           </View>
@@ -720,7 +750,9 @@ export default function TaskerPortfolioPage() {
             <TextInput
               style={styles.input}
               value={projectData.project_url || ''}
-              onChangeText={(text) => setProjectData((prev: FormData) => ({ ...prev, project_url: text }))}
+              onChangeText={(text) =>
+                setProjectData((prev: FormData) => ({ ...prev, project_url: text }))
+              }
               placeholder="https://yourproject.com"
               keyboardType="url"
             />
@@ -731,7 +763,9 @@ export default function TaskerPortfolioPage() {
             <TextInput
               style={styles.input}
               value={projectData.github_url || ''}
-              onChangeText={(text) => setProjectData((prev: FormData) => ({ ...prev, github_url: text }))}
+              onChangeText={(text) =>
+                setProjectData((prev: FormData) => ({ ...prev, github_url: text }))
+              }
               placeholder="https://github.com/username/project"
               keyboardType="url"
             />
@@ -742,7 +776,9 @@ export default function TaskerPortfolioPage() {
             <TextInput
               style={styles.input}
               value={projectData.client_name || ''}
-              onChangeText={(text) => setProjectData((prev: FormData) => ({ ...prev, client_name: text }))}
+              onChangeText={(text) =>
+                setProjectData((prev: FormData) => ({ ...prev, client_name: text }))
+              }
               placeholder="Client or company name"
             />
           </View>
@@ -764,14 +800,12 @@ export default function TaskerPortfolioPage() {
             <Text style={styles.cancelButton}>Cancel</Text>
           </TouchableOpacity>
           <Text style={styles.modalTitle}>Add Skill</Text>
-          <TouchableOpacity 
-            style={[styles.modalSaveButton, loading && styles.modalSaveButtonDisabled]} 
-            onPress={handleAddSkill} 
+          <TouchableOpacity
+            style={[styles.modalSaveButton, loading && styles.modalSaveButtonDisabled]}
+            onPress={handleAddSkill}
             disabled={loading}
           >
-            <Text style={styles.modalSaveButtonText}>
-              {loading ? 'Saving...' : 'Save'}
-            </Text>
+            <Text style={styles.modalSaveButtonText}>{loading ? 'Saving...' : 'Save'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -781,7 +815,9 @@ export default function TaskerPortfolioPage() {
             <TextInput
               style={styles.input}
               value={skillData.skill_name || ''}
-              onChangeText={(text) => setSkillData((prev: FormData) => ({ ...prev, skill_name: text }))}
+              onChangeText={(text) =>
+                setSkillData((prev: FormData) => ({ ...prev, skill_name: text }))
+              }
               placeholder="e.g., React Development"
             />
           </View>
@@ -794,14 +830,18 @@ export default function TaskerPortfolioPage() {
                   key={level}
                   style={[
                     styles.levelButton,
-                    skillData.skill_level === level && styles.levelButtonSelected
+                    skillData.skill_level === level && styles.levelButtonSelected,
                   ]}
-                  onPress={() => setSkillData((prev: FormData) => ({ ...prev, skill_level: level }))}
+                  onPress={() =>
+                    setSkillData((prev: FormData) => ({ ...prev, skill_level: level }))
+                  }
                 >
-                  <Text style={[
-                    styles.levelButtonText,
-                    skillData.skill_level === level && styles.levelButtonTextSelected
-                  ]}>
+                  <Text
+                    style={[
+                      styles.levelButtonText,
+                      skillData.skill_level === level && styles.levelButtonTextSelected,
+                    ]}
+                  >
                     {level.charAt(0).toUpperCase() + level.slice(1)}
                   </Text>
                 </TouchableOpacity>
@@ -814,7 +854,12 @@ export default function TaskerPortfolioPage() {
             <TextInput
               style={styles.input}
               value={skillData.years_experience?.toString() || ''}
-              onChangeText={(text) => setSkillData((prev: FormData) => ({ ...prev, years_experience: parseInt(text) || 0 }))}
+              onChangeText={(text) =>
+                setSkillData((prev: FormData) => ({
+                  ...prev,
+                  years_experience: parseInt(text) || 0,
+                }))
+              }
               placeholder="0"
               keyboardType="numeric"
             />
@@ -825,7 +870,9 @@ export default function TaskerPortfolioPage() {
             <TextInput
               style={[styles.input, styles.textArea]}
               value={skillData.skill_description || ''}
-              onChangeText={(text) => setSkillData((prev: FormData) => ({ ...prev, skill_description: text }))}
+              onChangeText={(text) =>
+                setSkillData((prev: FormData) => ({ ...prev, skill_description: text }))
+              }
               placeholder="Describe your expertise in this skill..."
               multiline
               numberOfLines={3}
@@ -849,14 +896,12 @@ export default function TaskerPortfolioPage() {
             <Text style={styles.cancelButton}>Cancel</Text>
           </TouchableOpacity>
           <Text style={styles.modalTitle}>Add Certification</Text>
-          <TouchableOpacity 
-            style={[styles.modalSaveButton, loading && styles.modalSaveButtonDisabled]} 
-            onPress={handleAddCertification} 
+          <TouchableOpacity
+            style={[styles.modalSaveButton, loading && styles.modalSaveButtonDisabled]}
+            onPress={handleAddCertification}
             disabled={loading}
           >
-            <Text style={styles.modalSaveButtonText}>
-              {loading ? 'Saving...' : 'Save'}
-            </Text>
+            <Text style={styles.modalSaveButtonText}>{loading ? 'Saving...' : 'Save'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -866,7 +911,9 @@ export default function TaskerPortfolioPage() {
             <TextInput
               style={styles.input}
               value={certificationData.certification_name || ''}
-              onChangeText={(text) => setCertificationData((prev: FormData) => ({ ...prev, certification_name: text }))}
+              onChangeText={(text) =>
+                setCertificationData((prev: FormData) => ({ ...prev, certification_name: text }))
+              }
               placeholder="e.g., AWS Certified Solutions Architect"
             />
           </View>
@@ -876,7 +923,9 @@ export default function TaskerPortfolioPage() {
             <TextInput
               style={styles.input}
               value={certificationData.issuing_organization || ''}
-              onChangeText={(text) => setCertificationData((prev: FormData) => ({ ...prev, issuing_organization: text }))}
+              onChangeText={(text) =>
+                setCertificationData((prev: FormData) => ({ ...prev, issuing_organization: text }))
+              }
               placeholder="e.g., Amazon Web Services"
             />
           </View>
@@ -886,7 +935,9 @@ export default function TaskerPortfolioPage() {
             <TextInput
               style={styles.input}
               value={certificationData.certification_number || ''}
-              onChangeText={(text) => setCertificationData((prev: FormData) => ({ ...prev, certification_number: text }))}
+              onChangeText={(text) =>
+                setCertificationData((prev: FormData) => ({ ...prev, certification_number: text }))
+              }
               placeholder="Enter certification number"
             />
           </View>
@@ -896,7 +947,9 @@ export default function TaskerPortfolioPage() {
             <TextInput
               style={styles.input}
               value={certificationData.issue_date || ''}
-              onChangeText={(text) => setCertificationData((prev: FormData) => ({ ...prev, issue_date: text }))}
+              onChangeText={(text) =>
+                setCertificationData((prev: FormData) => ({ ...prev, issue_date: text }))
+              }
               placeholder="YYYY-MM-DD"
             />
           </View>
@@ -906,7 +959,9 @@ export default function TaskerPortfolioPage() {
             <TextInput
               style={styles.input}
               value={certificationData.credential_url || ''}
-              onChangeText={(text) => setCertificationData((prev: FormData) => ({ ...prev, credential_url: text }))}
+              onChangeText={(text) =>
+                setCertificationData((prev: FormData) => ({ ...prev, credential_url: text }))
+              }
               placeholder="https://credential.url"
               keyboardType="url"
             />
@@ -931,10 +986,10 @@ export default function TaskerPortfolioPage() {
                 </View>
               ) : (
                 <View style={styles.uploadPlaceholder}>
-                  <Ionicons 
-                    name={uploadingImage ? "hourglass" : "cloud-upload"} 
-                    size={32} 
-                    color={uploadingImage ? Colors.warning[500] : Colors.primary[500]} 
+                  <Ionicons
+                    name={uploadingImage ? 'hourglass' : 'cloud-upload'}
+                    size={32}
+                    color={uploadingImage ? Colors.warning[500] : Colors.primary[500]}
                   />
                   <Text style={styles.uploadText}>
                     {uploadingImage ? 'Uploading...' : 'Upload Certificate Image'}
@@ -947,9 +1002,12 @@ export default function TaskerPortfolioPage() {
 
           {/* Bottom Save Button */}
           <View style={styles.modalBottomActions}>
-            <TouchableOpacity 
-              style={[styles.modalBottomSaveButton, loading && styles.modalBottomSaveButtonDisabled]} 
-              onPress={handleAddCertification} 
+            <TouchableOpacity
+              style={[
+                styles.modalBottomSaveButton,
+                loading && styles.modalBottomSaveButtonDisabled,
+              ]}
+              onPress={handleAddCertification}
               disabled={loading}
             >
               <Text style={styles.modalBottomSaveButtonText}>
@@ -961,7 +1019,6 @@ export default function TaskerPortfolioPage() {
       </SafeAreaView>
     </Modal>
   )
-
 
   if (loading && !portfolio) {
     return (
@@ -1010,7 +1067,7 @@ export default function TaskerPortfolioPage() {
         <TouchableOpacity onPress={() => router.push('/profile')} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.neutral[700]} />
         </TouchableOpacity>
-          <Text style={styles.headerTitle}>My Portfolio</Text>
+        <Text style={styles.headerTitle}>My Portfolio</Text>
         <TouchableOpacity onPress={handleSavePortfolio} style={styles.headerSaveButton}>
           <Ionicons name="checkmark" size={20} color="#fff" />
         </TouchableOpacity>
@@ -1018,8 +1075,8 @@ export default function TaskerPortfolioPage() {
 
       {/* Compact Tab Navigation */}
       <View style={styles.tabContainer}>
-        <ScrollView 
-          horizontal 
+        <ScrollView
+          horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tabScrollContent}
         >
@@ -1029,15 +1086,18 @@ export default function TaskerPortfolioPage() {
               style={[styles.tab, activeTab === tab && styles.activeTab]}
               onPress={() => setActiveTab(tab)}
             >
-              <Ionicons 
-              name={
-                tab === 'overview' ? 'person' :
-                tab === 'projects' ? 'briefcase' :
-                tab === 'skills' ? 'star' :
-                'ribbon'
-              }
-                size={14} 
-                color={activeTab === tab ? '#fff' : Colors.neutral[600]} 
+              <Ionicons
+                name={
+                  tab === 'overview'
+                    ? 'person'
+                    : tab === 'projects'
+                      ? 'briefcase'
+                      : tab === 'skills'
+                        ? 'star'
+                        : 'ribbon'
+                }
+                size={14}
+                color={activeTab === tab ? '#fff' : Colors.neutral[600]}
               />
               <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
                 {tab.charAt(0).toUpperCase() + tab.slice(1)}

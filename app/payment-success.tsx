@@ -1,12 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert,
-} from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native'
 import { useLocalSearchParams, router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { PaymentService } from '../services/PaymentService'
@@ -37,10 +30,10 @@ export default function PaymentSuccessScreen() {
     try {
       setLoading(true)
       const status = await PaymentService.verifyChapaPayment(tx_ref)
-      
+
       if (status) {
         setPaymentStatus(status)
-        
+
         if (status.status === 'completed') {
           // Process the payment
           await PaymentService.processChapaPayment(tx_ref)
@@ -127,10 +120,10 @@ export default function PaymentSuccessScreen() {
       <View style={styles.content}>
         {/* Status Icon */}
         <View style={styles.iconContainer}>
-          <Ionicons 
-            name={getStatusIcon(paymentStatus?.status || 'unknown')} 
-            size={80} 
-            color={getStatusColor(paymentStatus?.status || 'unknown')} 
+          <Ionicons
+            name={getStatusIcon(paymentStatus?.status || 'unknown')}
+            size={80}
+            color={getStatusColor(paymentStatus?.status || 'unknown')}
           />
         </View>
 
@@ -143,20 +136,15 @@ export default function PaymentSuccessScreen() {
         {paymentStatus && (
           <View style={styles.detailsCard}>
             <Text style={styles.detailsTitle}>Payment Details</Text>
-            
+
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Amount:</Text>
-              <Text style={styles.detailValue}>
-                {formatCurrency(paymentStatus.amount)}
-              </Text>
+              <Text style={styles.detailValue}>{formatCurrency(paymentStatus.amount)}</Text>
             </View>
 
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Status:</Text>
-              <Text style={[
-                styles.detailValue,
-                { color: getStatusColor(paymentStatus.status) }
-              ]}>
+              <Text style={[styles.detailValue, { color: getStatusColor(paymentStatus.status) }]}>
                 {paymentStatus.status.charAt(0).toUpperCase() + paymentStatus.status.slice(1)}
               </Text>
             </View>
@@ -170,7 +158,7 @@ export default function PaymentSuccessScreen() {
               <>
                 <View style={styles.divider} />
                 <Text style={styles.breakdownTitle}>Payment Breakdown</Text>
-                
+
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Subtotal:</Text>
                   <Text style={styles.detailValue}>
@@ -211,9 +199,10 @@ export default function PaymentSuccessScreen() {
                 <Ionicons name="checkmark" size={20} color="#fff" />
                 <Text style={styles.primaryButtonText}>Continue</Text>
               </TouchableOpacity>
-              
+
               <Text style={styles.successMessage}>
-                Your payment has been processed successfully. The tasker will receive their payment shortly.
+                Your payment has been processed successfully. The tasker will receive their payment
+                shortly.
               </Text>
             </>
           ) : paymentStatus?.status === 'failed' ? (
@@ -222,7 +211,7 @@ export default function PaymentSuccessScreen() {
                 <Ionicons name="refresh" size={20} color="#fff" />
                 <Text style={styles.primaryButtonText}>Try Again</Text>
               </TouchableOpacity>
-              
+
               <Text style={styles.errorMessage}>
                 Your payment could not be processed. Please try again or contact support.
               </Text>
@@ -233,9 +222,9 @@ export default function PaymentSuccessScreen() {
                 <Ionicons name="arrow-back" size={20} color="#fff" />
                 <Text style={styles.primaryButtonText}>Go Back</Text>
               </TouchableOpacity>
-              
+
               <Text style={styles.pendingMessage}>
-                Your payment is being processed. You will be notified once it's completed.
+                Your payment is being processed. You will be notified once it&apos;s completed.
               </Text>
             </>
           )}

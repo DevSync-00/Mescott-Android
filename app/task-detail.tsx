@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  ScrollView, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
   Alert,
   Dimensions,
   Image,
@@ -30,7 +30,7 @@ export default function TaskDetail() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { taskId } = useLocalSearchParams()
-  
+
   const [task, setTask] = useState<Task | null>(null)
   const [loading, setLoading] = useState(true)
   const [hasApplied, setHasApplied] = useState(false)
@@ -48,7 +48,7 @@ export default function TaskDetail() {
         loadTaskDetails()
         loadPendingPayments()
       }
-    }, [isAuthenticated, taskId])
+    }, [isAuthenticated, taskId]),
   )
 
   useEffect(() => {
@@ -56,7 +56,7 @@ export default function TaskDetail() {
       router.replace('/auth')
       return
     }
-    
+
     if (isAuthenticated && taskId) {
       loadTaskDetails()
       loadPendingPayments()
@@ -65,14 +65,17 @@ export default function TaskDetail() {
 
   const loadTaskDetails = async () => {
     if (!taskId || !user) return
-    
+
     setLoading(true)
     try {
       const taskDetails = await TaskService.getTaskById(taskId as string)
       setTask(taskDetails)
 
       if (user.role === 'tasker' || user.role === 'both') {
-        const applied = await TaskApplicationService.hasUserAppliedToTask(user.user_id, taskId as string)
+        const applied = await TaskApplicationService.hasUserAppliedToTask(
+          user.user_id,
+          taskId as string,
+        )
         setHasApplied(applied)
       }
     } catch (error) {
@@ -95,14 +98,14 @@ export default function TaskDetail() {
   }
 
   const hasPendingPayment = (task: Task) => {
-    return pendingPayments.some(p => p.task_id === task.id)
+    return pendingPayments.some((p) => p.task_id === task.id)
   }
 
   const handlePayNow = async (task: Task) => {
     if (!user || !task.id) return
 
-    const pendingPayment = pendingPayments.find(p => p.task_id === task.id)
-    
+    const pendingPayment = pendingPayments.find((p) => p.task_id === task.id)
+
     if (!pendingPayment) {
       Alert.alert('Error', 'No pending payment found for this task')
       return
@@ -121,13 +124,13 @@ export default function TaskDetail() {
 
   const handleEditTask = () => {
     if (!task || !user) return
-    
+
     router.push({
       pathname: '/post-task',
-      params: { 
+      params: {
         taskId: task.id,
-        editMode: 'true'
-      }
+        editMode: 'true',
+      },
     })
   }
 
@@ -150,15 +153,18 @@ export default function TaskDetail() {
             } catch (error: any) {
               try {
                 await TaskService.updateTask(task.id, user.id, { status: 'cancelled' } as any)
-                Alert.alert('Task Cancelled', 'The task could not be deleted, so it was cancelled instead.')
+                Alert.alert(
+                  'Task Cancelled',
+                  'The task could not be deleted, so it was cancelled instead.',
+                )
                 router.push('/jobs')
               } catch (e: any) {
                 Alert.alert('Error', e?.message || 'Failed to delete or cancel task')
               }
             }
-          }
-        }
-      ]
+          },
+        },
+      ],
     )
   }
 
@@ -170,7 +176,7 @@ export default function TaskDetail() {
         handlePayNow(task)
         return
       }
-      
+
       router.push(`/task-applications?taskId=${task.id}`)
       return
     }
@@ -181,11 +187,11 @@ export default function TaskDetail() {
         'You need to become a tasker to apply for tasks. Would you like to apply now?',
         [
           { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Apply Now', 
-            onPress: () => router.push('/tasker-application')
-          }
-        ]
+          {
+            text: 'Apply Now',
+            onPress: () => router.push('/tasker-application'),
+          },
+        ],
       )
       return
     }
@@ -197,12 +203,12 @@ export default function TaskDetail() {
 
     router.push({
       pathname: '/apply-task',
-      params: { 
+      params: {
         taskId: task.id,
         taskTitle: task.title,
         customerName: task.customer_name,
-        budget: task.budget.toString()
-      }
+        budget: task.budget.toString(),
+      },
     })
   }
 
@@ -210,7 +216,7 @@ export default function TaskDetail() {
     const date = new Date(dateString)
     const now = new Date()
     const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60))
-    
+
     if (diffInHours < 1) return 'Just now'
     if (diffInHours < 24) return `${diffInHours}h ago`
     if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}d ago`
@@ -219,23 +225,35 @@ export default function TaskDetail() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'open': return Colors.success[500]
-      case 'assigned': return Colors.primary[500]
-      case 'in_progress': return Colors.warning[500]
-      case 'completed': return Colors.success[600]
-      case 'cancelled': return Colors.error[500]
-      default: return Colors.neutral[500]
+      case 'open':
+        return Colors.success[500]
+      case 'assigned':
+        return Colors.primary[500]
+      case 'in_progress':
+        return Colors.warning[500]
+      case 'completed':
+        return Colors.success[600]
+      case 'cancelled':
+        return Colors.error[500]
+      default:
+        return Colors.neutral[500]
     }
   }
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'open': return 'Open'
-      case 'assigned': return 'Assigned'
-      case 'in_progress': return 'In Progress'
-      case 'completed': return 'Completed'
-      case 'cancelled': return 'Cancelled'
-      default: return 'Unknown'
+      case 'open':
+        return 'Open'
+      case 'assigned':
+        return 'Assigned'
+      case 'in_progress':
+        return 'In Progress'
+      case 'completed':
+        return 'Completed'
+      case 'cancelled':
+        return 'Cancelled'
+      default:
+        return 'Unknown'
     }
   }
 
@@ -292,7 +310,9 @@ export default function TaskDetail() {
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle-outline" size={64} color={Colors.error[500]} />
           <Text style={styles.errorTitle}>Task Not Found</Text>
-          <Text style={styles.errorSubtitle}>This task may have been removed or doesn't exist.</Text>
+          <Text style={styles.errorSubtitle}>
+            This task may have been removed or doesn&apos;t exist.
+          </Text>
         </View>
       </SafeAreaView>
     )
@@ -303,7 +323,7 @@ export default function TaskDetail() {
   return (
     <SafeAreaView style={styles.container} edges={[]}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
-      
+
       {/* Fixed Header */}
       <View style={[styles.header, { paddingTop: 8 + insets.top }]}>
         <LinearGradient colors={['#f8f9fc', '#ffffff']} style={StyleSheet.absoluteFill} />
@@ -314,7 +334,7 @@ export default function TaskDetail() {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.content}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -332,8 +352,8 @@ export default function TaskDetail() {
                 const index = Math.round(e.nativeEvent.contentOffset.x / width)
                 setActiveImageIndex(index)
               }}
-        scrollEventThrottle={16}
-      >
+              scrollEventThrottle={16}
+            >
               {images.map((uri, index) => (
                 <TouchableOpacity
                   key={index}
@@ -348,15 +368,12 @@ export default function TaskDetail() {
                 </TouchableOpacity>
               ))}
             </ScrollView>
-            
+
             {/* Image Dots */}
             {images.length > 1 && (
               <View style={styles.dotsContainer}>
                 {images.map((_, i) => (
-                  <View
-                    key={i}
-                    style={[styles.dot, i === activeImageIndex && styles.dotActive]}
-                  />
+                  <View key={i} style={[styles.dot, i === activeImageIndex && styles.dotActive]} />
                 ))}
               </View>
             )}
@@ -367,26 +384,28 @@ export default function TaskDetail() {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.titleRow}>
-            <Text style={styles.taskTitle}>{task.title}</Text>
-            {task.is_urgent && (
-              <View style={styles.urgentBadge}>
+              <Text style={styles.taskTitle}>{task.title}</Text>
+              {task.is_urgent && (
+                <View style={styles.urgentBadge}>
                   <Ionicons name="flash" size={12} color="#fff" />
-                <Text style={styles.urgentText}>URGENT</Text>
-              </View>
-            )}
-          </View>
-            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(task.status) + '20' }]}>
+                  <Text style={styles.urgentText}>URGENT</Text>
+                </View>
+              )}
+            </View>
+            <View
+              style={[styles.statusBadge, { backgroundColor: getStatusColor(task.status) + '20' }]}
+            >
               <Text style={[styles.statusText, { color: getStatusColor(task.status) }]}>
                 {getStatusLabel(task.status)}
               </Text>
             </View>
-        </View>
+          </View>
 
           <View style={styles.priceRow}>
             <View style={styles.priceContainer}>
               <Text style={styles.priceLabel}>Budget</Text>
               <Text style={styles.price}>{task.budget} ETB</Text>
-          </View>
+            </View>
             <View style={styles.categoryContainer}>
               <Ionicons name="folder-outline" size={16} color={Colors.primary[500]} />
               <Text style={styles.categoryText}>{task.category_name}</Text>
@@ -409,12 +428,12 @@ export default function TaskDetail() {
             <Ionicons name="information-circle-outline" size={20} color={Colors.primary[500]} />
             <Text style={styles.cardTitle}>Task Details</Text>
           </View>
-          
+
           <View style={styles.detailsList}>
             <View style={styles.detailItem}>
               <View style={styles.detailIconContainer}>
                 <Ionicons name="location" size={18} color={Colors.primary[500]} />
-            </View>
+              </View>
               <View style={styles.detailContent}>
                 <Text style={styles.detailLabel}>Location</Text>
                 <Text style={styles.detailValue}>{task.address || task.city}</Text>
@@ -433,9 +452,9 @@ export default function TaskDetail() {
                       weekday: 'short',
                       month: 'short',
                       day: 'numeric',
-                      year: 'numeric'
-                  })}
-                </Text>
+                      year: 'numeric',
+                    })}
+                  </Text>
                 </View>
               </View>
             )}
@@ -454,32 +473,32 @@ export default function TaskDetail() {
                       const displayHours = hours % 12 || 12
                       return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`
                     })()}
-                </Text>
-              </View>
+                  </Text>
+                </View>
               </View>
             )}
 
             <View style={styles.detailItem}>
               <View style={styles.detailIconContainer}>
                 <Ionicons name="person" size={18} color={Colors.primary[500]} />
-            </View>
+              </View>
               <View style={styles.detailContent}>
                 <Text style={styles.detailLabel}>Posted by</Text>
                 <Text style={styles.detailValue}>{task.customer_name}</Text>
-            </View>
+              </View>
             </View>
 
             <View style={styles.detailItem}>
               <View style={styles.detailIconContainer}>
                 <Ionicons name="time-outline" size={18} color={Colors.neutral[400]} />
-            </View>
+              </View>
               <View style={styles.detailContent}>
                 <Text style={styles.detailLabel}>Posted</Text>
                 <Text style={styles.detailValue}>{formatTime(task.created_at)}</Text>
-          </View>
-        </View>
               </View>
             </View>
+          </View>
+        </View>
 
         {/* Customer Rating Card */}
         <View style={styles.card}>
@@ -492,7 +511,7 @@ export default function TaskDetail() {
               {[1, 2, 3, 4, 5].map((star) => (
                 <Ionicons
                   key={star}
-                  name={star <= (task.customer_rating || 5) ? "star" : "star-outline"}
+                  name={star <= (task.customer_rating || 5) ? 'star' : 'star-outline'}
                   size={24}
                   color={Colors.warning[500]}
                 />
@@ -504,45 +523,56 @@ export default function TaskDetail() {
 
         {/* Action Buttons */}
         <View style={styles.actionsContainer}>
-        {task.customer_id === user?.id && (task.status === 'open' || task.status === 'draft') && (
+          {task.customer_id === user?.id && (task.status === 'open' || task.status === 'draft') && (
             <View style={styles.ownerActions}>
               <TouchableOpacity style={styles.secondaryButton} onPress={handleEditTask}>
                 <Ionicons name="pencil" size={20} color={Colors.primary[500]} />
                 <Text style={styles.secondaryButtonText}>Edit Task</Text>
-            </TouchableOpacity>
+              </TouchableOpacity>
               <TouchableOpacity style={styles.dangerButton} onPress={handleDeleteTask}>
                 <Ionicons name="trash-outline" size={20} color={Colors.error[500]} />
                 <Text style={styles.dangerButtonText}>Delete</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+              </TouchableOpacity>
+            </View>
+          )}
 
-        <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.primaryButton, hasApplied && styles.appliedButton]}
-          onPress={handleApply}
+            onPress={handleApply}
           >
             <LinearGradient
-              colors={hasApplied ? [Colors.neutral[300], Colors.neutral[300]] : [Colors.primary[500], Colors.primary[600]]}
+              colors={
+                hasApplied
+                  ? [Colors.neutral[300], Colors.neutral[300]]
+                  : [Colors.primary[500], Colors.primary[600]]
+              }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.primaryButtonGradient}
             >
-              <Ionicons 
-                name={task.customer_id === user?.id ? "people" : (hasApplied ? "checkmark-circle" : "briefcase")} 
-                size={22} 
-                color="#fff" 
+              <Ionicons
+                name={
+                  task.customer_id === user?.id
+                    ? 'people'
+                    : hasApplied
+                      ? 'checkmark-circle'
+                      : 'briefcase'
+                }
+                size={22}
+                color="#fff"
               />
               <Text style={styles.primaryButtonText}>
-              {task.customer_id === user?.id 
-                ? (task.status === 'completed' && hasPendingPayment(task) 
-                    ? 'Pay Now' 
-                    : 'View Applications')
-                : (hasApplied ? 'Already Applied' : 'Apply Now')
-              }
-            </Text>
+                {task.customer_id === user?.id
+                  ? task.status === 'completed' && hasPendingPayment(task)
+                    ? 'Pay Now'
+                    : 'View Applications'
+                  : hasApplied
+                    ? 'Already Applied'
+                    : 'Apply Now'}
+              </Text>
             </LinearGradient>
-        </TouchableOpacity>
-      </View>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
       {/* Image Viewer Modal */}
@@ -554,9 +584,12 @@ export default function TaskDetail() {
       >
         <View style={styles.modalContainer}>
           <StatusBar backgroundColor="rgba(0,0,0,0.95)" barStyle="light-content" />
-          
+
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setImageModalVisible(false)} style={styles.modalCloseButton}>
+            <TouchableOpacity
+              onPress={() => setImageModalVisible(false)}
+              style={styles.modalCloseButton}
+            >
               <Ionicons name="close" size={28} color="#fff" />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>
@@ -575,7 +608,7 @@ export default function TaskDetail() {
             {images.map((uri, i) => (
               <View key={i} style={styles.modalImageContainer}>
                 <Image source={{ uri }} style={styles.modalImage} resizeMode="contain" />
-            </View>
+              </View>
             ))}
           </ScrollView>
         </View>
@@ -594,7 +627,7 @@ export default function TaskDetail() {
           email: user?.profile?.email || 'customer@mescott.com',
           firstName: user?.name?.split(' ')[0] || 'Customer',
           lastName: user?.name?.split(' ').slice(1).join(' ') || 'User',
-          phone: user?.phone || '+251911234567'
+          phone: user?.phone || '+251911234567',
         }}
       />
     </SafeAreaView>

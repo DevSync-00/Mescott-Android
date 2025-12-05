@@ -30,12 +30,12 @@ interface ChapaPaymentModalProps {
   }
 }
 
-function ChapaPaymentModal({ 
-  visible, 
-  onClose, 
-  payment, 
+function ChapaPaymentModal({
+  visible,
+  onClose,
+  payment,
   onPaymentSuccess,
-  customerInfo 
+  customerInfo,
 }: ChapaPaymentModalProps) {
   const bottomSheetRef = useRef<BottomSheetRef>(null)
   const [loading, setLoading] = useState(false)
@@ -59,7 +59,7 @@ function ChapaPaymentModal({
       const result = await PaymentService.initializeChapaPayment(
         payment.task_id!,
         payment.user_id,
-        customerInfo
+        customerInfo,
       )
 
       if (result) {
@@ -71,21 +71,24 @@ function ChapaPaymentModal({
       }
     } catch (error) {
       console.error('Error initializing payment:', error)
-      
+
       // Show more specific error message
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      
+
       if (errorMessage.includes('credentials not configured')) {
         Alert.alert(
           'Configuration Required',
           'Chapa payment gateway is not configured. Please contact support or check the setup guide.',
           [
             { text: 'OK', style: 'default' },
-            { text: 'Setup Guide', onPress: () => {
-              // You could open a help screen here
-              console.log('Open setup guide')
-            }}
-          ]
+            {
+              text: 'Setup Guide',
+              onPress: () => {
+                // You could open a help screen here
+                console.log('Open setup guide')
+              },
+            },
+          ],
         )
       } else {
         Alert.alert('Payment Error', `Failed to initialize payment: ${errorMessage}`)
@@ -103,12 +106,12 @@ function ChapaPaymentModal({
 
     try {
       setProcessing(true)
-      
+
       // Open Chapa checkout in browser
       const supported = await Linking.canOpenURL(checkoutUrl)
       if (supported) {
         await Linking.openURL(checkoutUrl)
-        
+
         // Start polling for payment status
         startPaymentStatusPolling()
       } else {
@@ -130,29 +133,25 @@ function ChapaPaymentModal({
         const status = await PaymentService.verifyChapaPayment(txRef!)
         if (status) {
           setPaymentStatus(status.status)
-          
+
           if (status.status === 'completed') {
             clearInterval(pollInterval)
             await PaymentService.processChapaPayment(txRef!)
-            Alert.alert(
-              'Payment Successful!',
-              'Your payment has been processed successfully.',
-              [
-                {
-                  text: 'OK',
-                  onPress: () => {
-                    onPaymentSuccess(payment) // Pass payment info which contains task_id
-                    onClose()
-                  }
-                }
-              ]
-            )
+            Alert.alert('Payment Successful!', 'Your payment has been processed successfully.', [
+              {
+                text: 'OK',
+                onPress: () => {
+                  onPaymentSuccess(payment) // Pass payment info which contains task_id
+                  onClose()
+                },
+              },
+            ])
           } else if (status.status === 'failed' || status.status === 'cancelled') {
             clearInterval(pollInterval)
             Alert.alert(
               'Payment Failed',
               'Your payment could not be processed. Please try again.',
-              [{ text: 'OK' }]
+              [{ text: 'OK' }],
             )
           }
         }
@@ -199,8 +198,8 @@ function ChapaPaymentModal({
           </View>
         </View>
 
-        <ScrollView 
-          style={styles.content} 
+        <ScrollView
+          style={styles.content}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           bounces={true}
@@ -212,12 +211,14 @@ function ChapaPaymentModal({
               <Text style={styles.summaryLabel}>Task:</Text>
               <Text style={styles.summaryValue}>{payment.task_title}</Text>
             </View>
-            
+
             {breakdown && (
               <>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Subtotal:</Text>
-                  <Text style={styles.summaryValue}>{formatCurrency(breakdown.breakdown.subtotal)}</Text>
+                  <Text style={styles.summaryValue}>
+                    {formatCurrency(breakdown.breakdown.subtotal)}
+                  </Text>
                 </View>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>VAT (15%):</Text>
@@ -226,7 +227,9 @@ function ChapaPaymentModal({
                 <View style={styles.divider} />
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Total Amount:</Text>
-                  <Text style={styles.summaryAmount}>{formatCurrency(breakdown.breakdown.total)}</Text>
+                  <Text style={styles.summaryAmount}>
+                    {formatCurrency(breakdown.breakdown.total)}
+                  </Text>
                 </View>
               </>
             )}
@@ -239,7 +242,8 @@ function ChapaPaymentModal({
               <Text style={styles.paymentMethodTitle}>Chapa Payment Gateway</Text>
             </View>
             <Text style={styles.paymentMethodDescription}>
-              Secure payment processing powered by Chapa. Supports all major payment methods in Ethiopia.
+              Secure payment processing powered by Chapa. Supports all major payment methods in
+              Ethiopia.
             </Text>
             <View style={styles.paymentFeatures}>
               <View style={styles.featureItem}>
@@ -261,20 +265,19 @@ function ChapaPaymentModal({
           {paymentStatus !== 'pending' && (
             <View style={styles.statusCard}>
               <View style={styles.statusHeader}>
-                <Ionicons 
-                  name={paymentStatus === 'completed' ? 'checkmark-circle' : 'time'} 
-                  size={20} 
-                  color={paymentStatus === 'completed' ? Colors.success[500] : Colors.warning[500]} 
+                <Ionicons
+                  name={paymentStatus === 'completed' ? 'checkmark-circle' : 'time'}
+                  size={20}
+                  color={paymentStatus === 'completed' ? Colors.success[500] : Colors.warning[500]}
                 />
                 <Text style={styles.statusTitle}>
                   {paymentStatus === 'completed' ? 'Payment Completed' : 'Processing Payment...'}
                 </Text>
               </View>
               <Text style={styles.statusDescription}>
-                {paymentStatus === 'completed' 
+                {paymentStatus === 'completed'
                   ? 'Your payment has been successfully processed.'
-                  : 'Please wait while we process your payment.'
-                }
+                  : 'Please wait while we process your payment.'}
               </Text>
             </View>
           )}
@@ -283,35 +286,37 @@ function ChapaPaymentModal({
           <View style={styles.securityNotice}>
             <Ionicons name="shield-checkmark" size={20} color={Colors.success[500]} />
             <Text style={styles.securityText}>
-              Your payment is processed securely through Chapa's encrypted payment gateway. 
-              We never store your payment information.
+              Your payment is processed securely through Chapa&apos;s encrypted payment gateway. We
+              never store your payment information.
             </Text>
           </View>
 
           {/* Footer Button */}
           <View style={styles.footer}>
-          {loading ? (
-            <View style={styles.loadingButton}>
-              <ActivityIndicator size="small" color="#fff" />
-              <Text style={styles.loadingButtonText}>Initializing Payment...</Text>
-            </View>
-          ) : processing ? (
-            <View style={styles.loadingButton}>
-              <ActivityIndicator size="small" color="#fff" />
-              <Text style={styles.loadingButtonText}>Opening Payment Page...</Text>
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={styles.payButton}
-              onPress={handlePayment}
-              disabled={!checkoutUrl || paymentStatus === 'completed'}
-            >
-              <Ionicons name="card" size={20} color="#fff" />
-              <Text style={styles.payButtonText}>
-                {paymentStatus === 'completed' ? 'Payment Completed' : `Pay ${formatCurrency(breakdown?.breakdown.total || payment.amount)}`}
-              </Text>
-            </TouchableOpacity>
-          )}
+            {loading ? (
+              <View style={styles.loadingButton}>
+                <ActivityIndicator size="small" color="#fff" />
+                <Text style={styles.loadingButtonText}>Initializing Payment...</Text>
+              </View>
+            ) : processing ? (
+              <View style={styles.loadingButton}>
+                <ActivityIndicator size="small" color="#fff" />
+                <Text style={styles.loadingButtonText}>Opening Payment Page...</Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.payButton}
+                onPress={handlePayment}
+                disabled={!checkoutUrl || paymentStatus === 'completed'}
+              >
+                <Ionicons name="card" size={20} color="#fff" />
+                <Text style={styles.payButtonText}>
+                  {paymentStatus === 'completed'
+                    ? 'Payment Completed'
+                    : `Pay ${formatCurrency(breakdown?.breakdown.total || payment.amount)}`}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </ScrollView>
       </View>

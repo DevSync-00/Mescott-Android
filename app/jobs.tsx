@@ -156,6 +156,40 @@ export default function Jobs() {
     }, [isAuthenticated, user, activeTab]),
   )
 
+  const scrollViewRef = useRef<ScrollView>(null)
+  const fabBottomOffset = 0 + insets.bottom
+  const listBottomPadding = fabBottomOffset + 0
+
+  // Animated styles for tab indicator
+  const tabIndicatorAnimatedStyle = useAnimatedStyle(() => {
+    const tabWidth = (width - 32 - 8) / 2 // container width minus padding and gap
+    return {
+      transform: [
+        {
+          translateX: interpolate(
+            tabIndicatorPosition.value,
+            [0, 1],
+            [4, tabWidth + 4], // 4px padding + tab width
+          ),
+        },
+      ],
+    }
+  })
+
+  // Animated style for tab scale effect
+  const tabScaleAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: tabScale.value }],
+    }
+  })
+
+  // Animated style for FAB button
+  const fabAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: fabScale.value }],
+    }
+  })
+
   // Show loading while auth is being determined
   if (isLoading) {
     return (
@@ -487,8 +521,6 @@ export default function Jobs() {
     setViewMode(mode)
   }
 
-  const scrollViewRef = useRef<ScrollView>(null)
-
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offsetY = event.nativeEvent.contentOffset.y
     // Prevent any top bounce - header should stay fixed
@@ -496,39 +528,6 @@ export default function Jobs() {
       scrollViewRef.current.scrollTo({ y: 0, animated: false })
     }
   }
-
-  const fabBottomOffset = 0 + insets.bottom
-  const listBottomPadding = fabBottomOffset + 0
-
-  // Animated styles for tab indicator
-  const tabIndicatorAnimatedStyle = useAnimatedStyle(() => {
-    const tabWidth = (width - 32 - 8) / 2 // container width minus padding and gap
-    return {
-      transform: [
-        {
-          translateX: interpolate(
-            tabIndicatorPosition.value,
-            [0, 1],
-            [4, tabWidth + 4], // 4px padding + tab width
-          ),
-        },
-      ],
-    }
-  })
-
-  // Animated style for tab scale effect
-  const tabScaleAnimatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: tabScale.value }],
-    }
-  })
-
-  // Animated style for FAB button
-  const fabAnimatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: fabScale.value }],
-    }
-  })
 
   return (
     <SafeAreaView style={styles.container} edges={[]}>

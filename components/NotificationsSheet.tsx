@@ -252,7 +252,7 @@ function NotificationsSheet({ visible, onClose }: NotificationsSheetProps) {
                 <Ionicons name="notifications-off-outline" size={64} color={Colors.neutral[400]} />
                 <Text style={styles.emptyTitle}>No Notifications</Text>
                 <Text style={styles.emptySubtitle}>
-                  You'll see notifications about tasks, messages, and updates here.
+                  You&apos;ll see notifications about tasks, messages, and updates here.
                 </Text>
               </View>
             ) : (

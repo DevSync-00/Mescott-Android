@@ -14,7 +14,14 @@ import {
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { PaymentMethodService, PaymentMethod } from '../services/PaymentMethodService'
-import { ETHIOPIAN_BANKS, MOBILE_MONEY_PROVIDERS, validateAccountNumber, validatePhoneNumber, formatAccountNumber, formatPhoneNumber } from '../constants/EthiopianBanks'
+import {
+  ETHIOPIAN_BANKS,
+  MOBILE_MONEY_PROVIDERS,
+  validateAccountNumber,
+  validatePhoneNumber,
+  formatAccountNumber,
+  formatPhoneNumber,
+} from '../constants/EthiopianBanks'
 import Colors from '../constants/Colors'
 
 const { width, height } = Dimensions.get('window')
@@ -26,11 +33,11 @@ interface PaymentMethodModalProps {
   userId: string
 }
 
-function PaymentMethodModal({ 
-  visible, 
-  onClose, 
-  onPaymentMethodAdded, 
-  userId 
+function PaymentMethodModal({
+  visible,
+  onClose,
+  onPaymentMethodAdded,
+  userId,
 }: PaymentMethodModalProps) {
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState<'type' | 'details'>('type')
@@ -51,7 +58,7 @@ function PaymentMethodModal({
       subtitle: 'Direct bank transfer',
       icon: 'card-outline',
       color: Colors.primary[500],
-      description: 'Fast and secure bank transfers'
+      description: 'Fast and secure bank transfers',
     },
     {
       id: 'mobile_money',
@@ -59,7 +66,7 @@ function PaymentMethodModal({
       subtitle: 'Telebirr, M-Pesa, etc.',
       icon: 'phone-portrait-outline',
       color: Colors.success[500],
-      description: 'Quick mobile wallet payments'
+      description: 'Quick mobile wallet payments',
     },
   ]
 
@@ -96,7 +103,6 @@ function PaymentMethodModal({
     setSelectedProvider(providerId)
     setShowProviderList(false)
   }
-
 
   const canSave = () => {
     if (!selectedType) return false
@@ -149,16 +155,15 @@ function PaymentMethodModal({
       }
     }
 
-
     try {
       setLoading(true)
 
       const withdrawalDetails = getWithdrawalDetails()
-      
+
       const method = await PaymentMethodService.addPaymentMethod(userId, selectedType, {
         last4: getLast4Digits(),
         brand: getBrandName(),
-        withdrawal_details: withdrawalDetails
+        withdrawal_details: withdrawalDetails,
       })
 
       // Set as default if requested
@@ -180,19 +185,19 @@ function PaymentMethodModal({
   const getWithdrawalDetails = () => {
     switch (selectedType) {
       case 'bank_account':
-        const bank = ETHIOPIAN_BANKS.find(b => b.id === selectedBank)
+        const bank = ETHIOPIAN_BANKS.find((b) => b.id === selectedBank)
         return {
           account_number: accountNumber,
           bank_name: bank?.name || '',
           bank_id: selectedBank,
-          account_holder_name: accountHolder
+          account_holder_name: accountHolder,
         }
       case 'mobile_money':
-        const provider = MOBILE_MONEY_PROVIDERS.find(p => p.id === selectedProvider)
+        const provider = MOBILE_MONEY_PROVIDERS.find((p) => p.id === selectedProvider)
         return {
           phone_number: phoneNumber,
           provider: provider?.name || '',
-          provider_id: selectedProvider
+          provider_id: selectedProvider,
         }
       default:
         return {}
@@ -213,9 +218,9 @@ function PaymentMethodModal({
   const getBrandName = () => {
     switch (selectedType) {
       case 'bank_account':
-        return ETHIOPIAN_BANKS.find(b => b.id === selectedBank)?.name || 'Bank'
+        return ETHIOPIAN_BANKS.find((b) => b.id === selectedBank)?.name || 'Bank'
       case 'mobile_money':
-        return MOBILE_MONEY_PROVIDERS.find(p => p.id === selectedProvider)?.name || 'Mobile Money'
+        return MOBILE_MONEY_PROVIDERS.find((p) => p.id === selectedProvider)?.name || 'Mobile Money'
       default:
         return 'Payment Method'
     }
@@ -229,248 +234,255 @@ function PaymentMethodModal({
       onRequestClose={onClose}
     >
       <SafeAreaView style={styles.container}>
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color={Colors.neutral[900]} />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Add Payment Method</Text>
-            <View style={styles.headerRight} />
-          </View>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Ionicons name="close" size={24} color={Colors.neutral[900]} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Add Payment Method</Text>
+          <View style={styles.headerRight} />
+        </View>
 
-          {/* Progress Indicator */}
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBar}>
-              <View style={[styles.progressFill, { width: step === 'type' ? '50%' : '100%' }]} />
+        {/* Progress Indicator */}
+        <View style={styles.progressContainer}>
+          <View style={styles.progressBar}>
+            <View style={[styles.progressFill, { width: step === 'type' ? '50%' : '100%' }]} />
+          </View>
+          <Text style={styles.progressText}>{step === 'type' ? 'Step 1 of 2' : 'Step 2 of 2'}</Text>
+        </View>
+
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {step === 'type' ? (
+            <View style={styles.typeSelection}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Choose Payment Method</Text>
+                <Text style={styles.sectionSubtitle}>
+                  Select how you&apos;d like to receive your earnings
+                </Text>
+              </View>
+
+              <View style={styles.typesGrid}>
+                {paymentTypes.map((type) => (
+                  <TouchableOpacity
+                    key={type.id}
+                    style={styles.typeCard}
+                    onPress={() => handleTypeSelect(type.id as any)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.typeIcon, { backgroundColor: type.color + '15' }]}>
+                      <Ionicons name={type.icon as any} size={28} color={type.color} />
+                    </View>
+                    <Text style={styles.typeTitle}>{type.title}</Text>
+                    <Text style={styles.typeSubtitle}>{type.subtitle}</Text>
+                    <Text style={styles.typeDescription}>{type.description}</Text>
+                    <View style={styles.typeArrow}>
+                      <Ionicons name="chevron-forward" size={16} color={Colors.neutral[400]} />
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
-            <Text style={styles.progressText}>
-              {step === 'type' ? 'Step 1 of 2' : 'Step 2 of 2'}
-            </Text>
-          </View>
+          ) : (
+            <View style={styles.detailsForm}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>
+                  {selectedType === 'bank_account' && 'Bank Account Information'}
+                  {selectedType === 'mobile_money' && 'Mobile Money Details'}
+                </Text>
+                <Text style={styles.sectionSubtitle}>
+                  {selectedType === 'bank_account' &&
+                    'Enter your bank account details for withdrawals'}
+                  {selectedType === 'mobile_money' && 'Add your mobile money account information'}
+                </Text>
 
-          <ScrollView 
-            style={styles.content}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
-          >
-            {step === 'type' ? (
-              <View style={styles.typeSelection}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Choose Payment Method</Text>
-                  <Text style={styles.sectionSubtitle}>
-                    Select how you'd like to receive your earnings
+                {/* No Third-Party Payments Notice */}
+                <View style={styles.noticeContainer}>
+                  <Ionicons name="information-circle" size={16} color={Colors.primary[500]} />
+                  <Text style={styles.noticeText}>
+                    No third-party payments. Only add your own payment methods.
                   </Text>
-                </View>
-
-                <View style={styles.typesGrid}>
-                  {paymentTypes.map((type) => (
-                    <TouchableOpacity
-                      key={type.id}
-                      style={styles.typeCard}
-                      onPress={() => handleTypeSelect(type.id as any)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[styles.typeIcon, { backgroundColor: type.color + '15' }]}>
-                        <Ionicons name={type.icon as any} size={28} color={type.color} />
-                      </View>
-                      <Text style={styles.typeTitle}>{type.title}</Text>
-                      <Text style={styles.typeSubtitle}>{type.subtitle}</Text>
-                      <Text style={styles.typeDescription}>{type.description}</Text>
-                      <View style={styles.typeArrow}>
-                        <Ionicons name="chevron-forward" size={16} color={Colors.neutral[400]} />
-                      </View>
-                    </TouchableOpacity>
-                  ))}
                 </View>
               </View>
-            ) : (
-              <View style={styles.detailsForm}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>
-                    {selectedType === 'bank_account' && 'Bank Account Information'}
-                    {selectedType === 'mobile_money' && 'Mobile Money Details'}
-                  </Text>
-                  <Text style={styles.sectionSubtitle}>
-                    {selectedType === 'bank_account' && 'Enter your bank account details for withdrawals'}
-                    {selectedType === 'mobile_money' && 'Add your mobile money account information'}
-                  </Text>
-                  
-                  {/* No Third-Party Payments Notice */}
-                  <View style={styles.noticeContainer}>
-                    <Ionicons name="information-circle" size={16} color={Colors.primary[500]} />
-                    <Text style={styles.noticeText}>
-                      No third-party payments. Only add your own payment methods.
+
+              {selectedType === 'bank_account' && (
+                <View style={styles.formSection}>
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>Bank *</Text>
+                    <TouchableOpacity
+                      style={[styles.selectField, showBankList && styles.selectFieldActive]}
+                      onPress={() => {
+                        setShowBankList(!showBankList)
+                        setShowProviderList(false)
+                      }}
+                    >
+                      <Text style={[styles.selectText, !selectedBank && styles.placeholder]}>
+                        {selectedBank
+                          ? ETHIOPIAN_BANKS.find((b) => b.id === selectedBank)?.name
+                          : 'Select your bank'}
+                      </Text>
+                      <Ionicons
+                        name={showBankList ? 'chevron-up' : 'chevron-down'}
+                        size={20}
+                        color={Colors.neutral[500]}
+                      />
+                    </TouchableOpacity>
+
+                    {showBankList && (
+                      <View style={styles.dropdownList}>
+                        <ScrollView
+                          style={styles.dropdownScroll}
+                          showsVerticalScrollIndicator={false}
+                        >
+                          {ETHIOPIAN_BANKS.map((bank) => (
+                            <TouchableOpacity
+                              key={bank.id}
+                              style={styles.dropdownItem}
+                              onPress={() => handleBankSelect(bank.id)}
+                            >
+                              <Text style={styles.dropdownItemText}>{bank.name}</Text>
+                              {selectedBank === bank.id && (
+                                <Ionicons name="checkmark" size={16} color={Colors.primary[500]} />
+                              )}
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    )}
+                  </View>
+
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>Account Number *</Text>
+                    <TextInput
+                      style={styles.inputField}
+                      value={accountNumber}
+                      onChangeText={setAccountNumber}
+                      placeholder="Enter your account number"
+                      keyboardType="numeric"
+                      maxLength={20}
+                    />
+                  </View>
+
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>Account Holder Name *</Text>
+                    <TextInput
+                      style={styles.inputField}
+                      value={accountHolder}
+                      onChangeText={setAccountHolder}
+                      placeholder="Enter the account holder's full name"
+                      autoCapitalize="words"
+                    />
+                  </View>
+                </View>
+              )}
+
+              {selectedType === 'mobile_money' && (
+                <View style={styles.formSection}>
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>Provider *</Text>
+                    <TouchableOpacity
+                      style={[styles.selectField, showProviderList && styles.selectFieldActive]}
+                      onPress={() => {
+                        setShowProviderList(!showProviderList)
+                        setShowBankList(false)
+                      }}
+                    >
+                      <Text style={[styles.selectText, !selectedProvider && styles.placeholder]}>
+                        {selectedProvider
+                          ? MOBILE_MONEY_PROVIDERS.find((p) => p.id === selectedProvider)?.name
+                          : 'Select provider'}
+                      </Text>
+                      <Ionicons
+                        name={showProviderList ? 'chevron-up' : 'chevron-down'}
+                        size={20}
+                        color={Colors.neutral[500]}
+                      />
+                    </TouchableOpacity>
+
+                    {showProviderList && (
+                      <View style={styles.dropdownList}>
+                        <ScrollView
+                          style={styles.dropdownScroll}
+                          showsVerticalScrollIndicator={false}
+                        >
+                          {MOBILE_MONEY_PROVIDERS.map((provider) => (
+                            <TouchableOpacity
+                              key={provider.id}
+                              style={styles.dropdownItem}
+                              onPress={() => handleProviderSelect(provider.id)}
+                            >
+                              <Text style={styles.dropdownItemText}>{provider.name}</Text>
+                              {selectedProvider === provider.id && (
+                                <Ionicons name="checkmark" size={16} color={Colors.primary[500]} />
+                              )}
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    )}
+                  </View>
+
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>Phone Number *</Text>
+                    <TextInput
+                      style={styles.inputField}
+                      value={phoneNumber}
+                      onChangeText={setPhoneNumber}
+                      placeholder="Enter your phone number"
+                      keyboardType="phone-pad"
+                      maxLength={15}
+                    />
+                  </View>
+                </View>
+              )}
+
+              {/* Default Method Toggle */}
+              <View style={styles.defaultSection}>
+                <View style={styles.defaultRow}>
+                  <View style={styles.defaultInfo}>
+                    <Text style={styles.defaultTitle}>Set as Default</Text>
+                    <Text style={styles.defaultSubtitle}>
+                      Use this method for future withdrawals
                     </Text>
                   </View>
-                </View>
-
-                {selectedType === 'bank_account' && (
-                  <View style={styles.formSection}>
-                    <View style={styles.fieldGroup}>
-                      <Text style={styles.fieldLabel}>Bank *</Text>
-                      <TouchableOpacity
-                        style={[styles.selectField, showBankList && styles.selectFieldActive]}
-                        onPress={() => {
-                          setShowBankList(!showBankList)
-                          setShowProviderList(false)
-                        }}
-                      >
-                        <Text style={[styles.selectText, !selectedBank && styles.placeholder]}>
-                          {selectedBank ? ETHIOPIAN_BANKS.find(b => b.id === selectedBank)?.name : 'Select your bank'}
-                        </Text>
-                        <Ionicons 
-                          name={showBankList ? 'chevron-up' : 'chevron-down'} 
-                          size={20} 
-                          color={Colors.neutral[500]} 
-                        />
-                      </TouchableOpacity>
-
-                      {showBankList && (
-                        <View style={styles.dropdownList}>
-                          <ScrollView style={styles.dropdownScroll} showsVerticalScrollIndicator={false}>
-                            {ETHIOPIAN_BANKS.map((bank) => (
-                              <TouchableOpacity
-                                key={bank.id}
-                                style={styles.dropdownItem}
-                                onPress={() => handleBankSelect(bank.id)}
-                              >
-                                <Text style={styles.dropdownItemText}>{bank.name}</Text>
-                                {selectedBank === bank.id && (
-                                  <Ionicons name="checkmark" size={16} color={Colors.primary[500]} />
-                                )}
-                              </TouchableOpacity>
-                            ))}
-                          </ScrollView>
-                        </View>
-                      )}
-                    </View>
-
-                    <View style={styles.fieldGroup}>
-                      <Text style={styles.fieldLabel}>Account Number *</Text>
-                      <TextInput
-                        style={styles.inputField}
-                        value={accountNumber}
-                        onChangeText={setAccountNumber}
-                        placeholder="Enter your account number"
-                        keyboardType="numeric"
-                        maxLength={20}
-                      />
-                    </View>
-
-                    <View style={styles.fieldGroup}>
-                      <Text style={styles.fieldLabel}>Account Holder Name *</Text>
-                      <TextInput
-                        style={styles.inputField}
-                        value={accountHolder}
-                        onChangeText={setAccountHolder}
-                        placeholder="Enter the account holder's full name"
-                        autoCapitalize="words"
-                      />
-                    </View>
-                  </View>
-                )}
-
-                {selectedType === 'mobile_money' && (
-                  <View style={styles.formSection}>
-                    <View style={styles.fieldGroup}>
-                      <Text style={styles.fieldLabel}>Provider *</Text>
-                      <TouchableOpacity
-                        style={[styles.selectField, showProviderList && styles.selectFieldActive]}
-                        onPress={() => {
-                          setShowProviderList(!showProviderList)
-                          setShowBankList(false)
-                        }}
-                      >
-                        <Text style={[styles.selectText, !selectedProvider && styles.placeholder]}>
-                          {selectedProvider ? MOBILE_MONEY_PROVIDERS.find(p => p.id === selectedProvider)?.name : 'Select provider'}
-                        </Text>
-                        <Ionicons 
-                          name={showProviderList ? 'chevron-up' : 'chevron-down'} 
-                          size={20} 
-                          color={Colors.neutral[500]} 
-                        />
-                      </TouchableOpacity>
-
-                      {showProviderList && (
-                        <View style={styles.dropdownList}>
-                          <ScrollView style={styles.dropdownScroll} showsVerticalScrollIndicator={false}>
-                            {MOBILE_MONEY_PROVIDERS.map((provider) => (
-                              <TouchableOpacity
-                                key={provider.id}
-                                style={styles.dropdownItem}
-                                onPress={() => handleProviderSelect(provider.id)}
-                              >
-                                <Text style={styles.dropdownItemText}>{provider.name}</Text>
-                                {selectedProvider === provider.id && (
-                                  <Ionicons name="checkmark" size={16} color={Colors.primary[500]} />
-                                )}
-                              </TouchableOpacity>
-                            ))}
-                          </ScrollView>
-                        </View>
-                      )}
-                    </View>
-
-                    <View style={styles.fieldGroup}>
-                      <Text style={styles.fieldLabel}>Phone Number *</Text>
-                      <TextInput
-                        style={styles.inputField}
-                        value={phoneNumber}
-                        onChangeText={setPhoneNumber}
-                        placeholder="Enter your phone number"
-                        keyboardType="phone-pad"
-                        maxLength={15}
-                      />
-                    </View>
-                  </View>
-                )}
-
-
-                {/* Default Method Toggle */}
-                <View style={styles.defaultSection}>
-                  <View style={styles.defaultRow}>
-                    <View style={styles.defaultInfo}>
-                      <Text style={styles.defaultTitle}>Set as Default</Text>
-                      <Text style={styles.defaultSubtitle}>Use this method for future withdrawals</Text>
-                    </View>
-                    <TouchableOpacity
-                      style={[styles.toggle, isDefault && styles.toggleActive]}
-                      onPress={() => setIsDefault(!isDefault)}
-                    >
-                      <View style={[styles.toggleThumb, isDefault && styles.toggleThumbActive]} />
-                    </TouchableOpacity>
-                  </View>
+                  <TouchableOpacity
+                    style={[styles.toggle, isDefault && styles.toggleActive]}
+                    onPress={() => setIsDefault(!isDefault)}
+                  >
+                    <View style={[styles.toggleThumb, isDefault && styles.toggleThumbActive]} />
+                  </TouchableOpacity>
                 </View>
               </View>
-            )}
-          </ScrollView>
-
-          {/* Footer */}
-          {step === 'details' && (
-            <View style={styles.footer}>
-              <TouchableOpacity
-                style={styles.backButton}
-                onPress={() => setStep('type')}
-              >
-                <Ionicons name="arrow-back" size={20} color={Colors.neutral[600]} />
-                <Text style={styles.backButtonText}>Back</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.saveButton, !canSave() && styles.saveButtonDisabled]}
-                onPress={handleSave}
-                disabled={!canSave() || loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <>
-                    <Ionicons name="checkmark" size={20} color="#fff" />
-                    <Text style={styles.saveButtonText}>Add Payment Method</Text>
-                  </>
-                )}
-              </TouchableOpacity>
             </View>
           )}
+        </ScrollView>
+
+        {/* Footer */}
+        {step === 'details' && (
+          <View style={styles.footer}>
+            <TouchableOpacity style={styles.backButton} onPress={() => setStep('type')}>
+              <Ionicons name="arrow-back" size={20} color={Colors.neutral[600]} />
+              <Text style={styles.backButtonText}>Back</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.saveButton, !canSave() && styles.saveButtonDisabled]}
+              onPress={handleSave}
+              disabled={!canSave() || loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark" size={20} color="#fff" />
+                  <Text style={styles.saveButtonText}>Add Payment Method</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
       </SafeAreaView>
     </Modal>
   )

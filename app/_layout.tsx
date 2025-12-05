@@ -355,6 +355,8 @@ function AppContent() {
       try {
         // Use expo-navigation-bar if available
         // @ts-ignore - Dynamic import, package may not be installed
+        // eslint-disable-next-line import/no-unresolved, @typescript-eslint/ban-ts-comment
+        // @ts-expect-error - Optional dynamic import
         const NavBar = await import('expo-navigation-bar')
         if ((NavBar as any)?.setBackgroundColorAsync) {
           await (NavBar as any).setBackgroundColorAsync('#000000')

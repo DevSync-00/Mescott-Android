@@ -26,7 +26,9 @@ const { width } = Dimensions.get('window')
 export default function TaskerProfileView({ taskerId, visible, onClose }: TaskerProfileViewProps) {
   const [portfolio, setPortfolio] = useState<TaskerPortfolio | null>(null)
   const [loading, setLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'overview' | 'projects' | 'skills' | 'certifications'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'projects' | 'skills' | 'certifications'>(
+    'overview',
+  )
 
   useEffect(() => {
     if (visible && taskerId) {
@@ -38,10 +40,10 @@ export default function TaskerProfileView({ taskerId, visible, onClose }: Tasker
     try {
       setLoading(true)
       console.log('Loading portfolio for tasker ID (profile ID):', taskerId)
-      
+
       // Since taskerId is actually a profile ID from task applications, use the profile ID method
       const portfolioData = await PortfolioService.getTaskerPortfolioByProfileId(taskerId)
-      
+
       if (portfolioData) {
         console.log('Portfolio found:', portfolioData)
         setPortfolio(portfolioData)
@@ -71,7 +73,7 @@ export default function TaskerProfileView({ taskerId, visible, onClose }: Tasker
         {[...Array(5)].map((_, i) => (
           <Ionicons
             key={i}
-            name={i < rating ? "star" : "star-outline"}
+            name={i < rating ? 'star' : 'star-outline'}
             size={16}
             color={Colors.warning[500]}
           />
@@ -86,10 +88,10 @@ export default function TaskerProfileView({ taskerId, visible, onClose }: Tasker
       style={[styles.tabButton, activeTab === tab && styles.tabButtonActive]}
       onPress={() => setActiveTab(tab as any)}
     >
-      <Ionicons 
-        name={icon as any} 
-        size={16} 
-        color={activeTab === tab ? Colors.primary[500] : Colors.neutral[600]} 
+      <Ionicons
+        name={icon as any}
+        size={16}
+        color={activeTab === tab ? Colors.primary[500] : Colors.neutral[600]}
       />
       <Text style={[styles.tabButtonText, activeTab === tab && styles.tabButtonTextActive]}>
         {label}
@@ -302,7 +304,6 @@ export default function TaskerProfileView({ taskerId, visible, onClose }: Tasker
     </View>
   )
 
-
   if (!visible) return null
 
   return (
@@ -371,7 +372,7 @@ export default function TaskerProfileView({ taskerId, visible, onClose }: Tasker
             <Ionicons name="person-outline" size={48} color={Colors.neutral[400]} />
             <Text style={styles.errorText}>Profile not found</Text>
             <Text style={styles.errorSubtext}>
-              This tasker hasn't completed their profile setup yet.
+              This tasker hasn&apos;t completed their profile setup yet.
             </Text>
           </View>
         )}

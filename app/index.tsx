@@ -86,20 +86,20 @@ export default function Index() {
 
   const loadTasks = async () => {
     if (!user) return
-    
+
     try {
       setLoadingTasks(true)
-      
+
       // Load all available tasks to filter for featured
       const allTasks = await TaskService.getAvailableTasks(user.user_id)
-      
+
       // Filter featured tasks: budget over 5000 birr OR General category
-      const featuredTasksFiltered = allTasks.filter(task => {
+      const featuredTasksFiltered = allTasks.filter((task) => {
         const isHighBudget = task.budget > 5000
         const isGeneralCategory = task.category_name === 'General'
         return isHighBudget || isGeneralCategory
       })
-      
+
       // Sort by budget (highest first), then by creation date (newest first)
       const sortedFeatured = featuredTasksFiltered.sort((a, b) => {
         if (b.budget !== a.budget) {
@@ -107,13 +107,12 @@ export default function Index() {
         }
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       })
-      
+
       setFeaturedTasks(sortedFeatured.slice(0, 4)) // Show top 4
-      
+
       // Load recent tasks
       const recentTasksData = await TaskService.getRecentTasks()
       setRecentTasks(recentTasksData.slice(0, 6)) // Show top 6
-      
     } catch (error) {
       console.error('Error loading tasks:', error)
     } finally {
@@ -123,7 +122,7 @@ export default function Index() {
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-        router.replace('/auth')
+      router.replace('/auth')
     }
   }, [isLoading, isAuthenticated])
 
@@ -131,8 +130,10 @@ export default function Index() {
     loadTasks()
   }, [user])
 
+  const scrollViewRef = useRef<ScrollView>(null)
+
   // Splash screen is handled in _layout.tsx
-  
+
   if (isLoading) {
     return null // Let the native splash screen show
   }
@@ -147,11 +148,9 @@ export default function Index() {
   const goToCategory = (categoryName: string) => {
     router.push({
       pathname: '/post-task',
-      params: { category: categoryName }
+      params: { category: categoryName },
     })
   }
-
-  const scrollViewRef = useRef<ScrollView>(null)
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offsetY = event.nativeEvent.contentOffset.y
@@ -165,256 +164,269 @@ export default function Index() {
     <SafeAreaView style={styles.container} edges={[]}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
       <View style={styles.containerContent}>
-      {/* Fixed Header */}
-      <View style={[styles.headerWrapper, { paddingTop: 8 + insets.top }]}>
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View style={styles.greetingContainer}>
-            <Text 
-              style={styles.userName}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-            >
-              MESCOTT
-            </Text>
-          </View>
-          <View style={styles.headerButtons}>
-            <TouchableOpacity 
-              style={styles.notificationButton}
-              onPress={() => setNotificationsVisible(true)}
-            >
-              <Ionicons name="notifications-outline" size={22} color={Colors.neutral[600]} />
-              {unreadCount > 0 && (
-                <View style={styles.notificationBadge}>
-                  <Text style={styles.notificationCount}>
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Search Bar */}
-        <TouchableOpacity style={styles.searchContainer} onPress={() => setCategorySearchVisible(true)} activeOpacity={0.8}>
-          <Ionicons name="search" size={20} color={Colors.neutral[400]} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search for services..."
-            placeholderTextColor={Colors.neutral[400]}
-            editable={false}
-            pointerEvents="none"
-          />
-        </TouchableOpacity>
-      </View>
-      </View>
-
-      {/* Scrollable Content */}
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.content}
-        contentContainerStyle={styles.scrollContent}
-        bounces={true}
-        alwaysBounceVertical={true}
-        showsVerticalScrollIndicator={false}
-        overScrollMode="always"
-        scrollEventThrottle={16}
-        onScroll={handleScroll}
-      >
-        {/* Quick Actions */}
-        <View style={styles.quickActionsSection}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.quickActions}>
-            <TouchableOpacity 
-              style={styles.quickActionCard}
-              onPress={goToPostTask}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: Colors.primary[100] }]}>
-                <Ionicons name="add-circle" size={24} color={Colors.primary[500]} />
+        {/* Fixed Header */}
+        <View style={[styles.headerWrapper, { paddingTop: 8 + insets.top }]}>
+          <View style={styles.header}>
+            <View style={styles.headerTop}>
+              <View style={styles.greetingContainer}>
+                <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">
+                  MESCOTT
+                </Text>
               </View>
-              <Text style={styles.quickActionText}>Post a Task</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.quickActionCard}
-              onPress={goToJobs}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: Colors.success[100] }]}>
-                <Ionicons name="briefcase" size={24} color={Colors.success[500]} />
-              </View>
-              <Text style={styles.quickActionText}>Find Work</Text>
-            </TouchableOpacity>
-            
-            {!isAuthenticated && (
-              <TouchableOpacity 
-                style={styles.quickActionCard}
-                onPress={goToAuth}
-              >
-                <View style={[styles.quickActionIcon, { backgroundColor: Colors.warning[100] }]}>
-                  <Ionicons name="log-in" size={24} color={Colors.warning[500]} />
-                </View>
-                <Text style={styles.quickActionText}>Get Started</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
-        {/* Featured Tasks */}
-        <View style={styles.featuredSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Featured Tasks</Text>
-            <TouchableOpacity onPress={() => router.push('/jobs')}>
-              <Text style={styles.seeAllText}>See All</Text>
-            </TouchableOpacity>
-          </View>
-          {loadingTasks ? (
-            <View style={styles.emptyState}>
-              <SkeletonList count={3} />
-            </View>
-          ) : (
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false} 
-              style={styles.featuredScroll}
-              contentContainerStyle={styles.featuredScrollContent}
-            >
-              {featuredTasks.map((task) => (
-                <TouchableOpacity 
-                  key={task.id} 
-                  style={styles.serviceCard}
-                  onPress={() => router.push({ pathname: '/task-detail', params: { taskId: task.id } })}
+              <View style={styles.headerButtons}>
+                <TouchableOpacity
+                  style={styles.notificationButton}
+                  onPress={() => setNotificationsVisible(true)}
                 >
-                  {/* Task Image */}
-        {task.photos && task.photos.length > 0 ? (
-          <View style={styles.serviceImageContainer}>
-            <Image
-              source={{ uri: task.photos[0] }}
-              style={styles.serviceImage}
-              resizeMode="cover"
-            />
-            {task.photos.length > 1 && (
-              <View style={styles.serviceImageCountBadge}>
-                <Text style={styles.serviceImageCountText}>+{task.photos.length - 1}</Text>
+                  <Ionicons name="notifications-outline" size={22} color={Colors.neutral[600]} />
+                  {unreadCount > 0 && (
+                    <View style={styles.notificationBadge}>
+                      <Text style={styles.notificationCount}>
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
               </View>
+            </View>
+
+            {/* Search Bar */}
+            <TouchableOpacity
+              style={styles.searchContainer}
+              onPress={() => setCategorySearchVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="search" size={20} color={Colors.neutral[400]} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search for services..."
+                placeholderTextColor={Colors.neutral[400]}
+                editable={false}
+                pointerEvents="none"
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Scrollable Content */}
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.content}
+          contentContainerStyle={styles.scrollContent}
+          bounces={true}
+          alwaysBounceVertical={true}
+          showsVerticalScrollIndicator={false}
+          overScrollMode="always"
+          scrollEventThrottle={16}
+          onScroll={handleScroll}
+        >
+          {/* Quick Actions */}
+          <View style={styles.quickActionsSection}>
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
+            <View style={styles.quickActions}>
+              <TouchableOpacity style={styles.quickActionCard} onPress={goToPostTask}>
+                <View style={[styles.quickActionIcon, { backgroundColor: Colors.primary[100] }]}>
+                  <Ionicons name="add-circle" size={24} color={Colors.primary[500]} />
+                </View>
+                <Text style={styles.quickActionText}>Post a Task</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.quickActionCard} onPress={goToJobs}>
+                <View style={[styles.quickActionIcon, { backgroundColor: Colors.success[100] }]}>
+                  <Ionicons name="briefcase" size={24} color={Colors.success[500]} />
+                </View>
+                <Text style={styles.quickActionText}>Find Work</Text>
+              </TouchableOpacity>
+
+              {!isAuthenticated && (
+                <TouchableOpacity style={styles.quickActionCard} onPress={goToAuth}>
+                  <View style={[styles.quickActionIcon, { backgroundColor: Colors.warning[100] }]}>
+                    <Ionicons name="log-in" size={24} color={Colors.warning[500]} />
+                  </View>
+                  <Text style={styles.quickActionText}>Get Started</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {/* Featured Tasks */}
+          <View style={styles.featuredSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Featured Tasks</Text>
+              <TouchableOpacity onPress={() => router.push('/jobs')}>
+                <Text style={styles.seeAllText}>See All</Text>
+              </TouchableOpacity>
+            </View>
+            {loadingTasks ? (
+              <View style={styles.emptyState}>
+                <SkeletonList count={3} />
+              </View>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.featuredScroll}
+                contentContainerStyle={styles.featuredScrollContent}
+              >
+                {featuredTasks.map((task) => (
+                  <TouchableOpacity
+                    key={task.id}
+                    style={styles.serviceCard}
+                    onPress={() =>
+                      router.push({ pathname: '/task-detail', params: { taskId: task.id } })
+                    }
+                  >
+                    {/* Task Image */}
+                    {task.photos && task.photos.length > 0 ? (
+                      <View style={styles.serviceImageContainer}>
+                        <Image
+                          source={{ uri: task.photos[0] }}
+                          style={styles.serviceImage}
+                          resizeMode="cover"
+                        />
+                        {task.photos.length > 1 && (
+                          <View style={styles.serviceImageCountBadge}>
+                            <Text style={styles.serviceImageCountText}>
+                              +{task.photos.length - 1}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    ) : (
+                      <View style={styles.serviceHeader}>
+                        <View style={styles.serviceIconContainer}>
+                          <Ionicons name="briefcase" size={24} color={Colors.primary[500]} />
+                        </View>
+                        {task.urgency === 'urgent' && (
+                          <View style={styles.urgentBadge}>
+                            <Ionicons name="flash" size={12} color="#FF6B6B" />
+                          </View>
+                        )}
+                      </View>
+                    )}
+                    <Text style={styles.serviceTitle} numberOfLines={2}>
+                      {task.title}
+                    </Text>
+                    <Text style={styles.serviceCategory}>{task.category_name || 'Task'}</Text>
+                    {(task.task_date || task.task_time) && (
+                      <View style={styles.serviceDateTime}>
+                        {task.task_date && (
+                          <View style={styles.dateTimeItem}>
+                            <Ionicons
+                              name="calendar-outline"
+                              size={12}
+                              color={Colors.primary[500]}
+                            />
+                            <Text style={styles.dateTimeText}>
+                              {new Date(task.task_date).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                              })}
+                            </Text>
+                          </View>
+                        )}
+                        {task.task_time && (
+                          <View style={styles.dateTimeItem}>
+                            <Ionicons name="time-outline" size={12} color={Colors.primary[500]} />
+                            <Text style={styles.dateTimeText}>
+                              {(() => {
+                                const [hours, minutes] = task.task_time.split(':').map(Number)
+                                const period = hours >= 12 ? 'PM' : 'AM'
+                                const displayHours = hours % 12 || 12
+                                return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`
+                              })()}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+                    <View style={styles.serviceFooter}>
+                      <Text style={styles.servicePrice}>{task.budget} ETB</Text>
+                      <Text style={styles.serviceReviews}>{task.city || 'Location'}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+                {featuredTasks.length === 0 && (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyText}>No featured tasks available</Text>
+                  </View>
+                )}
+              </ScrollView>
             )}
           </View>
-        ) : (
-                    <View style={styles.serviceHeader}>
-                      <View style={styles.serviceIconContainer}>
-                        <Ionicons name="briefcase" size={24} color={Colors.primary[500]} />
-                      </View>
-                      {task.urgency === 'urgent' && (
-                        <View style={styles.urgentBadge}>
-                          <Ionicons name="flash" size={12} color="#FF6B6B" />
-                        </View>
-                      )}
-                    </View>
-                  )}
-                  <Text style={styles.serviceTitle} numberOfLines={2}>{task.title}</Text>
-                  <Text style={styles.serviceCategory}>{task.category_name || 'Task'}</Text>
-                  {(task.task_date || task.task_time) && (
-                    <View style={styles.serviceDateTime}>
-                      {task.task_date && (
-                        <View style={styles.dateTimeItem}>
-                          <Ionicons name="calendar-outline" size={12} color={Colors.primary[500]} />
-                          <Text style={styles.dateTimeText}>
-                            {new Date(task.task_date).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric'
-                            })}
-                          </Text>
-                        </View>
-                      )}
-                      {task.task_time && (
-                        <View style={styles.dateTimeItem}>
-                          <Ionicons name="time-outline" size={12} color={Colors.primary[500]} />
-                          <Text style={styles.dateTimeText}>
-                            {(() => {
-                              const [hours, minutes] = task.task_time.split(':').map(Number)
-                              const period = hours >= 12 ? 'PM' : 'AM'
-                              const displayHours = hours % 12 || 12
-                              return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`
-                            })()}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  )}
-                  <View style={styles.serviceFooter}>
-                    <Text style={styles.servicePrice}>{task.budget} ETB</Text>
-                    <Text style={styles.serviceReviews}>{task.city || 'Location'}</Text>
+
+          {/* Categories Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Browse Categories</Text>
+              <TouchableOpacity onPress={() => setShowAllCategories(!showAllCategories)}>
+                <Text style={styles.seeAllText}>{showAllCategories ? 'See Less' : 'See All'}</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.categoriesGrid}>
+              {(showAllCategories ? categories : categories.slice(0, 6)).map((category, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.categoryCard}
+                  onPress={() => goToCategory(category.name)}
+                >
+                  <View style={[styles.categoryIcon, { backgroundColor: category.color + '20' }]}>
+                    <Ionicons name={category.icon as any} size={28} color={category.color} />
                   </View>
+                  <Text style={styles.categoryText}>{category.name}</Text>
                 </TouchableOpacity>
               ))}
-              {featuredTasks.length === 0 && (
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyText}>No featured tasks available</Text>
-                </View>
-              )}
-            </ScrollView>
-          )}
-        </View>
-
-        {/* Categories Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Browse Categories</Text>
-            <TouchableOpacity onPress={() => setShowAllCategories(!showAllCategories)}>
-              <Text style={styles.seeAllText}>{showAllCategories ? 'See Less' : 'See All'}</Text>
-            </TouchableOpacity>
+            </View>
           </View>
-          <View style={styles.categoriesGrid}>
-            {(showAllCategories ? categories : categories.slice(0, 6)).map((category, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.categoryCard}
-                onPress={() => goToCategory(category.name)}
-              >
-                <View style={[styles.categoryIcon, { backgroundColor: category.color + '20' }]}>
-                  <Ionicons name={category.icon as any} size={28} color={category.color} />
-                </View>
-                <Text style={styles.categoryText}>{category.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
 
-        {/* How It Works */}
-        <View style={styles.section}>
+          {/* How It Works */}
+          <View style={styles.section}>
             <Text style={styles.sectionTitle}>How Mescott Works</Text>
-          <View style={styles.stepsContainer}>
-            {[
-              { number: '1', title: 'Post a Task', description: 'Tell us what you need done, when and where.' },
-              { number: '2', title: 'Choose Your Tasker', description: 'Browse qualified taskers by skills, reviews, and price.' },
-              { number: '3', title: 'Get It Done', description: 'Your tasker arrives and gets the job done.' }
-            ].map((step, index) => (
-              <View key={index} style={styles.stepCard}>
-                <View style={styles.stepNumberContainer}>
-                  <Text style={styles.stepNumber}>{step.number}</Text>
+            <View style={styles.stepsContainer}>
+              {[
+                {
+                  number: '1',
+                  title: 'Post a Task',
+                  description: 'Tell us what you need done, when and where.',
+                },
+                {
+                  number: '2',
+                  title: 'Choose Your Tasker',
+                  description: 'Browse qualified taskers by skills, reviews, and price.',
+                },
+                {
+                  number: '3',
+                  title: 'Get It Done',
+                  description: 'Your tasker arrives and gets the job done.',
+                },
+              ].map((step, index) => (
+                <View key={index} style={styles.stepCard}>
+                  <View style={styles.stepNumberContainer}>
+                    <Text style={styles.stepNumber}>{step.number}</Text>
+                  </View>
+                  <View style={styles.stepContent}>
+                    <Text style={styles.stepTitle}>{step.title}</Text>
+                    <Text style={styles.stepDescription}>{step.description}</Text>
+                  </View>
                 </View>
-                <View style={styles.stepContent}>
-                  <Text style={styles.stepTitle}>{step.title}</Text>
-                  <Text style={styles.stepDescription}>{step.description}</Text>
-                </View>
-              </View>
-            ))}
+              ))}
+            </View>
           </View>
-        </View>
-      </ScrollView>
-      <NotificationsSheet
-        visible={notificationsVisible}
-        onClose={() => setNotificationsVisible(false)}
-      />
-      <CategorySearchSheet
-        visible={categorySearchVisible}
-        onClose={() => setCategorySearchVisible(false)}
-        onSelectCategory={(name) => {
-          setCategorySearchVisible(false)
-          router.push({ pathname: '/post-task', params: { category: name } })
-        }}
-      />
-      {/* Task Detail navigates to full page now; sheet removed */}
-    </View>
+        </ScrollView>
+        <NotificationsSheet
+          visible={notificationsVisible}
+          onClose={() => setNotificationsVisible(false)}
+        />
+        <CategorySearchSheet
+          visible={categorySearchVisible}
+          onClose={() => setCategorySearchVisible(false)}
+          onSelectCategory={(name) => {
+            setCategorySearchVisible(false)
+            router.push({ pathname: '/post-task', params: { category: name } })
+          }}
+        />
+        {/* Task Detail navigates to full page now; sheet removed */}
+      </View>
     </SafeAreaView>
   )
 }

@@ -567,6 +567,7 @@ export default function ChatDetail() {
     },
     [sortedMessages, getCachedDate],
   )
+  MessageItem.displayName = 'MessageItem'
 
   const keyExtractor = useCallback((item: Message) => item.id, [])
 

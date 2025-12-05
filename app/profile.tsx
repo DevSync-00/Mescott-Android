@@ -57,37 +57,37 @@ export default function Profile() {
 
       try {
         setLoadingStats(true)
-        
+
         // Get profile data which has rating, total_tasks, completed_tasks
         const { data: profile } = await supabase
           .from('profiles')
           .select('rating, completed_tasks')
           .eq('id', user.id)
           .maybeSingle()
-        
+
         // Get tasks completed as tasker (only tasker tasks count)
         const { data: taskerTasks } = await supabase
           .from('tasks')
           .select('id, status, tasker_rating, final_price, completed_at')
           .eq('tasker_id', user.id)
           .eq('status', 'completed')
-        
+
         const tasksCompleted = taskerTasks?.length || 0
-        
+
         // Get average rating from tasker_rating (ratings received as tasker)
-        const taskerRatings = taskerTasks
-          ?.map(t => t.tasker_rating)
-          .filter(r => r && r > 0) || []
-        
-        const averageRating = taskerRatings.length > 0
-          ? taskerRatings.reduce((sum, r) => sum + r, 0) / taskerRatings.length
-          : (profile?.rating || 0)
-        
+        const taskerRatings =
+          taskerTasks?.map((t) => t.tasker_rating).filter((r) => r && r > 0) || []
+
+        const averageRating =
+          taskerRatings.length > 0
+            ? taskerRatings.reduce((sum, r) => sum + r, 0) / taskerRatings.length
+            : profile?.rating || 0
+
         // Calculate current month earnings from transactions (deposits)
         const now = new Date()
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
         const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
-        
+
         // Get deposits (earnings) from transactions table for current month
         const { data: transactions } = await supabase
           .from('transactions')
@@ -97,9 +97,9 @@ export default function Profile() {
           .eq('status', 'completed')
           .gte('created_at', startOfMonth.toISOString())
           .lte('created_at', endOfMonth.toISOString())
-        
+
         const monthlyEarnings = transactions?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0
-        
+
         setStats({
           tasksCompleted,
           rating: averageRating,
@@ -130,11 +130,11 @@ export default function Profile() {
           event: 'UPDATE',
           schema: 'public',
           table: 'profiles',
-          filter: `id=eq.${user.id}`
+          filter: `id=eq.${user.id}`,
         },
         (payload) => {
           refreshUserProfile()
-        }
+        },
       )
       .on(
         'postgres_changes',
@@ -142,11 +142,11 @@ export default function Profile() {
           event: 'UPDATE',
           schema: 'public',
           table: 'tasker_applications',
-          filter: `user_id=eq.${user.user_id}`
+          filter: `user_id=eq.${user.user_id}`,
         },
         (payload) => {
           refreshUserProfile()
-        }
+        },
       )
       .subscribe()
 
@@ -155,11 +155,19 @@ export default function Profile() {
     }
   }, [user, refreshUserProfile])
 
+  const scrollViewRef = useRef<ScrollView>(null)
+
   // Show loading while auth is being determined
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent} bounces={false} alwaysBounceVertical={false} overScrollMode="never">
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={styles.scrollContent}
+          bounces={false}
+          alwaysBounceVertical={false}
+          overScrollMode="never"
+        >
           <SkeletonCard style={styles.profileSkeleton} />
           <SkeletonCard style={styles.statsSkeleton} />
           <SkeletonCard style={styles.actionsSkeleton} />
@@ -179,29 +187,25 @@ export default function Profile() {
   }
 
   const handleLogout = async () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await logout()
-            } catch (error) {
-              Alert.alert('Error', 'Failed to logout. Please try again.')
-            }
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await logout()
+          } catch (error) {
+            Alert.alert('Error', 'Failed to logout. Please try again.')
           }
-        }
-      ]
-    )
+        },
+      },
+    ])
   }
 
   const handleSwitchMode = async () => {
     if (!user) return
-    
+
     // Check if user is already a tasker
     if (user.role === 'tasker' || user.role === 'both') {
       try {
@@ -219,47 +223,47 @@ export default function Profile() {
         'To switch to tasker mode, you need to complete the tasker application process. Would you like to apply now?',
         [
           { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Apply Now', 
-            onPress: () => router.push('/tasker-application')
-          }
-        ]
+          {
+            text: 'Apply Now',
+            onPress: () => router.push('/tasker-application'),
+          },
+        ],
       )
     }
   }
 
   const handleBecomeTasker = () => {
     if (!user) return
-    
+
     if (user.role === 'tasker' || user.role === 'both') {
       Alert.alert('Already a Tasker', 'You are already registered as a tasker!')
       return
     }
-    
+
     if (user.tasker_application_status === 'pending') {
       Alert.alert(
         'Application Pending',
-        'Your tasker application is currently under review. You will be notified once it\'s approved.',
-        [{ text: 'OK' }]
+        "Your tasker application is currently under review. You will be notified once it's approved.",
+        [{ text: 'OK' }],
       )
       return
     }
-    
+
     if (user.tasker_application_status === 'rejected') {
       Alert.alert(
         'Reapply for Tasker',
         'Your previous application was rejected. Would you like to submit a new application?',
         [
           { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Reapply', 
-            onPress: () => router.push('/tasker-application')
-          }
-        ]
+          {
+            text: 'Reapply',
+            onPress: () => router.push('/tasker-application'),
+          },
+        ],
       )
       return
     }
-    
+
     router.push('/tasker-application')
   }
 
@@ -300,19 +304,31 @@ export default function Profile() {
       color: Colors.primary[500],
     },
     // Only show portfolio for taskers
-    ...(user?.current_mode === 'tasker' || (user?.role === 'tasker' && user?.current_mode !== 'customer') || user?.role === 'both' ? [{
-      id: 'portfolio',
-      title: 'My Portfolio',
-      icon: 'briefcase-outline',
-      color: Colors.primary[500],
-    }] : []),
+    ...(user?.current_mode === 'tasker' ||
+    (user?.role === 'tasker' && user?.current_mode !== 'customer') ||
+    user?.role === 'both'
+      ? [
+          {
+            id: 'portfolio',
+            title: 'My Portfolio',
+            icon: 'briefcase-outline',
+            color: Colors.primary[500],
+          },
+        ]
+      : []),
     // Only show wallet for taskers (not customers)
-    ...(user?.current_mode === 'tasker' || (user?.role === 'tasker' && user?.current_mode !== 'customer') || user?.role === 'both' ? [{
-      id: 'wallet',
-      title: 'Wallet',
-      icon: 'wallet-outline',
-      color: Colors.success[500],
-    }] : []),
+    ...(user?.current_mode === 'tasker' ||
+    (user?.role === 'tasker' && user?.current_mode !== 'customer') ||
+    user?.role === 'both'
+      ? [
+          {
+            id: 'wallet',
+            title: 'Wallet',
+            icon: 'wallet-outline',
+            color: Colors.success[500],
+          },
+        ]
+      : []),
     {
       id: 'settings',
       title: 'Settings',
@@ -333,8 +349,6 @@ export default function Profile() {
     },
   ]
 
-  const scrollViewRef = useRef<ScrollView>(null)
-
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offsetY = event.nativeEvent.contentOffset.y
     // Prevent any top bounce - header should stay fixed
@@ -347,201 +361,207 @@ export default function Profile() {
     <SafeAreaView style={styles.container} edges={[]}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
       <View style={styles.containerContent}>
-      {/* Fixed Header */}
-      <View style={[styles.headerWrapper, { paddingTop: 8 + insets.top }]}>
-        <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Profile</Text>
-          <View style={styles.headerButtons}>
-            <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
-              <Ionicons name="create-outline" size={22} color={Colors.neutral[600]} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-      </View>
-      {/* Scrollable content */}
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.content}
-        contentContainerStyle={{ paddingBottom: 24 }}
-        bounces={true}
-        alwaysBounceVertical={true}
-        showsVerticalScrollIndicator={false}
-        overScrollMode="always"
-        scrollEventThrottle={16}
-        onScroll={handleScroll}
-      >
-        {/* Profile Card */}
-        <View style={styles.profileCard}>
-          <View style={styles.profileHeader}>
-            <View style={styles.avatarContainer}>
-              {user?.avatar_url ? (
-                <Image
-                  source={{ uri: user.avatar_url }}
-                  style={styles.avatar}
-                />
-              ) : (
-                <Ionicons name="person" size={32} color={Colors.primary[500]} />
-              )}
-            </View>
-            <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{user?.name || user?.username || 'Guest User'}</Text>
-              <Text style={styles.profilePhone}>{user?.phone || '+251 9X XXX XXXX'}</Text>
-              <View style={styles.modeContainer}>
-                <View style={[styles.modeBadge, { backgroundColor: Colors.primary[100] }]}>
-                  <Ionicons 
-                    name={user?.current_mode === 'customer' ? 'person' : 'briefcase'}
-                    size={16}
-                    color={Colors.primary[600]}
-                  />
-                  <Text style={styles.modeText}>
-                    {user?.current_mode === 'customer' ? 'Customer' : 'Tasker'} Mode
-                  </Text>
-                </View>
-                <TouchableOpacity style={styles.switchButton} onPress={handleSwitchMode}>
-                  <Ionicons name="swap-horizontal" size={18} color={Colors.primary[500]} />
+        {/* Fixed Header */}
+        <View style={[styles.headerWrapper, { paddingTop: 8 + insets.top }]}>
+          <View style={styles.header}>
+            <View style={styles.headerContent}>
+              <Text style={styles.headerTitle}>Profile</Text>
+              <View style={styles.headerButtons}>
+                <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
+                  <Ionicons name="create-outline" size={22} color={Colors.neutral[600]} />
                 </TouchableOpacity>
               </View>
             </View>
           </View>
-
-          {/* Stats */}
-          <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
-              <View style={styles.statNumberContainer}>
-                <Text style={styles.statNumber}>
-                  {loadingStats ? '0' : stats.tasksCompleted}
-                </Text>
-              </View>
-              <Text style={styles.statLabel}>Tasks Completed</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <View style={styles.statNumberContainer}>
-                <Text style={styles.statNumber}>
-                  {loadingStats ? '0.0' : stats.rating > 0 ? stats.rating.toFixed(1) : '0.0'}
-                </Text>
-              </View>
-              <Text style={styles.statLabel}>Rating</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <View style={styles.statNumberContainer}>
-                <Text 
-                  style={styles.statNumber}
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                >
-                  {loadingStats ? '0' : formatNumber(stats.earned)}
-                </Text>
-                {!loadingStats && (
-                  <Text style={styles.statCurrency} numberOfLines={1}> ETB</Text>
+        </View>
+        {/* Scrollable content */}
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.content}
+          contentContainerStyle={{ paddingBottom: 24 }}
+          bounces={true}
+          alwaysBounceVertical={true}
+          showsVerticalScrollIndicator={false}
+          overScrollMode="always"
+          scrollEventThrottle={16}
+          onScroll={handleScroll}
+        >
+          {/* Profile Card */}
+          <View style={styles.profileCard}>
+            <View style={styles.profileHeader}>
+              <View style={styles.avatarContainer}>
+                {user?.avatar_url ? (
+                  <Image source={{ uri: user.avatar_url }} style={styles.avatar} />
+                ) : (
+                  <Ionicons name="person" size={32} color={Colors.primary[500]} />
                 )}
               </View>
-              <Text style={styles.statLabel}>Earned (This Month)</Text>
+              <View style={styles.profileInfo}>
+                <Text style={styles.profileName}>
+                  {user?.name || user?.username || 'Guest User'}
+                </Text>
+                <Text style={styles.profilePhone}>{user?.phone || '+251 9X XXX XXXX'}</Text>
+                <View style={styles.modeContainer}>
+                  <View style={[styles.modeBadge, { backgroundColor: Colors.primary[100] }]}>
+                    <Ionicons
+                      name={user?.current_mode === 'customer' ? 'person' : 'briefcase'}
+                      size={16}
+                      color={Colors.primary[600]}
+                    />
+                    <Text style={styles.modeText}>
+                      {user?.current_mode === 'customer' ? 'Customer' : 'Tasker'} Mode
+                    </Text>
+                  </View>
+                  <TouchableOpacity style={styles.switchButton} onPress={handleSwitchMode}>
+                    <Ionicons name="swap-horizontal" size={18} color={Colors.primary[500]} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+
+            {/* Stats */}
+            <View style={styles.statsContainer}>
+              <View style={styles.statItem}>
+                <View style={styles.statNumberContainer}>
+                  <Text style={styles.statNumber}>{loadingStats ? '0' : stats.tasksCompleted}</Text>
+                </View>
+                <Text style={styles.statLabel}>Tasks Completed</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <View style={styles.statNumberContainer}>
+                  <Text style={styles.statNumber}>
+                    {loadingStats ? '0.0' : stats.rating > 0 ? stats.rating.toFixed(1) : '0.0'}
+                  </Text>
+                </View>
+                <Text style={styles.statLabel}>Rating</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <View style={styles.statNumberContainer}>
+                  <Text style={styles.statNumber} numberOfLines={1} ellipsizeMode="tail">
+                    {loadingStats ? '0' : formatNumber(stats.earned)}
+                  </Text>
+                  {!loadingStats && (
+                    <Text style={styles.statCurrency} numberOfLines={1}>
+                      {' '}
+                      ETB
+                    </Text>
+                  )}
+                </View>
+                <Text style={styles.statLabel}>Earned (This Month)</Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        {/* Tasker Application Status / Role Switch */}
-        {user && (
-          <View style={styles.becomeTaskerSection}>
-            {user.tasker_application_status === 'pending' ? (
-              // Application Under Review
-              <View style={styles.applicationStatusBanner}>
-                <Ionicons name="time" size={24} color={Colors.warning[500]} />
-                <View style={styles.applicationStatusContent}>
-                  <Text style={styles.applicationStatusTitle}>Application Under Review</Text>
-                  <Text style={styles.applicationStatusSubtitle}>Your tasker application is being reviewed. You'll be notified once approved.</Text>
+          {/* Tasker Application Status / Role Switch */}
+          {user && (
+            <View style={styles.becomeTaskerSection}>
+              {user.tasker_application_status === 'pending' ? (
+                // Application Under Review
+                <View style={styles.applicationStatusBanner}>
+                  <Ionicons name="time" size={24} color={Colors.warning[500]} />
+                  <View style={styles.applicationStatusContent}>
+                    <Text style={styles.applicationStatusTitle}>Application Under Review</Text>
+                    <Text style={styles.applicationStatusSubtitle}>
+                      Your tasker application is being reviewed. You&apos;ll be notified once
+                      approved.
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            ) : user.tasker_application_status === 'approved' && (user.role === 'tasker' || user.role === 'both') ? (
-              // Application Approved - Show role switch
-              <TouchableOpacity style={styles.approvedStatusBanner} onPress={handleSwitchMode}>
-                <Ionicons name="checkmark-circle" size={24} color={Colors.success[500]} />
-                <View style={styles.applicationStatusContent}>
-                  <Text style={styles.approvedStatusTitle}>Application Approved!</Text>
-                  <Text style={styles.approvedStatusSubtitle}>
-                    You're now a tasker! {user.current_mode === 'customer' ? 'Switch to tasker mode to start earning.' : 'You are currently in tasker mode.'}
-                  </Text>
+              ) : user.tasker_application_status === 'approved' &&
+                (user.role === 'tasker' || user.role === 'both') ? (
+                // Application Approved - Show role switch
+                <TouchableOpacity style={styles.approvedStatusBanner} onPress={handleSwitchMode}>
+                  <Ionicons name="checkmark-circle" size={24} color={Colors.success[500]} />
+                  <View style={styles.applicationStatusContent}>
+                    <Text style={styles.approvedStatusTitle}>Application Approved!</Text>
+                    <Text style={styles.approvedStatusSubtitle}>
+                      You&apos;re now a tasker!{' '}
+                      {user.current_mode === 'customer'
+                        ? 'Switch to tasker mode to start earning.'
+                        : 'You are currently in tasker mode.'}
+                    </Text>
+                  </View>
+                  <Ionicons name="swap-horizontal" size={20} color={Colors.success[500]} />
+                </TouchableOpacity>
+              ) : user.tasker_application_status === 'approved' ? (
+                // Application approved but role not updated yet
+                <View style={styles.approvedStatusBanner}>
+                  <Ionicons name="checkmark-circle" size={24} color={Colors.success[500]} />
+                  <View style={styles.applicationStatusContent}>
+                    <Text style={styles.approvedStatusTitle}>Application Approved!</Text>
+                    <Text style={styles.approvedStatusSubtitle}>
+                      Your application has been approved! Please restart the app to update your
+                      profile.
+                    </Text>
+                  </View>
                 </View>
-                <Ionicons name="swap-horizontal" size={20} color={Colors.success[500]} />
+              ) : user.tasker_application_status === 'rejected' ? (
+                // Application Rejected - Show reapply option
+                <TouchableOpacity style={styles.rejectedStatusBanner} onPress={handleBecomeTasker}>
+                  <Ionicons name="close-circle" size={24} color={Colors.error[500]} />
+                  <View style={styles.applicationStatusContent}>
+                    <Text style={styles.rejectedStatusTitle}>Application Rejected</Text>
+                    <Text style={styles.rejectedStatusSubtitle}>
+                      Your tasker application was not approved. Tap to reapply.
+                    </Text>
+                  </View>
+                  <Ionicons name="arrow-forward" size={20} color={Colors.error[500]} />
+                </TouchableOpacity>
+              ) : (
+                // Become Tasker Button
+                <TouchableOpacity style={styles.becomeTaskerButton} onPress={handleBecomeTasker}>
+                  <Ionicons name="briefcase" size={24} color="#fff" />
+                  <View style={styles.becomeTaskerContent}>
+                    <Text style={styles.becomeTaskerTitle}>Become a Tasker</Text>
+                    <Text style={styles.becomeTaskerSubtitle}>
+                      Start earning by completing tasks
+                    </Text>
+                  </View>
+                  <Ionicons name="arrow-forward" size={20} color="#fff" />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {/* Menu Items */}
+          <View style={styles.menuSection}>
+            <Text style={styles.sectionTitle}>Account</Text>
+            {menuItems.map((item, index) => (
+              <TouchableOpacity
+                key={item.id}
+                style={index === menuItems.length - 1 ? styles.lastMenuItem : styles.menuItem}
+                onPress={() => handleMenuPress(item.id)}
+              >
+                <View style={styles.menuItemLeft}>
+                  <View style={[styles.menuIcon, { backgroundColor: item.color + '20' }]}>
+                    <Ionicons name={item.icon as any} size={20} color={item.color} />
+                  </View>
+                  <Text style={styles.menuText}>{item.title}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={Colors.neutral[400]} />
               </TouchableOpacity>
-            ) : user.tasker_application_status === 'approved' ? (
-              // Application approved but role not updated yet
-              <View style={styles.approvedStatusBanner}>
-                <Ionicons name="checkmark-circle" size={24} color={Colors.success[500]} />
-                <View style={styles.applicationStatusContent}>
-                  <Text style={styles.approvedStatusTitle}>Application Approved!</Text>
-                  <Text style={styles.approvedStatusSubtitle}>
-                    Your application has been approved! Please restart the app to update your profile.
-                  </Text>
-                </View>
-              </View>
-            ) : user.tasker_application_status === 'rejected' ? (
-              // Application Rejected - Show reapply option
-              <TouchableOpacity style={styles.rejectedStatusBanner} onPress={handleBecomeTasker}>
-                <Ionicons name="close-circle" size={24} color={Colors.error[500]} />
-                <View style={styles.applicationStatusContent}>
-                  <Text style={styles.rejectedStatusTitle}>Application Rejected</Text>
-                  <Text style={styles.rejectedStatusSubtitle}>Your tasker application was not approved. Tap to reapply.</Text>
-                </View>
-                <Ionicons name="arrow-forward" size={20} color={Colors.error[500]} />
-              </TouchableOpacity>
-            ) : (
-              // Become Tasker Button
-              <TouchableOpacity style={styles.becomeTaskerButton} onPress={handleBecomeTasker}>
-                <Ionicons name="briefcase" size={24} color="#fff" />
-                <View style={styles.becomeTaskerContent}>
-                  <Text style={styles.becomeTaskerTitle}>Become a Tasker</Text>
-                  <Text style={styles.becomeTaskerSubtitle}>Start earning by completing tasks</Text>
-                </View>
-                <Ionicons name="arrow-forward" size={20} color="#fff" />
-              </TouchableOpacity>
-            )}
+            ))}
           </View>
-        )}
 
-        {/* Menu Items */}
-        <View style={styles.menuSection}>
-          <Text style={styles.sectionTitle}>Account</Text>
-          {menuItems.map((item, index) => (
-            <TouchableOpacity 
-              key={item.id} 
-              style={index === menuItems.length - 1 ? styles.lastMenuItem : styles.menuItem}
-              onPress={() => handleMenuPress(item.id)}
-            >
-              <View style={styles.menuItemLeft}>
-                <View style={[styles.menuIcon, { backgroundColor: item.color + '20' }]}>
-                  <Ionicons name={item.icon as any} size={20} color={item.color} />
-                </View>
-                <Text style={styles.menuText}>{item.title}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={Colors.neutral[400]} />
-            </TouchableOpacity>
-          ))}
-        </View>
+          {/* App Info */}
+          <View style={styles.appInfoSection}>
+            <Text style={styles.appName}>Mescott</Text>
+            <Text style={styles.appVersion}>Version 1.0.0</Text>
+            <Text style={styles.appDescription}>Your trusted marketplace for local services</Text>
+          </View>
 
-        {/* App Info */}
-        <View style={styles.appInfoSection}>
-          <Text style={styles.appName}>Mescott</Text>
-          <Text style={styles.appVersion}>Version 1.0.0</Text>
-          <Text style={styles.appDescription}>
-            Your trusted marketplace for local services
-          </Text>
-        </View>
-                
-        {/* Logout Button */}
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={20} color={Colors.error[500]} />
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
+          {/* Logout Button */}
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={20} color={Colors.error[500]} />
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
 
-        {/* Bottom Spacing */}
-        <View style={styles.bottomSpacing} />
-      </ScrollView>
-    </View>
+          {/* Bottom Spacing */}
+          <View style={styles.bottomSpacing} />
+        </ScrollView>
+      </View>
     </SafeAreaView>
   )
 }
