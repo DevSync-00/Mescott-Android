@@ -1,16 +1,7 @@
 import React, { useState } from 'react'
-import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
-  ViewStyle,
-  TextStyle,
-  Animated,
-  Pressable,
-  ActivityIndicator,
-} from 'react-native'
+import { Text, ViewStyle, TextStyle, Animated, Pressable, ActivityIndicator } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 import { Typography, BorderRadius, Spacing, Shadows } from '../constants/Design'
 
 interface EnhancedButtonProps {
@@ -208,11 +199,9 @@ export default function EnhancedButton({
         ) : (
           iconPosition === 'left' && renderIcon()
         )}
-        
-        <Text style={getTextStyles()}>
-          {loading ? 'Loading...' : title}
-        </Text>
-        
+
+        <Text style={getTextStyles()}>{loading ? 'Loading...' : title}</Text>
+
         {!loading && iconPosition === 'right' && renderIcon()}
       </Pressable>
     </Animated.View>

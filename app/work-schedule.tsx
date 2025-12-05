@@ -1,18 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  Switch,
-} from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Switch } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import { useAuth } from '../contexts/SimpleAuthContext'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 interface TimeSlot {
   id: string
@@ -24,12 +15,25 @@ interface TimeSlot {
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 const TIME_SLOTS = [
-  '06:00', '07:00', '08:00', '09:00', '10:00', '11:00', '12:00',
-  '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00'
+  '06:00',
+  '07:00',
+  '08:00',
+  '09:00',
+  '10:00',
+  '11:00',
+  '12:00',
+  '13:00',
+  '14:00',
+  '15:00',
+  '16:00',
+  '17:00',
+  '18:00',
+  '19:00',
+  '20:00',
+  '21:00',
 ]
 
 export default function WorkSchedule() {
-  const { user } = useAuth()
   const router = useRouter()
   const [schedule, setSchedule] = useState<TimeSlot[]>([])
   const [isAvailable, setIsAvailable] = useState(true)
@@ -58,22 +62,14 @@ export default function WorkSchedule() {
   }
 
   const toggleDayAvailability = (dayId: string) => {
-    setSchedule(prev => 
-      prev.map(slot => 
-        slot.id === dayId 
-          ? { ...slot, isAvailable: !slot.isAvailable }
-          : slot
-      )
+    setSchedule((prev) =>
+      prev.map((slot) => (slot.id === dayId ? { ...slot, isAvailable: !slot.isAvailable } : slot)),
     )
   }
 
   const updateTimeSlot = (dayId: string, field: 'startTime' | 'endTime', time: string) => {
-    setSchedule(prev => 
-      prev.map(slot => 
-        slot.id === dayId 
-          ? { ...slot, [field]: time }
-          : slot
-      )
+    setSchedule((prev) =>
+      prev.map((slot) => (slot.id === dayId ? { ...slot, [field]: time } : slot)),
     )
   }
 
@@ -88,48 +84,44 @@ export default function WorkSchedule() {
   }
 
   const copyToAllDays = (dayId: string) => {
-    const sourceDay = schedule.find(slot => slot.id === dayId)
+    const sourceDay = schedule.find((slot) => slot.id === dayId)
     if (!sourceDay) return
 
-    setSchedule(prev => 
-      prev.map(slot => ({
+    setSchedule((prev) =>
+      prev.map((slot) => ({
         ...slot,
         startTime: sourceDay.startTime,
         endTime: sourceDay.endTime,
         isAvailable: sourceDay.isAvailable,
-      }))
+      })),
     )
     Alert.alert('Success', 'Schedule copied to all days')
   }
 
   const resetToDefault = () => {
-    Alert.alert(
-      'Reset Schedule',
-      'Are you sure you want to reset your schedule to default?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Reset', 
-          style: 'destructive',
-          onPress: () => {
-            loadSchedule()
-            Alert.alert('Success', 'Schedule reset to default')
-          }
-        }
-      ]
-    )
+    Alert.alert('Reset Schedule', 'Are you sure you want to reset your schedule to default?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Reset',
+        style: 'destructive',
+        onPress: () => {
+          loadSchedule()
+          Alert.alert('Success', 'Schedule reset to default')
+        },
+      },
+    ])
   }
 
   const getAvailabilityStats = () => {
-    const availableDays = schedule.filter(slot => slot.isAvailable).length
+    const availableDays = schedule.filter((slot) => slot.isAvailable).length
     const totalHours = schedule
-      .filter(slot => slot.isAvailable)
+      .filter((slot) => slot.isAvailable)
       .reduce((total, slot) => {
         const start = parseInt(slot.startTime.split(':')[0])
         const end = parseInt(slot.endTime.split(':')[0])
         return total + (end - start)
       }, 0)
-    
+
     return { availableDays, totalHours }
   }
 
@@ -158,8 +150,8 @@ export default function WorkSchedule() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
-        style={styles.content} 
+      <ScrollView
+        style={styles.content}
         showsVerticalScrollIndicator={true}
         contentContainerStyle={styles.scrollContent}
       >
@@ -201,10 +193,7 @@ export default function WorkSchedule() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Weekly Schedule</Text>
             <View style={styles.sectionActions}>
-              <TouchableOpacity 
-                style={styles.actionButton}
-                onPress={resetToDefault}
-              >
+              <TouchableOpacity style={styles.actionButton} onPress={resetToDefault}>
                 <Ionicons name="refresh-outline" size={16} color={Colors.neutral[600]} />
                 <Text style={styles.actionText}>Reset</Text>
               </TouchableOpacity>
@@ -221,15 +210,12 @@ export default function WorkSchedule() {
                     trackColor={{ false: Colors.neutral[300], true: Colors.primary[200] }}
                     thumbColor={slot.isAvailable ? Colors.primary[500] : Colors.neutral[400]}
                   />
-                  <Text style={[
-                    styles.dayName,
-                    !slot.isAvailable && styles.dayNameDisabled
-                  ]}>
+                  <Text style={[styles.dayName, !slot.isAvailable && styles.dayNameDisabled]}>
                     {slot.day}
                   </Text>
                 </View>
                 {slot.isAvailable && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.copyButton}
                     onPress={() => copyToAllDays(slot.id)}
                   >
@@ -243,19 +229,21 @@ export default function WorkSchedule() {
                   <View style={styles.timeSlot}>
                     <Text style={styles.timeLabel}>Start Time</Text>
                     <View style={styles.timeSelector}>
-                      {TIME_SLOTS.map(time => (
+                      {TIME_SLOTS.map((time) => (
                         <TouchableOpacity
                           key={time}
                           style={[
                             styles.timeOption,
-                            slot.startTime === time && styles.timeOptionSelected
+                            slot.startTime === time && styles.timeOptionSelected,
                           ]}
                           onPress={() => updateTimeSlot(slot.id, 'startTime', time)}
                         >
-                          <Text style={[
-                            styles.timeText,
-                            slot.startTime === time && styles.timeTextSelected
-                          ]}>
+                          <Text
+                            style={[
+                              styles.timeText,
+                              slot.startTime === time && styles.timeTextSelected,
+                            ]}
+                          >
                             {time}
                           </Text>
                         </TouchableOpacity>
@@ -266,19 +254,21 @@ export default function WorkSchedule() {
                   <View style={styles.timeSlot}>
                     <Text style={styles.timeLabel}>End Time</Text>
                     <View style={styles.timeSelector}>
-                      {TIME_SLOTS.map(time => (
+                      {TIME_SLOTS.map((time) => (
                         <TouchableOpacity
                           key={time}
                           style={[
                             styles.timeOption,
-                            slot.endTime === time && styles.timeOptionSelected
+                            slot.endTime === time && styles.timeOptionSelected,
                           ]}
                           onPress={() => updateTimeSlot(slot.id, 'endTime', time)}
                         >
-                          <Text style={[
-                            styles.timeText,
-                            slot.endTime === time && styles.timeTextSelected
-                          ]}>
+                          <Text
+                            style={[
+                              styles.timeText,
+                              slot.endTime === time && styles.timeTextSelected,
+                            ]}
+                          >
                             {time}
                           </Text>
                         </TouchableOpacity>
@@ -296,8 +286,8 @@ export default function WorkSchedule() {
           <View style={styles.tipCard}>
             <Ionicons name="bulb-outline" size={20} color={Colors.warning[500]} />
             <Text style={styles.tipText}>
-              Set your availability to match when you&apos;re most productive. 
-              Customers will see your available hours when booking.
+              Set your availability to match when you&apos;re most productive. Customers will see
+              your available hours when booking.
             </Text>
           </View>
         </View>

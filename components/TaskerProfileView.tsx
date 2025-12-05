@@ -13,7 +13,7 @@ import {
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { PortfolioService, TaskerPortfolio } from '../services/PortfolioService'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 interface TaskerProfileViewProps {
   taskerId: string

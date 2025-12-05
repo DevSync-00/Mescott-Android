@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
   Alert,
   StatusBar,
 } from 'react-native'
@@ -15,19 +14,18 @@ import { useRouter } from 'expo-router'
 import { useNotifications } from '../contexts/NotificationContext'
 import { Notification } from '../services/UnifiedNotificationService'
 import { useAuth } from '../contexts/SimpleAuthContext'
-import Colors from '../constants/Colors'
-import SkeletonLoader, { SkeletonList } from '../components/SkeletonLoader'
+import { Colors } from '../constants/Colors'
+import { SkeletonList } from '../components/SkeletonLoader'
 import Header from '../components/Header'
 
 export default function Notifications() {
   const router = useRouter()
-  const { user, isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading } = useAuth()
   const insets = useSafeAreaInsets()
   const {
     notifications,
     unreadCount,
     loading,
-    refreshNotifications,
     markAsRead,
     markAllAsRead,
     deleteNotification,
@@ -38,11 +36,7 @@ export default function Notifications() {
     if (!isLoading && !isAuthenticated) {
       router.replace('/auth')
     }
-  }, [isAuthenticated, isLoading])
-
-  const handleRefresh = async () => {
-    await refreshNotifications()
-  }
+  }, [isAuthenticated, isLoading, router])
 
   const handleMarkAsRead = async (notificationId: string) => {
     await markAsRead(notificationId)

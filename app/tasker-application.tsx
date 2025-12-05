@@ -10,19 +10,26 @@ import {
   Image,
   StatusBar,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { TaskerApplicationService } from '../services/TaskerApplicationService'
 import { ImageService } from '../services/ImageService'
 import * as ImagePicker from 'expo-image-picker'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 const SKILLS = [
-  'Cleaning', 'Handyman', 'Delivery', 'Photography', 'Technology',
-  'Gardening', 'Pet Care', 'Moving', 'Tutoring', 'Cooking'
+  'Cleaning',
+  'Handyman',
+  'Delivery',
+  'Photography',
+  'Technology',
+  'Gardening',
+  'Pet Care',
+  'Moving',
+  'Tutoring',
+  'Cooking',
 ]
 
 export default function TaskerApplication() {
@@ -47,11 +54,11 @@ export default function TaskerApplication() {
   }
 
   const handleSkillToggle = (skill: string) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       skills: prev.skills.includes(skill)
-        ? prev.skills.filter(s => s !== skill)
-        : [...prev.skills, skill]
+        ? prev.skills.filter((s) => s !== skill)
+        : [...prev.skills, skill],
     }))
   }
 
@@ -74,14 +81,14 @@ export default function TaskerApplication() {
 
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0]
-        
+
         // Upload to Supabase Storage
         const uploadResult = await ImageService.uploadImage(asset.uri, 'id-verification')
-        
+
         if (uploadResult.success && uploadResult.url) {
-          setFormData(prev => ({
+          setFormData((prev) => ({
             ...prev,
-            [type === 'front' ? 'idFrontUrl' : 'idBackUrl']: uploadResult.url!
+            [type === 'front' ? 'idFrontUrl' : 'idBackUrl']: uploadResult.url!,
           }))
         } else {
           Alert.alert('Upload Failed', uploadResult.error || 'Failed to upload image')
@@ -94,25 +101,28 @@ export default function TaskerApplication() {
   }
 
   const addSkillVerification = () => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      skillVerifications: [...prev.skillVerifications, { skill: '', level: 'intermediate', documents: [] }]
+      skillVerifications: [
+        ...prev.skillVerifications,
+        { skill: '', level: 'intermediate', documents: [] },
+      ],
     }))
   }
 
   const updateSkillVerification = (index: number, field: string, value: string) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      skillVerifications: prev.skillVerifications.map((item, i) => 
-        i === index ? { ...item, [field]: value } : item
-      )
+      skillVerifications: prev.skillVerifications.map((item, i) =>
+        i === index ? { ...item, [field]: value } : item,
+      ),
     }))
   }
 
   const removeSkillVerification = (index: number) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      skillVerifications: prev.skillVerifications.filter((_, i) => i !== index)
+      skillVerifications: prev.skillVerifications.filter((_, i) => i !== index),
     }))
   }
 
@@ -121,7 +131,10 @@ export default function TaskerApplication() {
       // Request permissions
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Please grant camera roll permissions to upload documents')
+        Alert.alert(
+          'Permission Required',
+          'Please grant camera roll permissions to upload documents',
+        )
         return
       }
 
@@ -135,18 +148,18 @@ export default function TaskerApplication() {
 
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0]
-        
+
         // Upload to Supabase Storage
         const uploadResult = await ImageService.uploadImage(asset.uri, 'skill-documents')
-        
+
         if (uploadResult.success && uploadResult.url) {
-          setFormData(prev => ({
+          setFormData((prev) => ({
             ...prev,
-            skillVerifications: prev.skillVerifications.map((item, i) => 
-              i === skillIndex 
+            skillVerifications: prev.skillVerifications.map((item, i) =>
+              i === skillIndex
                 ? { ...item, documents: [...item.documents, uploadResult.url!] }
-                : item
-            )
+                : item,
+            ),
           }))
         } else {
           Alert.alert('Upload Failed', uploadResult.error || 'Failed to upload document')
@@ -159,13 +172,13 @@ export default function TaskerApplication() {
   }
 
   const removeSkillDocument = (skillIndex: number, docIndex: number) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      skillVerifications: prev.skillVerifications.map((item, i) => 
-        i === skillIndex 
+      skillVerifications: prev.skillVerifications.map((item, i) =>
+        i === skillIndex
           ? { ...item, documents: item.documents.filter((_, j) => j !== docIndex) }
-          : item
-      )
+          : item,
+      ),
     }))
   }
 
@@ -197,7 +210,7 @@ export default function TaskerApplication() {
         id: user!.id,
         user_id: user!.user_id,
         full_name: user!.full_name,
-        phone: user!.phone
+        phone: user!.phone,
       })
 
       const applicationData = {
@@ -216,7 +229,7 @@ export default function TaskerApplication() {
       console.log('🚀 TASKER APPLICATION - Application data:', applicationData)
 
       const result = await TaskerApplicationService.createApplication(applicationData)
-      
+
       if (result) {
         // Refresh user profile to get updated application status
         try {
@@ -226,17 +239,19 @@ export default function TaskerApplication() {
         }
 
         Alert.alert(
-          'Success!', 
+          'Success!',
           'Your application has been submitted successfully. We will review it and get back to you soon.',
-          [{ 
-            text: 'OK', 
-            onPress: () => {
-              // Use setTimeout to avoid state update during render
-              setTimeout(() => {
-                router.push('/profile')
-              }, 100)
-            }
-          }]
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Use setTimeout to avoid state update during render
+                setTimeout(() => {
+                  router.push('/profile')
+                }, 100)
+              },
+            },
+          ],
         )
       } else {
         Alert.alert('Error', 'Failed to submit application. Please try again.')
@@ -262,105 +277,110 @@ export default function TaskerApplication() {
         </View>
       </View>
 
-      <ScrollView 
-        style={styles.content} 
+      <ScrollView
+        style={styles.content}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.contentContainer, { paddingBottom: 32 + insets.bottom }]}
         keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.subtitle}>
-          Join our community of skilled taskers and start earning money by helping others with their tasks.
+          Join our community of skilled taskers and start earning money by helping others with their
+          tasks.
         </Text>
 
-              {/* Personal Information */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Personal Information</Text>
-                
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Full Name *</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={formData.fullName}
-                    onChangeText={(text) => setFormData(prev => ({ ...prev, fullName: text }))}
+        {/* Personal Information */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Personal Information</Text>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Full Name *</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.fullName}
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, fullName: text }))}
               placeholder="Enter your full name"
-                  />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Phone Number *</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={formData.phone}
-                    onChangeText={(text) => setFormData(prev => ({ ...prev, phone: text }))}
-              placeholder="Enter your phone number"
-                    keyboardType="phone-pad"
-                  />
-                </View>
-
-                <View style={styles.inputGroup}>
-            <Text style={styles.label}>Bio</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    value={formData.bio}
-                    onChangeText={(text) => setFormData(prev => ({ ...prev, bio: text }))}
-              placeholder="Tell us about yourself and your experience"
-                    multiline
-                    numberOfLines={4}
-                  />
+            />
           </View>
-                </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Phone Number *</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.phone}
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, phone: text }))}
+              placeholder="Enter your phone number"
+              keyboardType="phone-pad"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Bio</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={formData.bio}
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, bio: text }))}
+              placeholder="Tell us about yourself and your experience"
+              multiline
+              numberOfLines={4}
+            />
+          </View>
+        </View>
 
         {/* Skills */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Skills *</Text>
           <Text style={styles.sectionSubtitle}>Select the skills you can help with</Text>
-          
-                  <View style={styles.skillsContainer}>
+
+          <View style={styles.skillsContainer}>
             {SKILLS.map((skill) => (
-                      <TouchableOpacity
-                        key={skill}
-                        style={[
+              <TouchableOpacity
+                key={skill}
+                style={[
                   styles.skillButton,
-                  formData.skills.includes(skill) && styles.skillButtonSelected
-                        ]}
-                        onPress={() => handleSkillToggle(skill)}
-                      >
-                        <Text style={[
-                  styles.skillText,
-                  formData.skills.includes(skill) && styles.skillTextSelected
-                        ]}>
-                          {skill}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
+                  formData.skills.includes(skill) && styles.skillButtonSelected,
+                ]}
+                onPress={() => handleSkillToggle(skill)}
+              >
+                <Text
+                  style={[
+                    styles.skillText,
+                    formData.skills.includes(skill) && styles.skillTextSelected,
+                  ]}
+                >
+                  {skill}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
 
         {/* Experience */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Experience</Text>
 
-                <View style={styles.inputGroup}>
+          <View style={styles.inputGroup}>
             <Text style={styles.label}>Years of Experience</Text>
-                    <TextInput
-                      style={styles.input}
+            <TextInput
+              style={styles.input}
               value={formData.experience}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, experience: text }))}
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, experience: text }))}
               placeholder="0"
-                      keyboardType="numeric"
-                    />
-                </View>
-              </View>
+              keyboardType="numeric"
+            />
+          </View>
+        </View>
 
         {/* National ID Verification - Mandatory */}
-              <View style={styles.section}>
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>National ID Verification *</Text>
-          <Text style={styles.sectionSubtitle}>Upload clear photos of your National ID card (front and back)</Text>
-          
+          <Text style={styles.sectionSubtitle}>
+            Upload clear photos of your National ID card (front and back)
+          </Text>
+
           <View style={styles.idUploadContainer}>
             <View style={styles.idUploadItem}>
               <Text style={styles.label}>ID Front *</Text>
-                  <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.uploadButton}
                 onPress={() => handleImageUpload('front')}
               >
@@ -372,12 +392,12 @@ export default function TaskerApplication() {
                     <Text style={styles.uploadText}>Upload ID Front</Text>
                   </View>
                 )}
-                  </TouchableOpacity>
-                </View>
+              </TouchableOpacity>
+            </View>
 
             <View style={styles.idUploadItem}>
               <Text style={styles.label}>ID Back *</Text>
-                  <TouchableOpacity
+              <TouchableOpacity
                 style={styles.uploadButton}
                 onPress={() => handleImageUpload('back')}
               >
@@ -387,9 +407,9 @@ export default function TaskerApplication() {
                   <View style={styles.uploadPlaceholder}>
                     <Ionicons name="camera" size={32} color={Colors.neutral[400]} />
                     <Text style={styles.uploadText}>Upload ID Back</Text>
-                    </View>
+                  </View>
                 )}
-                  </TouchableOpacity>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -397,62 +417,68 @@ export default function TaskerApplication() {
         {/* Skill Verification - Optional */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Skill Verification (Optional)</Text>
-          <Text style={styles.sectionSubtitle}>Add certificates or documents to verify your skills</Text>
-          
+          <Text style={styles.sectionSubtitle}>
+            Add certificates or documents to verify your skills
+          </Text>
+
           {formData.skillVerifications.map((verification, index) => (
             <View key={index} style={styles.skillVerificationItem}>
               <View style={styles.skillVerificationHeader}>
                 <Text style={styles.skillVerificationTitle}>Skill Verification {index + 1}</Text>
-                  <TouchableOpacity
+                <TouchableOpacity
                   onPress={() => removeSkillVerification(index)}
                   style={styles.removeButton}
-                  >
+                >
                   <Ionicons name="close-circle" size={20} color={Colors.neutral[400]} />
-                  </TouchableOpacity>
-                </View>
+                </TouchableOpacity>
+              </View>
 
-                <View style={styles.inputGroup}>
+              <View style={styles.inputGroup}>
                 <Text style={styles.label}>Skill</Text>
-                    <TextInput
-                      style={styles.input}
+                <TextInput
+                  style={styles.input}
                   value={verification.skill}
                   onChangeText={(text) => updateSkillVerification(index, 'skill', text)}
                   placeholder="e.g., Photography, Plumbing"
                 />
               </View>
-                
-                <View style={styles.inputGroup}>
+
+              <View style={styles.inputGroup}>
                 <Text style={styles.label}>Proficiency Level</Text>
                 <View style={styles.levelButtons}>
                   {['beginner', 'intermediate', 'advanced', 'expert'].map((level) => (
-                      <TouchableOpacity
+                    <TouchableOpacity
                       key={level}
-                        style={[
+                      style={[
                         styles.levelButton,
-                        verification.level === level && styles.levelButtonSelected
-                        ]}
+                        verification.level === level && styles.levelButtonSelected,
+                      ]}
                       onPress={() => updateSkillVerification(index, 'level', level)}
+                    >
+                      <Text
+                        style={[
+                          styles.levelButtonText,
+                          verification.level === level && styles.levelButtonTextSelected,
+                        ]}
                       >
-                        <Text style={[
-                        styles.levelButtonText,
-                        verification.level === level && styles.levelButtonTextSelected
-                        ]}>
                         {level.charAt(0).toUpperCase() + level.slice(1)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
+              </View>
 
-                <View style={styles.inputGroup}>
+              <View style={styles.inputGroup}>
                 <Text style={styles.label}>Supporting Documents (up to 5)</Text>
-                <Text style={styles.helperText}>Upload certificates, licenses, or other proof of skill</Text>
-                
+                <Text style={styles.helperText}>
+                  Upload certificates, licenses, or other proof of skill
+                </Text>
+
                 <View style={styles.documentsContainer}>
                   {verification.documents.map((doc, docIndex) => (
                     <View key={docIndex} style={styles.documentItem}>
                       <Image source={{ uri: doc }} style={styles.documentImage} />
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         style={styles.removeDocumentButton}
                         onPress={() => removeSkillDocument(index, docIndex)}
                       >
@@ -460,9 +486,9 @@ export default function TaskerApplication() {
                       </TouchableOpacity>
                     </View>
                   ))}
-                  
+
                   {verification.documents.length < 5 && (
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={styles.addDocumentButton}
                       onPress={() => handleSkillDocumentUpload(index)}
                     >
@@ -480,27 +506,24 @@ export default function TaskerApplication() {
               </View>
             </View>
           ))}
-          
-                  <TouchableOpacity 
-            style={styles.addSkillButton}
-            onPress={addSkillVerification}
-                  >
+
+          <TouchableOpacity style={styles.addSkillButton} onPress={addSkillVerification}>
             <Ionicons name="add" size={20} color={Colors.primary[500]} />
             <Text style={styles.addSkillText}>Add Skill Verification</Text>
-                  </TouchableOpacity>
-              </View>
+          </TouchableOpacity>
+        </View>
 
-              {/* Submit Button */}
-              <TouchableOpacity
-                style={[styles.submitButton, loading && styles.submitButtonDisabled]}
-                onPress={handleSubmit}
-                disabled={loading}
-              >
-                <Text style={styles.submitButtonText}>
-                  {loading ? 'Submitting...' : 'Submit Application'}
-                </Text>
-              </TouchableOpacity>
-            </ScrollView>
+        {/* Submit Button */}
+        <TouchableOpacity
+          style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+          onPress={handleSubmit}
+          disabled={loading}
+        >
+          <Text style={styles.submitButtonText}>
+            {loading ? 'Submitting...' : 'Submit Application'}
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
     </SafeAreaView>
   )
 }

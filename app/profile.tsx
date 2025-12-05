@@ -15,10 +15,9 @@ import { StatusBar } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 import { supabase } from '../lib/supabase'
-import SkeletonLoader, { SkeletonCard } from '../components/SkeletonLoader'
-import { TaskService } from '../services/TaskService'
+import { SkeletonCard } from '../components/SkeletonLoader'
 
 export default function Profile() {
   const { user, logout, switchMode, isAuthenticated, isLoading, refreshUserProfile } = useAuth()
@@ -35,7 +34,7 @@ export default function Profile() {
     if (!isLoading && !isAuthenticated) {
       router.replace('/auth')
     }
-  }, [isAuthenticated, isLoading])
+  }, [isAuthenticated, isLoading, router])
 
   // Format large numbers (e.g., 10000 -> "10K", 1000000 -> "1M")
   const formatNumber = (num: number): string => {
@@ -195,7 +194,7 @@ export default function Profile() {
         onPress: async () => {
           try {
             await logout()
-          } catch (error) {
+          } catch {
             Alert.alert('Error', 'Failed to logout. Please try again.')
           }
         },
@@ -213,7 +212,7 @@ export default function Profile() {
         const newMode = currentMode === 'customer' ? 'tasker' : 'customer'
         await switchMode()
         Alert.alert('Success', `Switched to ${newMode} mode!`)
-      } catch (error) {
+      } catch {
         Alert.alert('Error', 'Failed to switch mode. Please try again.')
       }
     } else {

@@ -5,13 +5,9 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  TextInput,
   Alert,
-  ActivityIndicator,
   Dimensions,
   Image,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
   GestureResponderEvent,
   Platform,
   FlatList,
@@ -20,7 +16,6 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
-  withTiming,
   interpolate,
 } from 'react-native-reanimated'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -39,8 +34,8 @@ import LoadingErrorState from '../components/LoadingErrorState'
 import ChapaPaymentModal from '../components/ChapaPaymentModal'
 // import RatingModal from '../components/RatingModal'
 import JobsHeader from '../components/JobsHeader'
-import Colors from '../constants/Colors'
-import SkeletonLoader, { SkeletonList } from '../components/SkeletonLoader'
+import { Colors } from '../constants/Colors'
+import { SkeletonList } from '../components/SkeletonLoader'
 // import TaskDetailSheet from '../components/TaskDetailSheet'
 import { moderateFont } from '../utils/fontScale'
 
@@ -75,15 +70,6 @@ const budgetRanges = [
   { label: 'jobs.over_200', min: 200, max: Infinity },
 ]
 
-const sortOptions = [
-  { label: 'Newest First', value: 'newest' },
-  { label: 'Oldest First', value: 'oldest' },
-  { label: 'Price: Low to High', value: 'price_low' },
-  { label: 'Price: High to Low', value: 'price_high' },
-  { label: 'Distance: Nearest', value: 'distance' },
-  { label: 'Urgency', value: 'urgency' },
-]
-
 export default function Jobs() {
   const { user, isAuthenticated, loading: isLoading } = useAuth()
   const insets = useSafeAreaInsets()
@@ -96,7 +82,7 @@ export default function Jobs() {
 
   // Animation value for FAB button
   const fabScale = useSharedValue(1)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery] = useState('')
   const [selectedCategoryAvailable, setSelectedCategoryAvailable] = useState('All')
   const [selectedCategoryMyTasks, setSelectedCategoryMyTasks] = useState('All')
   const [activeTab, setActiveTab] = useState('available')
@@ -108,18 +94,17 @@ export default function Jobs() {
       stiffness: 300,
       mass: 0.5,
     })
-  }, [activeTab])
+  }, [activeTab, tabIndicatorPosition])
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [appliedTasks, setAppliedTasks] = useState<Set<string>>(new Set())
 
   // Enhanced filtering states
-  const [showFilters, setShowFilters] = useState(false)
-  const [selectedBudgetRange, setSelectedBudgetRange] = useState(0)
-  const [selectedSort, setSelectedSort] = useState('newest')
-  const [selectedDate, setSelectedDate] = useState('any')
-  const [selectedUrgency, setSelectedUrgency] = useState('any')
-  const [selectedLocation, setSelectedLocation] = useState('any')
+  const [selectedBudgetRange] = useState(0)
+  const [selectedSort] = useState('newest')
+  const [selectedDate] = useState('any')
+  const [selectedUrgency] = useState('any')
+  const [selectedLocation] = useState('any')
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false)
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({})
   const [error, setError] = useState<string | null>(null)
@@ -137,76 +122,9 @@ export default function Jobs() {
     if (!isLoading && !isAuthenticated) {
       router.replace('/auth')
     }
-  }, [isAuthenticated, isLoading])
+  }, [isAuthenticated, isLoading, router])
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadTasks()
-      loadPendingPayments()
-    }
-  }, [activeTab, user, isAuthenticated])
-
-  // Refresh tasks when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      if (isAuthenticated && user) {
-        loadTasks() // This will call checkAppliedTasks internally
-        loadPendingPayments()
-      }
-    }, [isAuthenticated, user, activeTab]),
-  )
-
-  const scrollViewRef = useRef<ScrollView>(null)
-  const fabBottomOffset = 0 + insets.bottom
-  const listBottomPadding = fabBottomOffset + 0
-
-  // Animated styles for tab indicator
-  const tabIndicatorAnimatedStyle = useAnimatedStyle(() => {
-    const tabWidth = (width - 32 - 8) / 2 // container width minus padding and gap
-    return {
-      transform: [
-        {
-          translateX: interpolate(
-            tabIndicatorPosition.value,
-            [0, 1],
-            [4, tabWidth + 4], // 4px padding + tab width
-          ),
-        },
-      ],
-    }
-  })
-
-  // Animated style for tab scale effect
-  const tabScaleAnimatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: tabScale.value }],
-    }
-  })
-
-  // Animated style for FAB button
-  const fabAnimatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: fabScale.value }],
-    }
-  })
-
-  // Show loading while auth is being determined
-  if (isLoading) {
-    return (
-      <SafeAreaView style={styles.container} edges={[]}>
-        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
-        <View style={styles.loadingContainer}>
-          <SkeletonList count={3} />
-        </View>
-      </SafeAreaView>
-    )
-  }
-
-  if (!isAuthenticated) {
-    return null
-  }
-
-  const loadTasks = async () => {
+  const loadTasks = useCallback(async () => {
     if (!user) {
       return
     }
@@ -233,7 +151,18 @@ export default function Jobs() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [user, activeTab])
+
+  const loadPendingPayments = useCallback(async () => {
+    if (!user) return
+
+    try {
+      const payments = await PaymentService.getPendingPayments(user.user_id)
+      setPendingPayments(payments)
+    } catch (error) {
+      console.error('Error loading pending payments:', error)
+    }
+  }, [user])
 
   const checkAppliedTasks = async (tasks: Task[]) => {
     if (!user) return
@@ -255,15 +184,57 @@ export default function Jobs() {
     setAppliedTasks(appliedSet)
   }
 
-  const loadPendingPayments = async () => {
-    if (!user) return
-
-    try {
-      const payments = await PaymentService.getPendingPayments(user.user_id)
-      setPendingPayments(payments)
-    } catch (error) {
-      console.error('Error loading pending payments:', error)
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadTasks()
+      loadPendingPayments()
     }
+  }, [activeTab, user, isAuthenticated, loadTasks, loadPendingPayments])
+
+  // Refresh tasks when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      if (isAuthenticated && user) {
+        loadTasks() // This will call checkAppliedTasks internally
+        loadPendingPayments()
+      }
+    }, [isAuthenticated, user, activeTab, loadTasks, loadPendingPayments]),
+  )
+
+  const fabBottomOffset = 0 + insets.bottom
+  const listBottomPadding = fabBottomOffset + 0
+
+  // Animated styles for tab indicator
+  const tabIndicatorAnimatedStyle = useAnimatedStyle(() => {
+    const tabWidth = (width - 32 - 8) / 2 // container width minus padding and gap
+    return {
+      transform: [
+        {
+          translateX: interpolate(
+            tabIndicatorPosition.value,
+            [0, 1],
+            [4, tabWidth + 4], // 4px padding + tab width
+          ),
+        },
+      ],
+    }
+  })
+
+  // Animated style for tab scale effect
+  const tabScaleAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: tabScale.value }],
+    }
+  })
+
+  const fabAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: fabScale.value }],
+    }
+  })
+
+  if (!isAuthenticated) {
+    return null
   }
 
   const handlePayNow = async (task: Task) => {
@@ -299,13 +270,6 @@ export default function Jobs() {
     // Show rating modal for the completed task
     setSelectedTaskForRating(task)
     setShowRatingModal(true)
-  }
-
-  const handleRatingSubmitted = () => {
-    // Refresh tasks after rating is submitted
-    loadTasks()
-    setShowRatingModal(false)
-    setSelectedTaskForRating(null)
   }
 
   const hasPendingPayment = (task: Task) => {
@@ -362,23 +326,6 @@ export default function Jobs() {
         budget: task.budget.toString(),
       },
     })
-  }
-
-  const handleSearch = async () => {
-    if (!user) return
-
-    setLoading(true)
-    try {
-      const selectedCategory =
-        activeTab === 'available' ? selectedCategoryAvailable : selectedCategoryMyTasks
-      const searchResults = await TaskService.searchTasks(searchQuery, selectedCategory)
-      setTasks(searchResults)
-    } catch (error) {
-      console.error('Error searching tasks:', error)
-      Alert.alert('Error', 'Failed to search tasks')
-    } finally {
-      setLoading(false)
-    }
   }
 
   const filteredTasks = tasks
@@ -476,20 +423,6 @@ export default function Jobs() {
     }
   }
 
-  const formatTime = (timestamp: string) => {
-    const date = new Date(timestamp)
-    const now = new Date()
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
-
-    if (diffInHours < 1) {
-      return 'Just now'
-    } else if (diffInHours < 24) {
-      return `${Math.floor(diffInHours)}h ago`
-    } else {
-      return `${Math.floor(diffInHours / 24)}d ago`
-    }
-  }
-
   const formatUrgency = (urgency?: string) => {
     if (!urgency) return ''
     const map: Record<string, string> = {
@@ -519,14 +452,6 @@ export default function Jobs() {
 
   const handleViewModeChange = (mode: 'detailed' | 'compact') => {
     setViewMode(mode)
-  }
-
-  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const offsetY = event.nativeEvent.contentOffset.y
-    // Prevent any top bounce - header should stay fixed
-    if (offsetY < 0 && scrollViewRef.current) {
-      scrollViewRef.current.scrollTo({ y: 0, animated: false })
-    }
   }
 
   return (

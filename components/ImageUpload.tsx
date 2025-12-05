@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, Image, Alert, StyleSheet } from 'react-na
 import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
 import { ImageService } from '../services/ImageService'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 interface ImageUploadProps {
   onImageUploaded: (url: string) => void
@@ -16,14 +16,14 @@ export default function ImageUpload({
   onImageUploaded,
   onImageRemoved,
   currentImage,
-  placeholder = "Tap to add image"
+  placeholder = 'Tap to add image',
 }: ImageUploadProps) {
   const [uploading, setUploading] = useState(false)
 
   const handleImageSelection = async () => {
     try {
       setUploading(true)
-      
+
       // Request permissions
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
       if (status !== 'granted') {
@@ -41,10 +41,10 @@ export default function ImageUpload({
 
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0]
-        
+
         // Upload to Supabase Storage
         const uploadResult = await ImageService.uploadImage(asset.uri, 'general-images')
-        
+
         if (uploadResult.success && uploadResult.url) {
           onImageUploaded(uploadResult.url)
         } else {
@@ -60,14 +60,10 @@ export default function ImageUpload({
   }
 
   const removeImage = () => {
-    Alert.alert(
-      'Remove Image',
-      'Are you sure you want to remove this image?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Remove', style: 'destructive', onPress: onImageRemoved }
-      ]
-    )
+    Alert.alert('Remove Image', 'Are you sure you want to remove this image?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: onImageRemoved },
+    ])
   }
 
   return (
@@ -76,15 +72,17 @@ export default function ImageUpload({
         <View style={styles.imageContainer}>
           <Image source={{ uri: currentImage }} style={styles.image} />
           <View style={styles.imageActions}>
-            <TouchableOpacity style={styles.changeButton} onPress={handleImageSelection} disabled={uploading}>
-              <Ionicons 
-                name={uploading ? "hourglass" : "camera"} 
-                size={20} 
-                color={uploading ? Colors.neutral?.[400] || '#9ca3af' : '#ffffff'} 
+            <TouchableOpacity
+              style={styles.changeButton}
+              onPress={handleImageSelection}
+              disabled={uploading}
+            >
+              <Ionicons
+                name={uploading ? 'hourglass' : 'camera'}
+                size={20}
+                color={uploading ? Colors.neutral?.[400] || '#9ca3af' : '#ffffff'}
               />
-              <Text style={styles.changeButtonText}>
-                {uploading ? 'Uploading...' : 'Change'}
-              </Text>
+              <Text style={styles.changeButtonText}>{uploading ? 'Uploading...' : 'Change'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.removeButton} onPress={removeImage}>
               <Ionicons name="close-circle" size={24} color={Colors.error?.[500] || '#ef4444'} />
@@ -92,15 +90,17 @@ export default function ImageUpload({
           </View>
         </View>
       ) : (
-        <TouchableOpacity 
-          style={[styles.uploadButton, uploading && styles.uploading]} 
+        <TouchableOpacity
+          style={[styles.uploadButton, uploading && styles.uploading]}
           onPress={handleImageSelection}
           disabled={uploading}
         >
-          <Ionicons 
-            name={uploading ? "hourglass" : "camera"} 
-            size={32} 
-            color={uploading ? Colors.neutral?.[400] || '#9ca3af' : Colors.primary?.[500] || '#3b82f6'} 
+          <Ionicons
+            name={uploading ? 'hourglass' : 'camera'}
+            size={32}
+            color={
+              uploading ? Colors.neutral?.[400] || '#9ca3af' : Colors.primary?.[500] || '#3b82f6'
+            }
           />
           <Text style={[styles.uploadText, uploading && styles.uploadingText]}>
             {uploading ? 'Uploading...' : placeholder}

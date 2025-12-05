@@ -7,13 +7,12 @@ import {
   TextInput,
   Alert,
   KeyboardAvoidingView,
-  Platform,
   Keyboard,
   TouchableWithoutFeedback,
   Modal,
+  StatusBar,
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
-import { StatusBar } from 'react-native'
 import { ScrollView } from 'react-native-gesture-handler'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
@@ -21,9 +20,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { TaskService } from '../services/TaskService'
 import { SimpleNotificationService } from '../services/SimpleNotificationService'
-import { PushNotificationService } from '../services/PushNotificationService'
 import { supabase } from '../lib/supabase'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 import MultiImageUpload from '../components/MultiImageUpload'
 
 const categories = [
@@ -43,28 +41,28 @@ const categories = [
   'Electrical',
   'Carpentry',
   'Landscaping',
-  'Event Planning'
+  'Event Planning',
 ]
 
 // Category colors for visual appeal
 const getCategoryColor = (category: string) => {
   const colorMap: Record<string, string> = {
-    'General': Colors.primary[500],
-    'Cleaning': Colors.success[500],
-    'Handyman': Colors.primary[500],
-    'Delivery': Colors.warning[500],
-    'Photography': Colors.primary[600],
-    'Technology': Colors.primary[400],
-    'Gardening': Colors.success[600],
+    General: Colors.primary[500],
+    Cleaning: Colors.success[500],
+    Handyman: Colors.primary[500],
+    Delivery: Colors.warning[500],
+    Photography: Colors.primary[600],
+    Technology: Colors.primary[400],
+    Gardening: Colors.success[600],
     'Pet Care': Colors.warning[600],
-    'Moving': Colors.error[500],
-    'Tutoring': Colors.primary[500],
-    'Cooking': Colors.error[400],
-    'Painting': Colors.warning[500],
-    'Plumbing': Colors.primary[400],
-    'Electrical': Colors.warning[700],
-    'Carpentry': Colors.error[600],
-    'Landscaping': Colors.success[700],
+    Moving: Colors.error[500],
+    Tutoring: Colors.primary[500],
+    Cooking: Colors.error[400],
+    Painting: Colors.warning[500],
+    Plumbing: Colors.primary[400],
+    Electrical: Colors.warning[700],
+    Carpentry: Colors.error[600],
+    Landscaping: Colors.success[700],
     'Event Planning': Colors.primary[600],
   }
   return colorMap[category] || Colors.neutral[500]
@@ -124,7 +122,7 @@ export default function PostTask() {
     if (!isLoading && !isAuthenticated) {
       router.replace('/auth')
     }
-  }, [isAuthenticated, isLoading])
+  }, [isAuthenticated, isLoading, router])
 
   useEffect(() => {
     if (category && typeof category === 'string') {
@@ -191,14 +189,16 @@ export default function PostTask() {
       // Create new category if it doesn't exist
       const { data: newCategory, error } = await supabase
         .from('task_categories')
-        .insert([{
-          name: categoryName,
-          slug: categoryName.toLowerCase().replace(/\s+/g, '-'),
-        description: `${categoryName} services`,
-        icon: 'briefcase',
-        color: '#8B5CF6',
-        is_active: true
-        }])
+        .insert([
+          {
+            name: categoryName,
+            slug: categoryName.toLowerCase().replace(/\s+/g, '-'),
+            description: `${categoryName} services`,
+            icon: 'briefcase',
+            color: '#8B5CF6',
+            is_active: true,
+          },
+        ])
         .select('id')
         .single()
 
@@ -245,15 +245,15 @@ export default function PostTask() {
         id: user.id,
         user_id: user.user_id,
         full_name: user.full_name,
-        phone: user.phone
+        phone: user.phone,
       })
-      
+
       // First ensure user profile exists and get profile ID
       const profileId = await ensureUserProfile(user.user_id)
-      
+
       // Then get or create category
       const categoryId = await getOrCreateCategory(selectedCategory)
-      
+
       const taskData = {
         title: title.trim(),
         description: description.trim(),
@@ -283,7 +283,7 @@ export default function PostTask() {
         payment_status: 'pending' as const,
         special_instructions: '',
         photos: taskImages,
-        estimated_duration_hours: 2
+        estimated_duration_hours: 2,
       }
 
       if (isEdit && typeof taskId === 'string') {
@@ -295,14 +295,14 @@ export default function PostTask() {
           throw new Error('Failed to create task')
         }
       }
-      
+
       if (!isEdit) {
         // Create notification for successful task posting
         await SimpleNotificationService.createTaskNotification(title, 'created')
         // Create push notification for nearby taskers
         // createdTask exists in create branch only; skip in edit
       }
-      
+
       Alert.alert('Success', isEdit ? 'Task updated successfully!' : 'Task posted successfully!', [
         {
           text: 'OK',
@@ -318,15 +318,18 @@ export default function PostTask() {
             const defaultTime = new Date()
             defaultTime.setHours(0, 0, 0, 0) // Set to 12:00 AM
             setTaskTime(defaultTime)
-            
+
             // Redirect appropriately
             if (isEdit && typeof taskId === 'string') {
-              router.push({ pathname: '/task-detail', params: { taskId: taskId as string, refresh: String(Date.now()) } })
+              router.push({
+                pathname: '/task-detail',
+                params: { taskId: taskId as string, refresh: String(Date.now()) },
+              })
             } else {
               router.push('/jobs')
             }
-          }
-        }
+          },
+        },
       ])
     } catch (error) {
       console.error('Error posting task:', error)
@@ -337,37 +340,31 @@ export default function PostTask() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={[]}> 
+    <SafeAreaView style={styles.container} edges={[]}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
       {/* Header - Fixed */}
-            <View style={styles.headerContainer}>
+      <View style={styles.headerContainer}>
         <View style={[styles.header, { paddingTop: 8 + insets.top }]}>
-                <TouchableOpacity
-                  style={styles.backButton}
-                  onPress={() => router.push('/jobs')}
-                >
-                  <Ionicons name="arrow-back" size={24} color={Colors.neutral[700]} />
-                </TouchableOpacity>
-                <View style={styles.headerContent}>
-                  <Text style={styles.headerTitle}>Post a Task</Text>
-                  <Text style={styles.headerSubtitle}>Tell us what you need done</Text>
-                </View>
-                <View style={styles.placeholder} />
-              </View>
-            </View>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.push('/jobs')}>
+            <Ionicons name="arrow-back" size={24} color={Colors.neutral[700]} />
+          </TouchableOpacity>
+          <View style={styles.headerContent}>
+            <Text style={styles.headerTitle}>Post a Task</Text>
+            <Text style={styles.headerSubtitle}>Tell us what you need done</Text>
+          </View>
+          <View style={styles.placeholder} />
+        </View>
+      </View>
 
-            {/* Decorative gradient header accent */}
-            <LinearGradient
-              colors={[Colors.primary[500], Colors.primary[600]]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.gradientAccent}
-            />
+      {/* Decorative gradient header accent */}
+      <LinearGradient
+        colors={[Colors.primary[500], Colors.primary[600]]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.gradientAccent}
+      />
 
-      <KeyboardAvoidingView
-        behavior="height"
-        style={styles.keyboardView}
-      >
+      <KeyboardAvoidingView behavior="height" style={styles.keyboardView}>
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <ScrollView
             style={styles.content}
@@ -377,10 +374,9 @@ export default function PostTask() {
             showsVerticalScrollIndicator={false}
             overScrollMode="always"
           >
-
             <ScrollView
-              nestedScrollEnabled={true} 
-              style={styles.form} 
+              nestedScrollEnabled={true}
+              style={styles.form}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={styles.scrollContent}
@@ -435,13 +431,11 @@ export default function PostTask() {
                     <Ionicons name="calendar" size={18} color={Colors.primary[500]} />
                     <Text style={styles.label}>Task Date *</Text>
                   </View>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.dateTimeInputContainer}
                     onPress={() => setShowDatePicker(true)}
                   >
-                    <Text style={styles.dateText}>
-                      {taskDate.toLocaleDateString()}
-                    </Text>
+                    <Text style={styles.dateText}>{taskDate.toLocaleDateString()}</Text>
                     <Ionicons name="chevron-down" size={18} color={Colors.primary[500]} />
                   </TouchableOpacity>
                 </View>
@@ -450,7 +444,7 @@ export default function PostTask() {
                     <Ionicons name="time" size={18} color={Colors.primary[500]} />
                     <Text style={styles.label}>Task Time *</Text>
                   </View>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.dateTimeInputContainer}
                     onPress={() => setShowTimePicker(true)}
                   >
@@ -513,7 +507,7 @@ export default function PostTask() {
                         key={category}
                         style={[
                           styles.categoryChip,
-                          isSelected && { 
+                          isSelected && {
                             backgroundColor: categoryColor,
                             borderColor: categoryColor,
                             shadowColor: categoryColor,
@@ -526,7 +520,12 @@ export default function PostTask() {
                         onPress={() => setSelectedCategory(category)}
                       >
                         {isSelected && (
-                          <Ionicons name="checkmark-circle" size={16} color="#fff" style={{ marginRight: 6 }} />
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={16}
+                            color="#fff"
+                            style={{ marginRight: 6 }}
+                          />
                         )}
                         <Text
                           style={[
@@ -548,7 +547,9 @@ export default function PostTask() {
                   <Ionicons name="images" size={18} color={Colors.primary[500]} />
                   <Text style={styles.label}>Task Photos (Optional)</Text>
                 </View>
-                <Text style={styles.helperText}>Add photos to help taskers understand what needs to be done</Text>
+                <Text style={styles.helperText}>
+                  Add photos to help taskers understand what needs to be done
+                </Text>
                 <View style={styles.imageUploadContainer}>
                   <MultiImageUpload
                     onImagesChange={setTaskImages}
@@ -567,7 +568,11 @@ export default function PostTask() {
                 disabled={loading}
               >
                 <LinearGradient
-                  colors={loading ? [Colors.neutral[300], Colors.neutral[300]] : [Colors.primary[500], Colors.primary[600]]}
+                  colors={
+                    loading
+                      ? [Colors.neutral[300], Colors.neutral[300]]
+                      : [Colors.primary[500], Colors.primary[600]]
+                  }
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.postButtonGradient}
@@ -598,19 +603,19 @@ export default function PostTask() {
                       <Ionicons name="close" size={24} color={Colors.neutral[600]} />
                     </TouchableOpacity>
                   </View>
-                  
+
                   <View style={styles.datePickerContainer}>
                     <View style={styles.dateDisplay}>
                       <Text style={styles.selectedDateText}>
-                        {taskDate.toLocaleDateString('en-US', { 
-                          weekday: 'long', 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric' 
+                        {taskDate.toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
                         })}
                       </Text>
                     </View>
-                    
+
                     <View style={styles.dateControls}>
                       <TouchableOpacity
                         style={styles.dateButton}
@@ -624,7 +629,7 @@ export default function PostTask() {
                       >
                         <Ionicons name="chevron-down" size={20} color={Colors.primary[500]} />
                       </TouchableOpacity>
-                      
+
                       <TouchableOpacity
                         style={styles.dateButton}
                         onPress={() => {
@@ -636,7 +641,7 @@ export default function PostTask() {
                         <Ionicons name="chevron-up" size={20} color={Colors.primary[500]} />
                       </TouchableOpacity>
                     </View>
-                    
+
                     <TouchableOpacity
                       style={styles.confirmButton}
                       onPress={() => setShowDatePicker(false)}
@@ -666,18 +671,18 @@ export default function PostTask() {
                       <Ionicons name="close" size={24} color={Colors.neutral[600]} />
                     </TouchableOpacity>
                   </View>
-                  
+
                   <View style={styles.timePickerContainer}>
                     <View style={styles.timeDisplay}>
                       <Text style={styles.selectedTimeText}>
-                        {taskTime.toLocaleTimeString('en-US', { 
-                          hour: '2-digit', 
+                        {taskTime.toLocaleTimeString('en-US', {
+                          hour: '2-digit',
                           minute: '2-digit',
-                          hour12: true 
+                          hour12: true,
                         })}
                       </Text>
                     </View>
-                    
+
                     <View style={styles.timeControls}>
                       <View style={styles.timeControlGroup}>
                         <Text style={styles.timeLabel}>Hour</Text>
@@ -704,7 +709,7 @@ export default function PostTask() {
                           </TouchableOpacity>
                         </View>
                       </View>
-                      
+
                       <View style={styles.timeControlGroup}>
                         <Text style={styles.timeLabel}>Minute</Text>
                         <View style={styles.timeButtons}>
@@ -731,7 +736,7 @@ export default function PostTask() {
                         </View>
                       </View>
                     </View>
-                    
+
                     <TouchableOpacity
                       style={styles.confirmButton}
                       onPress={() => setShowTimePicker(false)}

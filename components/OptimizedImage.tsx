@@ -1,6 +1,6 @@
 import React, { memo, useState } from 'react'
 import { Image, View, ActivityIndicator, StyleSheet, ImageStyle, StyleProp } from 'react-native'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 interface OptimizedImageProps {
   uri: string
@@ -13,7 +13,6 @@ interface OptimizedImageProps {
 const OptimizedImage = memo(
   ({ uri, style, resizeMode = 'cover', placeholder = true }: OptimizedImageProps) => {
     const [loading, setLoading] = useState(true)
-    const [error, setError] = useState(false)
 
     if (!uri) {
       return null

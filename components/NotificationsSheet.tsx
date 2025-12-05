@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 import { useNotifications } from '../contexts/NotificationContext'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { SkeletonList } from './SkeletonLoader'

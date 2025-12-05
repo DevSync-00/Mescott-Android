@@ -2,7 +2,7 @@ import React from 'react'
 import { View, Text, StyleSheet, Image } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import RatingStars from './RatingStars'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 interface ReviewCardProps {
   id: string
@@ -22,14 +22,14 @@ export default function ReviewCard({
   comment,
   createdAt,
   reviewType,
-  taskTitle
+  taskTitle,
 }: ReviewCardProps) {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
-      day: 'numeric'
+      day: 'numeric',
     })
   }
 
@@ -51,19 +51,17 @@ export default function ReviewCard({
         </View>
         <RatingStars rating={rating} readonly size={16} />
       </View>
-      
-      {taskTitle && (
-        <Text style={styles.taskTitle}>Task: {taskTitle}</Text>
-      )}
-      
+
+      {taskTitle && <Text style={styles.taskTitle}>Task: {taskTitle}</Text>}
+
       <Text style={styles.comment}>{comment}</Text>
-      
+
       <View style={styles.footer}>
         <View style={styles.reviewType}>
-          <Ionicons 
-            name={reviewType === 'customer_to_tasker' ? 'person' : 'briefcase'} 
-            size={14} 
-            color={Colors.neutral[500]} 
+          <Ionicons
+            name={reviewType === 'customer_to_tasker' ? 'person' : 'briefcase'}
+            size={14}
+            color={Colors.neutral[500]}
           />
           <Text style={styles.reviewTypeText}>
             {reviewType === 'customer_to_tasker' ? 'Customer Review' : 'Tasker Review'}

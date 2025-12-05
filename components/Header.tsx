@@ -1,13 +1,8 @@
 import React from 'react'
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-} from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 import { moderateFont } from '../utils/fontScale'
 
 interface HeaderProps {
@@ -32,7 +27,7 @@ export default function Header({
   onBackPress,
   rightAction,
   variant = 'default',
-  backgroundColor = Colors.background.primary
+  backgroundColor = Colors.background.primary,
 }: HeaderProps) {
   const router = useRouter()
 
@@ -60,10 +55,7 @@ export default function Header({
       {/* Left Section */}
       <View style={styles.leftSection}>
         {showBackButton && (
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleBackPress}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
             <Ionicons name="arrow-back" size={moderateFont(24)} color={Colors.neutral[700]} />
           </TouchableOpacity>
         )}
@@ -72,24 +64,21 @@ export default function Header({
       {/* Center Section */}
       <View style={styles.centerSection}>
         <Text style={styles.title}>{title}</Text>
-        {subtitle && (
-          <Text style={styles.subtitle}>{subtitle}</Text>
-        )}
+        {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
       </View>
 
       {/* Right Section */}
       <View style={styles.rightSection}>
         {rightAction && (
-          <TouchableOpacity
-            style={styles.rightActionButton}
-            onPress={rightAction.onPress}
-          >
-            <Ionicons 
-              name={rightAction.icon as any} 
-              size={moderateFont(20)} 
-              color={rightAction.color || Colors.primary[500]} 
+          <TouchableOpacity style={styles.rightActionButton} onPress={rightAction.onPress}>
+            <Ionicons
+              name={rightAction.icon as any}
+              size={moderateFont(20)}
+              color={rightAction.color || Colors.primary[500]}
             />
-            <Text style={[styles.rightActionText, { color: rightAction.color || Colors.primary[500] }]}>
+            <Text
+              style={[styles.rightActionText, { color: rightAction.color || Colors.primary[500] }]}
+            >
               {rightAction.label}
             </Text>
           </TouchableOpacity>

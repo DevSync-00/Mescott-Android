@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import { View, Text, StyleSheet } from 'react-native'
 import { useNotifications } from '../contexts/NotificationContext'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 interface NotificationBadgeProps {
   size?: number

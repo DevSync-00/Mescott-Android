@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { View, StyleSheet, Animated, ViewStyle, DimensionValue, StyleProp } from 'react-native'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 import { BorderRadius } from '../constants/Design'
 
 interface SkeletonLoaderProps {
@@ -36,7 +36,7 @@ export default function SkeletonLoader({
             duration: 1000,
             useNativeDriver: true,
           }),
-        ])
+        ]),
       )
       shimmer.start()
 
@@ -63,9 +63,7 @@ export default function SkeletonLoader({
         style,
       ]}
     >
-      {animated ? (
-        <Animated.View style={[styles.shimmer, shimmerStyle]} />
-      ) : null}
+      {animated ? <Animated.View style={[styles.shimmer, shimmerStyle]} /> : null}
       {children}
     </View>
   )

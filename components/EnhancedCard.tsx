@@ -10,7 +10,7 @@ import {
   Image,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 import { Typography, BorderRadius, Spacing, Shadows } from '../constants/Design'
 
 interface EnhancedCardProps {
@@ -119,11 +119,7 @@ export default function EnhancedCard({
           <View style={styles.headerLeft}>
             {icon && (
               <View style={styles.iconContainer}>
-                <Ionicons
-                  name={icon}
-                  size={20}
-                  color={Colors.primary[500]}
-                />
+                <Ionicons name={icon} size={20} color={Colors.primary[500]} />
               </View>
             )}
             <View style={styles.headerText}>
@@ -145,11 +141,7 @@ export default function EnhancedCard({
               onPress={action.onPress}
               disabled={disabled || loading}
             >
-              <Ionicons
-                name={action.icon}
-                size={20}
-                color={Colors.neutral[600]}
-              />
+              <Ionicons name={action.icon} size={20} color={Colors.neutral[600]} />
             </TouchableOpacity>
           )}
         </View>
@@ -196,12 +188,7 @@ export const TaskCard = ({
   location: string
   onPress?: () => void
 } & Omit<EnhancedCardProps, 'children'>) => (
-  <EnhancedCard
-    onPress={onPress}
-    interactive={!!onPress}
-    variant="elevated"
-    {...props}
-  >
+  <EnhancedCard onPress={onPress} interactive={!!onPress} variant="elevated" {...props}>
     <View style={styles.taskContent}>
       <Text style={styles.taskTitle} numberOfLines={2}>
         {title}
@@ -234,12 +221,7 @@ export const ProfileCard = ({
   avatar?: string
   onPress?: () => void
 } & Omit<EnhancedCardProps, 'children'>) => (
-  <EnhancedCard
-    onPress={onPress}
-    interactive={!!onPress}
-    variant="outlined"
-    {...props}
-  >
+  <EnhancedCard onPress={onPress} interactive={!!onPress} variant="outlined" {...props}>
     <View style={styles.profileContent}>
       <View style={styles.profileAvatar}>
         {avatar ? (

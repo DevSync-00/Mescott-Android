@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   View,
   Text,
@@ -20,8 +20,8 @@ import { TaskService, Task } from '../services/TaskService'
 import { TaskApplicationService } from '../services/TaskApplicationService'
 import { PaymentService } from '../services/PaymentService'
 import ChapaPaymentModal from '../components/ChapaPaymentModal'
-import Colors from '../constants/Colors'
-import SkeletonLoader, { SkeletonCard } from '../components/SkeletonLoader'
+import { Colors } from '../constants/Colors'
+import { SkeletonCard } from '../components/SkeletonLoader'
 
 const { width } = Dimensions.get('window')
 
@@ -61,9 +61,9 @@ export default function TaskDetail() {
       loadTaskDetails()
       loadPendingPayments()
     }
-  }, [taskId, isAuthenticated, isLoading])
+  }, [taskId, isAuthenticated, isLoading, loadTaskDetails, loadPendingPayments, router])
 
-  const loadTaskDetails = async () => {
+  const loadTaskDetails = useCallback(async () => {
     if (!taskId || !user) return
 
     setLoading(true)
@@ -84,9 +84,9 @@ export default function TaskDetail() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [taskId, user])
 
-  const loadPendingPayments = async () => {
+  const loadPendingPayments = useCallback(async () => {
     if (!user) return
 
     try {
@@ -95,7 +95,7 @@ export default function TaskDetail() {
     } catch (error) {
       console.error('Error loading pending payments:', error)
     }
-  }
+  }, [user])
 
   const hasPendingPayment = (task: Task) => {
     return pendingPayments.some((p) => p.task_id === task.id)
@@ -150,7 +150,7 @@ export default function TaskDetail() {
               await TaskService.deleteTask(task.id, user.id)
               Alert.alert('Success', 'Task deleted successfully')
               router.push('/jobs')
-            } catch (error: any) {
+            } catch {
               try {
                 await TaskService.updateTask(task.id, user.id, { status: 'cancelled' } as any)
                 Alert.alert(

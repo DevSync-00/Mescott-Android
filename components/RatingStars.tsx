@@ -1,7 +1,7 @@
 import React from 'react'
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 interface RatingStarsProps {
   rating: number
@@ -18,7 +18,7 @@ export default function RatingStars({
   size = 20,
   showNumber = false,
   readonly = false,
-  maxRating = 5
+  maxRating = 5,
 }: RatingStarsProps) {
   const handleStarPress = (starRating: number) => {
     if (!readonly && onRatingChange) {
@@ -45,11 +45,7 @@ export default function RatingStars({
         />
         {isHalfFilled && (
           <View style={[styles.halfStar, { width: size / 2 }]}>
-            <Ionicons
-              name="star"
-              size={size}
-              color={Colors.warning[500]}
-            />
+            <Ionicons name="star" size={size} color={Colors.warning[500]} />
           </View>
         )}
       </TouchableOpacity>
@@ -62,9 +58,7 @@ export default function RatingStars({
         {Array.from({ length: maxRating }, (_, index) => renderStar(index))}
       </View>
       {showNumber && (
-        <Text style={[styles.ratingText, { fontSize: size * 0.7 }]}>
-          {rating.toFixed(1)}
-        </Text>
+        <Text style={[styles.ratingText, { fontSize: size * 0.7 }]}>{rating.toFixed(1)}</Text>
       )}
     </View>
   )

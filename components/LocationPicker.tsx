@@ -12,7 +12,7 @@ import {
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { LocationService, LocationData } from '../services/LocationService'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 interface LocationPickerProps {
   onLocationSelect: (location: LocationData) => void
@@ -25,9 +25,9 @@ interface LocationPickerProps {
 export default function LocationPicker({
   onLocationSelect,
   currentLocation,
-  placeholder = "Select location",
+  placeholder = 'Select location',
   showCurrentLocation = true,
-  showAddressInput = true
+  showAddressInput = true,
 }: LocationPickerProps) {
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
@@ -44,22 +44,22 @@ export default function LocationPicker({
     setRecentLocations([
       {
         latitude: 40.7128,
-        longitude: -74.0060,
-        address: "New York, NY, USA",
-        city: "New York",
-        state: "NY",
-        country: "USA",
+        longitude: -74.006,
+        address: 'New York, NY, USA',
+        city: 'New York',
+        state: 'NY',
+        country: 'USA',
         timestamp: Date.now(),
       },
       {
         latitude: 34.0522,
         longitude: -118.2437,
-        address: "Los Angeles, CA, USA",
-        city: "Los Angeles",
-        state: "CA",
-        country: "USA",
+        address: 'Los Angeles, CA, USA',
+        city: 'Los Angeles',
+        state: 'CA',
+        country: 'USA',
         timestamp: Date.now(),
-      }
+      },
     ])
   }
 
@@ -67,7 +67,7 @@ export default function LocationPicker({
     try {
       setLoading(true)
       const location = await LocationService.getCurrentLocation()
-      
+
       if (location) {
         onLocationSelect(location)
         setShowModal(false)
@@ -89,7 +89,7 @@ export default function LocationPicker({
     try {
       setLoading(true)
       const location = await LocationService.geocodeAddress(addressInput.trim())
-      
+
       if (location) {
         onLocationSelect(location)
         setShowModal(false)
@@ -114,17 +114,14 @@ export default function LocationPicker({
     if (location.address) {
       return location.address
     }
-    
+
     const parts = [location.city, location.state, location.country].filter(Boolean)
     return parts.join(', ') || 'Unknown location'
   }
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity
-        style={styles.locationButton}
-        onPress={() => setShowModal(true)}
-      >
+      <TouchableOpacity style={styles.locationButton} onPress={() => setShowModal(true)}>
         <Ionicons name="location" size={20} color={Colors.primary[500]} />
         <Text style={styles.locationText}>
           {currentLocation ? formatLocationDisplay(currentLocation) : placeholder}
@@ -132,18 +129,11 @@ export default function LocationPicker({
         <Ionicons name="chevron-down" size={16} color={Colors.neutral[400]} />
       </TouchableOpacity>
 
-      <Modal
-        visible={showModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
+      <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Select Location</Text>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setShowModal(false)}
-            >
+            <TouchableOpacity style={styles.closeButton} onPress={() => setShowModal(false)}>
               <Ionicons name="close" size={24} color={Colors.neutral[600]} />
             </TouchableOpacity>
           </View>
@@ -188,10 +178,12 @@ export default function LocationPicker({
                     onPress={searchAddress}
                     disabled={loading || !addressInput.trim()}
                   >
-                    <Ionicons 
-                      name="search" 
-                      size={20} 
-                      color={loading || !addressInput.trim() ? Colors.neutral[400] : Colors.primary[500]} 
+                    <Ionicons
+                      name="search"
+                      size={20}
+                      color={
+                        loading || !addressInput.trim() ? Colors.neutral[400] : Colors.primary[500]
+                      }
                     />
                   </TouchableOpacity>
                 </View>

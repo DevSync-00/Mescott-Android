@@ -14,7 +14,7 @@ import { PaymentMethodService, PaymentMethod } from '../services/PaymentMethodSe
 import { WithdrawalOrderService } from '../services/WithdrawalOrderService'
 import PaymentMethodModal from './PaymentMethodModal'
 import BottomSheet, { BottomSheetRef } from './BottomSheet'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 interface WithdrawalModalProps {
   visible: boolean

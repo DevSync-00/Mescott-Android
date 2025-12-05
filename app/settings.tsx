@@ -1,11 +1,10 @@
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Switch,
   Alert,
   StatusBar,
 } from 'react-native'
@@ -13,91 +12,34 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
-import { useLanguage } from '../contexts/LanguageContext'
-import Colors from '../constants/Colors'
-import { SettingsService, type AppSettings } from '../services/SettingsService'
+import { Colors } from '../constants/Colors'
 
 export default function Settings() {
-  const { user, logout } = useAuth()
-  const { language, setLanguage } = useLanguage()
+  const { logout } = useAuth()
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const [settings, setSettings] = useState<AppSettings | null>(null)
-  const [loadingSettings, setLoadingSettings] = useState(true)
-
-  useEffect(() => {
-    const load = async () => {
-      const s = await SettingsService.getSettings()
-      setSettings(s)
-      setLoadingSettings(false)
-    }
-    load()
-  }, [])
-
-  const updateSettings = async (updates: Partial<AppSettings>) => {
-    const success = await SettingsService.updateSettings(updates)
-    if (success) {
-      setSettings(prev => prev ? { ...prev, ...updates } as AppSettings : prev)
-    }
-  }
-
-  const togglePushNotifications = async () => {
-    if (!settings) return
-    const newVal = !settings.notifications.push
-    const success = await SettingsService.updateNotificationSettings({ push: newVal })
-    if (success) setSettings({ ...settings, notifications: { ...settings.notifications, push: newVal } })
-  }
-
-  const toggleEmailNotifications = async () => {
-    if (!settings) return
-    const newVal = !settings.notifications.email
-    const success = await SettingsService.updateNotificationSettings({ email: newVal })
-    if (success) setSettings({ ...settings, notifications: { ...settings.notifications, email: newVal } })
-  }
-
-  const toggleLocation = async () => {
-    if (!settings) return
-    const newVal = !settings.privacy.showLocation
-    const success = await SettingsService.updatePrivacySettings({ showLocation: newVal })
-    if (success) setSettings({ ...settings, privacy: { ...settings.privacy, showLocation: newVal } })
-  }
-
-  const toggleLanguage = async () => {
-    const newLang = language === 'en' ? 'am' : 'en'
-    await setLanguage(newLang)
-    if (settings) {
-      await updateSettings({ language: newLang })
-    }
-  }
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Logout', 
-          style: 'destructive',
-          onPress: async () => {
-            await logout()
-            router.replace('/auth')
-          }
-        }
-      ]
-    )
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: async () => {
+          await logout()
+          router.replace('/auth')
+        },
+      },
+    ])
   }
 
   return (
     <SafeAreaView style={styles.container} edges={[]}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
-      
+
       {/* Header */}
       <View style={[styles.header, { paddingTop: 8 + insets.top }]}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.push('/profile')}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => router.push('/profile')}>
           <Ionicons name="arrow-back" size={24} color={Colors.neutral[700]} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Settings</Text>
@@ -114,11 +56,8 @@ export default function Settings() {
         {/* Account Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
-          
-          <TouchableOpacity 
-            style={styles.settingItem}
-            onPress={() => router.push('/edit-profile')}
-          >
+
+          <TouchableOpacity style={styles.settingItem} onPress={() => router.push('/edit-profile')}>
             <View style={styles.settingLeft}>
               <View style={[styles.iconContainer, { backgroundColor: Colors.primary[50] }]}>
                 <Ionicons name="person" size={20} color={Colors.primary[500]} />
@@ -131,7 +70,7 @@ export default function Settings() {
             <Ionicons name="chevron-forward" size={20} color={Colors.neutral[400]} />
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.settingItem}
             onPress={() => router.push('/privacy-security')}
           >
@@ -151,8 +90,8 @@ export default function Settings() {
         {/* Legal Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Legal</Text>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.settingItem}
             onPress={() => router.push('/terms-of-service')}
           >
@@ -168,7 +107,7 @@ export default function Settings() {
             <Ionicons name="chevron-forward" size={20} color={Colors.neutral[400]} />
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.settingItem}
             onPress={() => router.push('/privacy-policy')}
           >
@@ -188,10 +127,12 @@ export default function Settings() {
         {/* Support Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Support</Text>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.settingItem}
-            onPress={() => Alert.alert('Help & Support', 'For support, please contact us at support@mescott.com')}
+            onPress={() =>
+              Alert.alert('Help & Support', 'For support, please contact us at support@mescott.com')
+            }
           >
             <View style={styles.settingLeft}>
               <View style={[styles.iconContainer, { backgroundColor: Colors.primary[50] }]}>
@@ -205,9 +146,14 @@ export default function Settings() {
             <Ionicons name="chevron-forward" size={20} color={Colors.neutral[400]} />
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.settingItem}
-            onPress={() => Alert.alert('About Mescott', 'Version 1.0.0\n\nYour trusted marketplace for local services in Ethiopia.')}
+            onPress={() =>
+              Alert.alert(
+                'About Mescott',
+                'Version 1.0.0\n\nYour trusted marketplace for local services in Ethiopia.',
+              )
+            }
           >
             <View style={styles.settingLeft}>
               <View style={[styles.iconContainer, { backgroundColor: Colors.neutral[100] }]}>

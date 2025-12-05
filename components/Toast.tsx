@@ -1,16 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import {
-  View,
-  Text,
-  StyleSheet,
-  Animated,
-  Dimensions,
-  TouchableOpacity
-} from 'react-native'
+import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import Colors from '../constants/Colors'
-
-const { width: screenWidth } = Dimensions.get('window')
+import { Colors } from '../constants/Colors'
 
 export interface ToastProps {
   visible: boolean
@@ -30,7 +21,7 @@ export default function Toast({
   type = 'info',
   duration = 3000,
   onHide,
-  action
+  action,
 }: ToastProps) {
   const [fadeAnim] = useState(new Animated.Value(0))
   const [slideAnim] = useState(new Animated.Value(-100))
@@ -135,20 +126,12 @@ export default function Toast({
     >
       <View style={[styles.toast, getToastStyle()]}>
         <View style={styles.content}>
-          <Ionicons
-            name={getIcon()}
-            size={20}
-            color="#fff"
-            style={styles.icon}
-          />
+          <Ionicons name={getIcon()} size={20} color="#fff" style={styles.icon} />
           <Text style={styles.message} numberOfLines={2}>
             {message}
           </Text>
           {action && (
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={action.onPress}
-            >
+            <TouchableOpacity style={styles.actionButton} onPress={action.onPress}>
               <Text style={styles.actionText}>{action.label}</Text>
             </TouchableOpacity>
           )}

@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, Image, ScrollView, StyleSheet, Alert } fr
 import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
 import { ImageService } from '../services/ImageService'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 interface MultiImageUploadProps {
   onImagesChange: (images: string[]) => void
@@ -17,8 +17,8 @@ export default function MultiImageUpload({
   onImagesChange,
   currentImages = [],
   maxImages = 5,
-  placeholder = "Add images",
-  showPreview = true
+  placeholder = 'Add images',
+  showPreview = true,
 }: MultiImageUploadProps) {
   const [uploading, setUploading] = useState(false)
 
@@ -45,28 +45,31 @@ export default function MultiImageUpload({
         allowsMultipleSelection: true,
         selectionLimit: remainingSlots,
         quality: 0.8,
-        aspect: [4, 3]
+        aspect: [4, 3],
       })
 
       if (!result.canceled && result.assets.length > 0) {
         // Upload all selected images
-        const uploadPromises = result.assets.map(asset => 
-          ImageService.uploadImage(asset.uri, 'general-images')
+        const uploadPromises = result.assets.map((asset) =>
+          ImageService.uploadImage(asset.uri, 'general-images'),
         )
-        
+
         const uploadResults = await Promise.all(uploadPromises)
         const successfulUploads = uploadResults
-          .filter(result => result.success && result.url)
-          .map(result => result.url!)
+          .filter((result) => result.success && result.url)
+          .map((result) => result.url!)
 
         if (successfulUploads.length > 0) {
           onImagesChange([...currentImages, ...successfulUploads])
         }
 
         // Show error if some uploads failed
-        const failedUploads = uploadResults.filter(result => !result.success)
+        const failedUploads = uploadResults.filter((result) => !result.success)
         if (failedUploads.length > 0) {
-          Alert.alert('Upload Warning', `${failedUploads.length} image(s) failed to upload. Please try again.`)
+          Alert.alert(
+            'Upload Warning',
+            `${failedUploads.length} image(s) failed to upload. Please try again.`,
+          )
         }
       }
     } catch (error) {
@@ -78,21 +81,17 @@ export default function MultiImageUpload({
   }
 
   const removeImage = (index: number) => {
-    Alert.alert(
-      'Remove Image',
-      'Are you sure you want to remove this image?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Remove', 
-          style: 'destructive', 
-          onPress: () => {
-            const newImages = currentImages.filter((_, i) => i !== index)
-            onImagesChange(newImages)
-          }
-        }
-      ]
-    )
+    Alert.alert('Remove Image', 'Are you sure you want to remove this image?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => {
+          const newImages = currentImages.filter((_, i) => i !== index)
+          onImagesChange(newImages)
+        },
+      },
+    ])
   }
 
   const canAddMore = currentImages.length < maxImages
@@ -101,18 +100,11 @@ export default function MultiImageUpload({
     <View style={styles.container}>
       {/* Image Grid */}
       {showPreview && currentImages.length > 0 && (
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          style={styles.imageScroll}
-        >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageScroll}>
           {currentImages.map((image, index) => (
             <View key={index} style={styles.imageContainer}>
               <Image source={{ uri: image }} style={styles.image} />
-              <TouchableOpacity 
-                style={styles.removeButton} 
-                onPress={() => removeImage(index)}
-              >
+              <TouchableOpacity style={styles.removeButton} onPress={() => removeImage(index)}>
                 <Ionicons name="close-circle" size={20} color={Colors.error?.[500] || '#ef4444'} />
               </TouchableOpacity>
             </View>
@@ -122,15 +114,17 @@ export default function MultiImageUpload({
 
       {/* Add Image Button */}
       {canAddMore && (
-        <TouchableOpacity 
-          style={[styles.addButton, uploading && styles.uploadingButton]} 
+        <TouchableOpacity
+          style={[styles.addButton, uploading && styles.uploadingButton]}
           onPress={handleAddImages}
           disabled={uploading}
         >
-          <Ionicons 
-            name={uploading ? "hourglass" : "add"} 
-            size={24} 
-            color={uploading ? Colors.neutral?.[400] || '#9ca3af' : Colors.primary?.[500] || '#3b82f6'} 
+          <Ionicons
+            name={uploading ? 'hourglass' : 'add'}
+            size={24}
+            color={
+              uploading ? Colors.neutral?.[400] || '#9ca3af' : Colors.primary?.[500] || '#3b82f6'
+            }
           />
           <Text style={[styles.addButtonText, uploading && styles.uploadingText]}>
             {uploading ? 'Uploading...' : placeholder}

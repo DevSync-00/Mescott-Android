@@ -1,8 +1,8 @@
 import React from 'react'
-import { View, Text, StyleSheet, ViewStyle, TouchableOpacity } from 'react-native'
+import { View, Text, StyleSheet, ViewStyle } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import Colors from '../constants/Colors'
-import { Typography, BorderRadius, Spacing } from '../constants/Design'
+import { Colors } from '../constants/Colors'
+import { Typography, Spacing } from '../constants/Design'
 import { PrimaryButton, SecondaryButton } from './EnhancedButton'
 
 interface EnhancedEmptyStateProps {
@@ -58,23 +58,17 @@ export default function EnhancedEmptyState({
     <View style={[styles.container, style]}>
       <View style={styles.content}>
         <View style={[styles.iconContainer, variant === 'illustrated' && styles.illustratedIcon]}>
-          <Ionicons
-            name={icon}
-            size={getIconSize()}
-            color={getIconColor()}
-          />
+          <Ionicons name={icon} size={getIconSize()} color={getIconColor()} />
         </View>
-        
-        <Text style={[styles.title, variant === 'minimal' && styles.minimalTitle]}>
-          {title}
-        </Text>
-        
+
+        <Text style={[styles.title, variant === 'minimal' && styles.minimalTitle]}>{title}</Text>
+
         {subtitle && (
           <Text style={[styles.subtitle, variant === 'minimal' && styles.minimalSubtitle]}>
             {subtitle}
           </Text>
         )}
-        
+
         {(primaryAction || secondaryAction) && (
           <View style={styles.actions}>
             {primaryAction && (
@@ -122,11 +116,7 @@ export const NoTasksEmptyState = ({
   />
 )
 
-export const NoApplicationsEmptyState = ({
-  onApplyTask,
-}: {
-  onApplyTask: () => void
-}) => (
+export const NoApplicationsEmptyState = ({ onApplyTask }: { onApplyTask: () => void }) => (
   <EnhancedEmptyState
     icon="document-text-outline"
     title="No Applications Yet"
@@ -139,11 +129,7 @@ export const NoApplicationsEmptyState = ({
   />
 )
 
-export const NoMessagesEmptyState = ({
-  onStartChat,
-}: {
-  onStartChat: () => void
-}) => (
+export const NoMessagesEmptyState = ({ onStartChat }: { onStartChat: () => void }) => (
   <EnhancedEmptyState
     icon="chatbubbles-outline"
     title="No Messages"
@@ -165,11 +151,7 @@ export const NoNotificationsEmptyState = () => (
   />
 )
 
-export const NoBookingsEmptyState = ({
-  onBrowseTasks,
-}: {
-  onBrowseTasks: () => void
-}) => (
+export const NoBookingsEmptyState = ({ onBrowseTasks }: { onBrowseTasks: () => void }) => (
   <EnhancedEmptyState
     icon="calendar-outline"
     title="No Bookings"
@@ -191,11 +173,7 @@ export const NoWalletHistoryEmptyState = () => (
   />
 )
 
-export const NoSearchResultsEmptyState = ({
-  onClearSearch,
-}: {
-  onClearSearch: () => void
-}) => (
+export const NoSearchResultsEmptyState = ({ onClearSearch }: { onClearSearch: () => void }) => (
   <EnhancedEmptyState
     icon="search-outline"
     title="No Results Found"

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   View,
   Text,
@@ -9,7 +9,6 @@ import {
   Alert,
   Modal,
   FlatList,
-  Dimensions,
   Image,
   StatusBar,
 } from 'react-native'
@@ -23,28 +22,12 @@ import {
   PortfolioProject,
   PortfolioSkill,
   PortfolioCertification,
-  PortfolioTestimonial,
 } from '../services/PortfolioService'
 import { ImageService } from '../services/ImageService'
 import * as ImagePicker from 'expo-image-picker'
-import Colors from '../constants/Colors'
-
-const { width } = Dimensions.get('window')
+import { Colors } from '../constants/Colors'
 
 const SKILL_LEVELS = ['beginner', 'intermediate', 'advanced', 'expert'] as const
-const PROJECT_CATEGORIES = [
-  'Web Development',
-  'Mobile Development',
-  'Design',
-  'Photography',
-  'Writing',
-  'Marketing',
-  'Consulting',
-  'Cleaning',
-  'Handyman',
-  'Delivery',
-  'Tutoring',
-]
 
 interface PortfolioData {
   portfolio_title: string
@@ -115,7 +98,6 @@ export default function TaskerPortfolioPage() {
   const [showProjectModal, setShowProjectModal] = useState(false)
   const [showSkillModal, setShowSkillModal] = useState(false)
   const [showCertificationModal, setShowCertificationModal] = useState(false)
-  const [editingItem, setEditingItem] = useState<any>(null)
 
   // Form data for modals
   const [projectData, setProjectData] = useState<FormData>({})
@@ -126,18 +108,7 @@ export default function TaskerPortfolioPage() {
   const [certificateImage, setCertificateImage] = useState<string | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadPortfolio()
-    }
-  }, [isAuthenticated])
-
-  if (!isAuthenticated) {
-    router.replace('/auth')
-    return null
-  }
-
-  const loadPortfolio = async () => {
+  const loadPortfolio = useCallback(async () => {
     if (!user?.user_id) {
       console.log('No user ID available')
       return
@@ -199,7 +170,7 @@ export default function TaskerPortfolioPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [user])
 
   const handleSavePortfolio = async () => {
     if (!portfolio?.id) {

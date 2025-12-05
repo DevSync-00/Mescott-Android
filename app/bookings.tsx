@@ -1,22 +1,21 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
   Alert,
   RefreshControl,
+  StatusBar,
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
-import { StatusBar } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { BookingService, Booking } from '../services/BookingService'
-import Colors from '../constants/Colors'
-import SkeletonLoader, { SkeletonList } from '../components/SkeletonLoader'
+import { Colors } from '../constants/Colors'
+import { SkeletonList } from '../components/SkeletonLoader'
 
 const statusColors = {
   pending: Colors.warning[500],
@@ -55,11 +54,38 @@ export default function Bookings() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
+  const loadBookings = useCallback(
+    async (isRefresh = false) => {
+      if (!user) return
+
+      if (isRefresh) {
+        setRefreshing(true)
+      } else {
+        setLoading(true)
+      }
+
+      try {
+        const fetchedBookings = await BookingService.getUserBookings(user.user_id)
+        setBookings(fetchedBookings)
+      } catch (error) {
+        console.error('🚀 BOOKINGS PAGE - Error loading bookings:', error)
+        Alert.alert('Error', 'Failed to load bookings')
+      } finally {
+        if (isRefresh) {
+          setRefreshing(false)
+        } else {
+          setLoading(false)
+        }
+      }
+    },
+    [user],
+  )
+
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.replace('/auth')
     }
-  }, [isAuthenticated, isLoading])
+  }, [isAuthenticated, isLoading, router])
 
   const statuses = ['all', 'pending', 'completed']
 
@@ -67,7 +93,7 @@ export default function Bookings() {
     if (user && isAuthenticated) {
       loadBookings()
     }
-  }, [user, isAuthenticated])
+  }, [user, isAuthenticated, loadBookings])
 
   // Show loading while auth is being determined
   if (isLoading) {
@@ -85,62 +111,37 @@ export default function Bookings() {
     return null
   }
 
-  const loadBookings = async (isRefresh = false) => {
-    if (!user) return
-    
-    if (isRefresh) {
-      setRefreshing(true)
-    } else {
-      setLoading(true)
-    }
-    
-    try {
-      const fetchedBookings = await BookingService.getUserBookings(user.user_id)
-      setBookings(fetchedBookings)
-    } catch (error) {
-      console.error('🚀 BOOKINGS PAGE - Error loading bookings:', error)
-      Alert.alert('Error', 'Failed to load bookings')
-    } finally {
-      if (isRefresh) {
-        setRefreshing(false)
-      } else {
-        setLoading(false)
-      }
-    }
-  }
-  
   const onRefresh = () => {
     loadBookings(true)
   }
 
-  const filteredBookings = selectedStatus === 'all' 
-    ? bookings 
-    : bookings.filter(booking => booking.status === selectedStatus)
+  const filteredBookings =
+    selectedStatus === 'all'
+      ? bookings
+      : bookings.filter((booking) => booking.status === selectedStatus)
 
   const updateBookingStatus = async (bookingId: string, newStatus: Booking['status']) => {
     try {
       // Optimistically update the UI immediately
-      setBookings(prevBookings => 
-        prevBookings.map(booking => 
-          booking.id === bookingId 
-            ? { ...booking, status: newStatus } 
-            : booking
-        )
+      setBookings((prevBookings) =>
+        prevBookings.map((booking) =>
+          booking.id === bookingId ? { ...booking, status: newStatus } : booking,
+        ),
       )
 
       // Update in background without blocking UI
       BookingService.updateBookingAndTaskStatus(bookingId, newStatus, user?.id)
-        .then(success => {
-      if (success) {
+        .then((success) => {
+          if (success) {
             // Reload to get fresh data (runs in background)
             loadBookings(true).catch(console.error)
-      } else {
+          } else {
             // Revert optimistic update on failure
             loadBookings(true).catch(console.error)
-        Alert.alert('Error', 'Failed to update booking status. Please try again.')
-      }
+            Alert.alert('Error', 'Failed to update booking status. Please try again.')
+          }
         })
-        .catch(error => {
+        .catch((error) => {
           console.error('Error updating booking status:', error)
           // Revert optimistic update on error
           loadBookings(true).catch(console.error)
@@ -154,7 +155,6 @@ export default function Bookings() {
     }
   }
 
-
   const handleChatPress = async (booking: Booking) => {
     if (!user?.id) return
 
@@ -163,7 +163,7 @@ export default function Bookings() {
       const chatId = await BookingService.getOrCreateChatForBooking(
         booking.id,
         booking.customer_id,
-        booking.technician_id
+        booking.technician_id,
       )
 
       if (chatId) {
@@ -180,10 +180,10 @@ export default function Bookings() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
       day: 'numeric',
-      year: 'numeric'
+      year: 'numeric',
     })
   }
 
@@ -199,260 +199,286 @@ export default function Bookings() {
     <SafeAreaView style={styles.container} edges={[]}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
       <View style={styles.containerContent}>
-      {/* Header */}
-      <View style={[styles.headerWrapper, { paddingTop: 8 + insets.top }]}>
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <View style={styles.headerText}>
-            <Text style={styles.headerTitle}>My Bookings</Text>
-            <Text style={styles.headerSubtitle}>
-              {user ? `Manage your ${user.current_mode} bookings` : 'Manage your bookings'}
-            </Text>
+        {/* Header */}
+        <View style={[styles.headerWrapper, { paddingTop: 8 + insets.top }]}>
+          <View style={styles.header}>
+            <View style={styles.headerContent}>
+              <View style={styles.headerText}>
+                <Text style={styles.headerTitle}>My Bookings</Text>
+                <Text style={styles.headerSubtitle}>
+                  {user ? `Manage your ${user.current_mode} bookings` : 'Manage your bookings'}
+                </Text>
+              </View>
+              <View style={styles.headerStats}>
+                <View style={styles.statItem}>
+                  <Text style={styles.statNumber}>{filteredBookings.length}</Text>
+                  <Text style={styles.statLabel}>Total</Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statItem}>
+                  <Text style={styles.statNumber}>
+                    {filteredBookings.filter((b) => b.status === 'pending').length}
+                  </Text>
+                  <Text style={styles.statLabel}>Pending</Text>
+                </View>
+              </View>
+            </View>
           </View>
-          <View style={styles.headerStats}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{filteredBookings.length}</Text>
-              <Text style={styles.statLabel}>Total</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>
-                {filteredBookings.filter(b => b.status === 'pending').length}
-              </Text>
-              <Text style={styles.statLabel}>Pending</Text>
-            </View>
+
+          {/* Filter Section */}
+          <View style={styles.filterSection}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterScroll}
+              bounces={false}
+              alwaysBounceVertical={false}
+              overScrollMode="never"
+            >
+              {statuses.map((status) => (
+                <TouchableOpacity
+                  key={status}
+                  style={[styles.filterChip, selectedStatus === status && styles.filterChipActive]}
+                  onPress={() => setSelectedStatus(status)}
+                >
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      selectedStatus === status && styles.filterChipTextActive,
+                    ]}
+                  >
+                    {status === 'all' ? 'All' : statusLabels[status as keyof typeof statusLabels]}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
         </View>
-      </View>
 
-      {/* Filter Section */}
-      <View style={styles.filterSection}>
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false} 
-          contentContainerStyle={styles.filterScroll}
-          bounces={false}
-          alwaysBounceVertical={false}
-          overScrollMode="never"
+        {/* Bookings List */}
+        <ScrollView
+          style={styles.bookingsList}
+          showsVerticalScrollIndicator={true}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ ...styles.scrollContent, paddingBottom: 24 }}
+          bounces={true}
+          alwaysBounceVertical={true}
+          overScrollMode="always"
+          scrollEventThrottle={16}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[Colors.primary[500]]}
+              tintColor={Colors.primary[500]}
+            />
+          }
         >
-          {statuses.map((status) => (
-    <TouchableOpacity
-              key={status}
-              style={[
-                styles.filterChip,
-                selectedStatus === status && styles.filterChipActive,
-              ]}
-              onPress={() => setSelectedStatus(status)}
-            >
-              <Text
-      style={[
-                  styles.filterChipText,
-                  selectedStatus === status && styles.filterChipTextActive,
-                ]}
-              >
-                {status === 'all' ? 'All' : statusLabels[status as keyof typeof statusLabels]}
-      </Text>
-    </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-      </View>
-
-      {/* Bookings List */}
-      <ScrollView 
-        style={styles.bookingsList} 
-        showsVerticalScrollIndicator={true}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ ...styles.scrollContent, paddingBottom: 24 }}
-        bounces={true}
-        alwaysBounceVertical={true}
-        overScrollMode="always"
-        scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[Colors.primary[500]]}
-            tintColor={Colors.primary[500]}
-          />
-        }
-      >
-        {loading ? (
-          <SkeletonList count={5} />
-        ) : (
-          filteredBookings.map((booking) => (
-            <View key={booking.id} style={styles.bookingCard}>
-              {/* Booking Header */}
-              <View style={styles.bookingHeader}>
-                <View style={styles.bookingInfo}>
-                  <Text style={styles.bookingTitle} numberOfLines={1} ellipsizeMode="tail">{booking.task_title || booking.service_name}</Text>
-                  <Text style={styles.bookingCustomer}>
-                    {user?.current_mode === 'customer' ? `Tasker: ${booking.technician_name}` : `Customer: ${booking.customer_name}`}
-                  </Text>
-                </View>
-                <View style={styles.statusContainer}>
-                  <View style={[styles.statusBadge, { backgroundColor: statusColors[booking.status] + '20' }]}>
-                    <Text style={[styles.statusText, { color: statusColors[booking.status] }]}>
-                      {statusLabels[booking.status]}
+          {loading ? (
+            <SkeletonList count={5} />
+          ) : (
+            filteredBookings.map((booking) => (
+              <View key={booking.id} style={styles.bookingCard}>
+                {/* Booking Header */}
+                <View style={styles.bookingHeader}>
+                  <View style={styles.bookingInfo}>
+                    <Text style={styles.bookingTitle} numberOfLines={1} ellipsizeMode="tail">
+                      {booking.task_title || booking.service_name}
+                    </Text>
+                    <Text style={styles.bookingCustomer}>
+                      {user?.current_mode === 'customer'
+                        ? `Tasker: ${booking.technician_name}`
+                        : `Customer: ${booking.customer_name}`}
                     </Text>
                   </View>
-                  {booking.is_task_based && booking.task_status && booking.task_status !== booking.status && (
-                    <View style={[styles.taskStatusBadge, { backgroundColor: statusColors[booking.task_status] + '20' }]}>
-                      <Text style={[styles.taskStatusText, { color: statusColors[booking.task_status] }]}>
-                        Task: {taskStatusLabels[booking.task_status]}
+                  <View style={styles.statusContainer}>
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        { backgroundColor: statusColors[booking.status] + '20' },
+                      ]}
+                    >
+                      <Text style={[styles.statusText, { color: statusColors[booking.status] }]}>
+                        {statusLabels[booking.status]}
                       </Text>
+                    </View>
+                    {booking.is_task_based &&
+                      booking.task_status &&
+                      booking.task_status !== booking.status && (
+                        <View
+                          style={[
+                            styles.taskStatusBadge,
+                            { backgroundColor: statusColors[booking.task_status] + '20' },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.taskStatusText,
+                              { color: statusColors[booking.task_status] },
+                            ]}
+                          >
+                            Task: {taskStatusLabels[booking.task_status]}
+                          </Text>
+                        </View>
+                      )}
+                  </View>
+                </View>
+
+                {/* Booking Description */}
+                <Text style={styles.bookingDescription}>{booking.service_description}</Text>
+
+                {/* Booking Details */}
+                <View style={styles.bookingDetails}>
+                  <View style={styles.detailRow}>
+                    <View style={styles.detailItem}>
+                      <Ionicons name="calendar-outline" size={18} color={Colors.neutral[500]} />
+                      <Text style={styles.detailText}>
+                        {formatDate(booking.booking_date)} at {formatTime(booking.start_time)}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <View style={styles.detailItem}>
+                      <Ionicons name="location-outline" size={18} color={Colors.neutral[500]} />
+                      <Text style={styles.detailText}>{booking.address}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <View style={styles.detailItem}>
+                      <Ionicons name="cash-outline" size={18} color={Colors.neutral[500]} />
+                      <Text style={styles.detailText}>${booking.agreed_price}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Action Buttons */}
+                <View style={styles.actionButtons}>
+                  {/* Chat Button - Always available for confirmed bookings */}
+                  {(booking.status === 'confirmed' || booking.status === 'in_progress') && (
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.chatButton]}
+                      onPress={() => handleChatPress(booking)}
+                    >
+                      <Ionicons name="chatbubble-outline" size={18} color="#fff" />
+                      <Text style={styles.actionButtonText}>Message</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {booking.status === 'pending' && user?.current_mode === 'tasker' && (
+                    <>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.acceptButton]}
+                        onPress={() => {
+                          Alert.alert(
+                            'Accept Booking',
+                            'Are you sure you want to accept this booking?',
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              {
+                                text: 'Accept',
+                                onPress: () => updateBookingStatus(booking.id, 'confirmed'),
+                              },
+                            ],
+                          )
+                        }}
+                      >
+                        <Ionicons name="checkmark" size={18} color="#fff" />
+                        <Text style={styles.actionButtonText}>Accept</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.declineButton]}
+                        onPress={() => {
+                          Alert.alert(
+                            'Decline Booking',
+                            'Are you sure you want to decline this booking?',
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              {
+                                text: 'Decline',
+                                onPress: () => updateBookingStatus(booking.id, 'cancelled'),
+                              },
+                            ],
+                          )
+                        }}
+                      >
+                        <Ionicons name="close" size={18} color="#fff" />
+                        <Text style={styles.actionButtonText}>Decline</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+
+                  {booking.status === 'confirmed' && user?.current_mode === 'tasker' && (
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.completeButton]}
+                      onPress={() => {
+                        Alert.alert('Complete Task', 'Are you sure you have completed this task?', [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Complete',
+                            onPress: () => updateBookingStatus(booking.id, 'completed'),
+                          },
+                        ])
+                      }}
+                    >
+                      <Ionicons name="checkmark-circle" size={18} color="#fff" />
+                      <Text style={styles.actionButtonText}>Complete Task</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {/* Customer actions */}
+                  {booking.status === 'confirmed' && user?.current_mode === 'customer' && (
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.cancelButton]}
+                      onPress={() => {
+                        Alert.alert(
+                          'Cancel Booking',
+                          'Are you sure you want to cancel this booking?',
+                          [
+                            { text: 'No', style: 'cancel' },
+                            {
+                              text: 'Yes, Cancel',
+                              onPress: () => updateBookingStatus(booking.id, 'cancelled'),
+                            },
+                          ],
+                        )
+                      }}
+                    >
+                      <Ionicons name="close-circle" size={18} color="#fff" />
+                      <Text style={styles.actionButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {booking.status === 'completed' && (
+                    <View style={styles.completedBadge}>
+                      <Ionicons name="checkmark-circle" size={18} color={Colors.success[500]} />
+                      <Text style={styles.completedText}>Task Completed</Text>
+                    </View>
+                  )}
+
+                  {booking.status === 'cancelled' && (
+                    <View style={styles.cancelledBadge}>
+                      <Ionicons name="close-circle" size={18} color={Colors.error[500]} />
+                      <Text style={styles.cancelledText}>Task Cancelled</Text>
                     </View>
                   )}
                 </View>
               </View>
+            ))
+          )}
 
-              {/* Booking Description */}
-              <Text style={styles.bookingDescription}>{booking.service_description}</Text>
-              
-              {/* Booking Details */}
-              <View style={styles.bookingDetails}>
-                <View style={styles.detailRow}>
-                  <View style={styles.detailItem}>
-                    <Ionicons name="calendar-outline" size={18} color={Colors.neutral[500]} />
-                    <Text style={styles.detailText}>{formatDate(booking.booking_date)} at {formatTime(booking.start_time)}</Text>
-                  </View>
-                </View>
-                <View style={styles.detailRow}>
-                  <View style={styles.detailItem}>
-                    <Ionicons name="location-outline" size={18} color={Colors.neutral[500]} />
-                    <Text style={styles.detailText}>{booking.address}</Text>
-                  </View>
-                </View>
-                <View style={styles.detailRow}>
-                  <View style={styles.detailItem}>
-                    <Ionicons name="cash-outline" size={18} color={Colors.neutral[500]} />
-                    <Text style={styles.detailText}>${booking.agreed_price}</Text>
-                  </View>
-                  
-                </View>
-              </View>
-
-              {/* Action Buttons */}
-              <View style={styles.actionButtons}>
-                {/* Chat Button - Always available for confirmed bookings */}
-                {(booking.status === 'confirmed' || booking.status === 'in_progress') && (
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.chatButton]}
-                    onPress={() => handleChatPress(booking)}
-                  >
-                    <Ionicons name="chatbubble-outline" size={18} color="#fff" />
-                    <Text style={styles.actionButtonText}>Message</Text>
-                  </TouchableOpacity>
-                )}
-
-                {booking.status === 'pending' && user?.current_mode === 'tasker' && (
-                  <>
-                    <TouchableOpacity
-                      style={[styles.actionButton, styles.acceptButton]}
-                      onPress={() => {
-                        Alert.alert(
-                          'Accept Booking',
-                          'Are you sure you want to accept this booking?',
-                          [
-                            { text: 'Cancel', style: 'cancel' },
-                            { text: 'Accept', onPress: () => updateBookingStatus(booking.id, 'confirmed') }
-                          ]
-                        )
-                      }}
-                    >
-                      <Ionicons name="checkmark" size={18} color="#fff" />
-                      <Text style={styles.actionButtonText}>Accept</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.actionButton, styles.declineButton]}
-                      onPress={() => {
-                        Alert.alert(
-                          'Decline Booking',
-                          'Are you sure you want to decline this booking?',
-                          [
-                            { text: 'Cancel', style: 'cancel' },
-                            { text: 'Decline', onPress: () => updateBookingStatus(booking.id, 'cancelled') }
-                          ]
-                        )
-                      }}
-                    >
-                      <Ionicons name="close" size={18} color="#fff" />
-                      <Text style={styles.actionButtonText}>Decline</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-
-                {booking.status === 'confirmed' && user?.current_mode === 'tasker' && (
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.completeButton]}
-                    onPress={() => {
-                      Alert.alert(
-                        'Complete Task',
-                        'Are you sure you have completed this task?',
-                        [
-                          { text: 'Cancel', style: 'cancel' },
-                          { text: 'Complete', onPress: () => updateBookingStatus(booking.id, 'completed') }
-                        ]
-                      )
-                    }}
-                  >
-                    <Ionicons name="checkmark-circle" size={18} color="#fff" />
-                    <Text style={styles.actionButtonText}>Complete Task</Text>
-                  </TouchableOpacity>
-                )}
-
-                {/* Customer actions */}
-                {booking.status === 'confirmed' && user?.current_mode === 'customer' && (
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.cancelButton]}
-                    onPress={() => {
-                      Alert.alert(
-                        'Cancel Booking',
-                        'Are you sure you want to cancel this booking?',
-                        [
-                          { text: 'No', style: 'cancel' },
-                          { text: 'Yes, Cancel', onPress: () => updateBookingStatus(booking.id, 'cancelled') }
-                        ]
-                      )
-                    }}
-                  >
-                    <Ionicons name="close-circle" size={18} color="#fff" />
-                    <Text style={styles.actionButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                )}
-
-                {booking.status === 'completed' && (
-                  <View style={styles.completedBadge}>
-                    <Ionicons name="checkmark-circle" size={18} color={Colors.success[500]} />
-                    <Text style={styles.completedText}>Task Completed</Text>
-                  </View>
-                )}
-
-                {booking.status === 'cancelled' && (
-                  <View style={styles.cancelledBadge}>
-                    <Ionicons name="close-circle" size={18} color={Colors.error[500]} />
-                    <Text style={styles.cancelledText}>Task Cancelled</Text>
-                  </View>
-                )}
-              </View>
+          {!loading && filteredBookings.length === 0 && (
+            <View style={styles.emptyState}>
+              <Ionicons name="calendar-outline" size={64} color={Colors.neutral[300]} />
+              <Text style={styles.emptyTitle}>No bookings found</Text>
+              <Text style={styles.emptySubtitle}>
+                {selectedStatus === 'all'
+                  ? "You don't have any bookings yet"
+                  : `No ${selectedStatus} bookings found`}
+              </Text>
             </View>
-          ))
-        )}
-        
-        {!loading && filteredBookings.length === 0 && (
-          <View style={styles.emptyState}>
-            <Ionicons name="calendar-outline" size={64} color={Colors.neutral[300]} />
-            <Text style={styles.emptyTitle}>No bookings found</Text>
-            <Text style={styles.emptySubtitle}>
-              {selectedStatus === 'all' 
-                ? 'You don\'t have any bookings yet' 
-                : `No ${selectedStatus} bookings found`
-              }
-            </Text>
-          </View>
-        )}
-      </ScrollView>
-    </View>
+          )}
+        </ScrollView>
+      </View>
     </SafeAreaView>
   )
 }

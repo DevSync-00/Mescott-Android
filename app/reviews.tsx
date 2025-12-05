@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   View,
   Text,
@@ -15,10 +15,10 @@ import { useAuth } from '../contexts/SimpleAuthContext'
 import { RatingService, Review } from '../services/RatingService'
 import ReviewCard from '../components/ReviewCard'
 import RatingStars from '../components/RatingStars'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 export default function ReviewsScreen() {
-  const { user, isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading } = useAuth()
   const router = useRouter()
   const { userId, userName } = useLocalSearchParams()
   const [reviews, setReviews] = useState<Review[]>([])
@@ -33,16 +33,16 @@ export default function ReviewsScreen() {
     } else if (isAuthenticated && userId) {
       loadReviews()
     }
-  }, [isAuthenticated, userId, isLoading])
+  }, [isAuthenticated, userId, isLoading, loadReviews, router])
 
-  const loadReviews = async () => {
+  const loadReviews = useCallback(async () => {
     try {
       setLoading(true)
       const [reviewsData, ratingData] = await Promise.all([
         RatingService.getUserReviews(userId as string),
-        RatingService.getUserAverageRating(userId as string)
+        RatingService.getUserAverageRating(userId as string),
       ])
-      
+
       setReviews(reviewsData)
       setAverageRating(ratingData.average)
       setTotalReviews(ratingData.count)
@@ -52,7 +52,7 @@ export default function ReviewsScreen() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [userId])
 
   const handleRefresh = async () => {
     setRefreshing(true)
@@ -94,29 +94,21 @@ export default function ReviewsScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.push('/jobs')}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => router.push('/jobs')}>
           <Ionicons name="arrow-back" size={24} color={Colors.neutral[900]} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>{userName}&apos;s Reviews</Text>
           <Text style={styles.headerSubtitle}>{totalReviews} reviews</Text>
         </View>
-        <TouchableOpacity 
-          style={styles.writeReviewButton}
-          onPress={handleWriteReview}
-        >
+        <TouchableOpacity style={styles.writeReviewButton} onPress={handleWriteReview}>
           <Ionicons name="create" size={20} color={Colors.primary[500]} />
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
       >
         {/* Rating Summary */}
         <View style={styles.ratingSummary}>
@@ -125,13 +117,13 @@ export default function ReviewsScreen() {
             <RatingStars rating={averageRating} readonly size={24} />
             <Text style={styles.totalReviews}>{totalReviews} reviews</Text>
           </View>
-          
+
           {/* Rating Breakdown */}
           <View style={styles.ratingBreakdown}>
             {[5, 4, 3, 2, 1].map((star) => {
-              const count = reviews.filter(r => r.rating === star).length
+              const count = reviews.filter((r) => r.rating === star).length
               const percentage = totalReviews > 0 ? (count / totalReviews) * 100 : 0
-              
+
               return (
                 <View key={star} style={styles.ratingBar}>
                   <Text style={styles.starLabel}>{star}★</Text>
@@ -148,7 +140,7 @@ export default function ReviewsScreen() {
         {/* Reviews List */}
         <View style={styles.reviewsSection}>
           <Text style={styles.sectionTitle}>All Reviews</Text>
-          
+
           {reviews.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="star-outline" size={48} color={Colors.neutral[300]} />

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { View, Text, Image, StatusBar } from 'react-native'
+import { View, Text, StatusBar } from 'react-native'
 import { Tabs, usePathname, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -9,9 +9,8 @@ import * as SplashScreen from 'expo-splash-screen'
 import { KeyboardProvider } from 'react-native-keyboard-controller'
 import { AuthProvider, useAuth } from '../contexts/SimpleAuthContext'
 import { LanguageProvider } from '../contexts/LanguageContext'
-import { NotificationProvider, useNotifications } from '../contexts/NotificationContext'
+import { NotificationProvider } from '../contexts/NotificationContext'
 import { ToastProvider } from '../contexts/ToastContext'
-import NotificationBadge from '../components/NotificationBadge'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import {
   initConnectivityListener,
@@ -21,7 +20,7 @@ import {
 import { useAppStore } from '../state/store'
 import { ChatService } from '../services/ChatService'
 import { TaskService } from '../services/TaskService'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 // Keep the native splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync()
@@ -33,13 +32,12 @@ try {
     duration: 1000,
     fade: true,
   })
-} catch (error) {
+} catch {
   // Ignore error - setOptions is not available in Expo Go
 }
 
 function TabNavigator() {
   const { user, isAuthenticated } = useAuth()
-  const { unreadCount } = useNotifications()
   const pathname = usePathname()
   const insets = useSafeAreaInsets()
 
@@ -355,8 +353,7 @@ function AppContent() {
       try {
         // Use expo-navigation-bar if available
         // @ts-ignore - Dynamic import, package may not be installed
-        // eslint-disable-next-line import/no-unresolved, @typescript-eslint/ban-ts-comment
-        // @ts-expect-error - Optional dynamic import
+        // eslint-disable-next-line import/no-unresolved
         const NavBar = await import('expo-navigation-bar')
         if ((NavBar as any)?.setBackgroundColorAsync) {
           await (NavBar as any).setBackgroundColorAsync('#000000')
@@ -364,7 +361,7 @@ function AppContent() {
             await (NavBar as any).setButtonStyleAsync('light')
           }
         }
-      } catch (error) {
+      } catch {
         // Navigation bar color setting failed, continue silently
         // This is optional and may not be available in all environments
       }
@@ -385,20 +382,24 @@ function AppContent() {
       useAppStore.getState().setOnline(online)
       if (online) {
         await useAppStore.getState().processOfflineQueue({
-          'chat:send': (payload: {
+          'chat:send': async (payload: {
             chatId: string
             senderId: string
             content: string
             messageType?: 'text' | 'image' | 'file'
-          }) => ChatService.processQueuedMessage(payload),
-          'task:apply': (payload: {
+          }) => {
+            await ChatService.processQueuedMessage(payload)
+          },
+          'task:apply': async (payload: {
             taskId: string
             taskerId: string
             proposedPrice: number
             message: string
             availabilityDate: string
             userId: string
-          }) => TaskService.processQueuedTaskApplication(payload),
+          }) => {
+            await TaskService.processQueuedTaskApplication(payload)
+          },
         })
       }
     })
@@ -446,7 +447,7 @@ function AppContent() {
         router.replace('/auth')
       }
     }
-  }, [isLoading, isAuthenticated, pathname])
+  }, [isLoading, isAuthenticated, pathname, router])
 
   if (!appIsReady) {
     return null // Native splash screen is showing

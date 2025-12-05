@@ -1,11 +1,18 @@
 import React from 'react'
-import { View, StyleSheet, ViewStyle, StyleProp, ColorValue } from 'react-native'
+import { StyleSheet, ViewStyle, StyleProp, ColorValue } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
-import Colors from '../constants/Colors'
-import { BorderRadius } from '../constants/Design'
+import { Colors } from '../constants/Colors'
 
 type GradientColors = readonly [ColorValue, ColorValue, ...ColorValue[]]
-type GradientVariant = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'ocean' | 'emerald' | 'sunset'
+type GradientVariant =
+  | 'primary'
+  | 'secondary'
+  | 'success'
+  | 'warning'
+  | 'error'
+  | 'ocean'
+  | 'emerald'
+  | 'sunset'
 
 interface GradientViewProps {
   children?: React.ReactNode
@@ -59,10 +66,10 @@ export default function GradientView({
       const alphaHex = Math.round(opacity * 255)
         .toString(16)
         .padStart(2, '0')
-      const palette = baseColors.map(color =>
+      const palette = baseColors.map((color) =>
         typeof color === 'string' && color.startsWith('#') && color.length === 7
           ? `${color}${alphaHex}`
-          : color
+          : color,
       ) as ColorValue[]
       return ensureGradientColors(palette)
     }
@@ -94,16 +101,8 @@ export default function GradientView({
 }
 
 // Predefined gradient components for common use cases
-export const GradientCard = ({
-  children,
-  style,
-  ...props
-}: Omit<GradientViewProps, 'variant'>) => (
-  <GradientView
-    variant="primary"
-    style={[styles.card, style]}
-    {...props}
-  >
+export const GradientCard = ({ children, style, ...props }: Omit<GradientViewProps, 'variant'>) => (
+  <GradientView variant="primary" style={[styles.card, style]} {...props}>
     {children}
   </GradientView>
 )
@@ -113,11 +112,7 @@ export const GradientButton = ({
   style,
   ...props
 }: Omit<GradientViewProps, 'variant'>) => (
-  <GradientView
-    variant="primary"
-    style={[styles.button, style]}
-    {...props}
-  >
+  <GradientView variant="primary" style={[styles.button, style]} {...props}>
     {children}
   </GradientView>
 )
@@ -127,11 +122,7 @@ export const GradientHeader = ({
   style,
   ...props
 }: Omit<GradientViewProps, 'variant'>) => (
-  <GradientView
-    variant="primary"
-    style={[styles.header, style]}
-    {...props}
-  >
+  <GradientView variant="primary" style={[styles.header, style]} {...props}>
     {children}
   </GradientView>
 )
@@ -141,11 +132,7 @@ export const SuccessGradient = ({
   style,
   ...props
 }: Omit<GradientViewProps, 'variant'>) => (
-  <GradientView
-    variant="success"
-    style={[styles.default, style]}
-    {...props}
-  >
+  <GradientView variant="success" style={[styles.default, style]} {...props}>
     {children}
   </GradientView>
 )
@@ -155,11 +142,7 @@ export const WarningGradient = ({
   style,
   ...props
 }: Omit<GradientViewProps, 'variant'>) => (
-  <GradientView
-    variant="warning"
-    style={[styles.default, style]}
-    {...props}
-  >
+  <GradientView variant="warning" style={[styles.default, style]} {...props}>
     {children}
   </GradientView>
 )
@@ -169,11 +152,7 @@ export const ErrorGradient = ({
   style,
   ...props
 }: Omit<GradientViewProps, 'variant'>) => (
-  <GradientView
-    variant="error"
-    style={[styles.default, style]}
-    {...props}
-  >
+  <GradientView variant="error" style={[styles.default, style]} {...props}>
     {children}
   </GradientView>
 )

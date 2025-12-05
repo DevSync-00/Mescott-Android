@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Dimensions,
-  ActivityIndicator,
   TextInput,
   Image,
   NativeScrollEvent,
@@ -19,8 +18,8 @@ import { router } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { useNotifications } from '../contexts/NotificationContext'
 import { TaskService, Task } from '../services/TaskService'
-import Colors from '../constants/Colors'
-import SkeletonLoader, { SkeletonList } from '../components/SkeletonLoader'
+import { Colors } from '../constants/Colors'
+import { SkeletonList } from '../components/SkeletonLoader'
 import NotificationsSheet from '../components/NotificationsSheet'
 import CategorySearchSheet from '../components/CategorySearchSheet'
 import { CATEGORIES } from '../constants/Categories'
@@ -30,53 +29,11 @@ import { CATEGORIES } from '../constants/Categories'
 
 const { width } = Dimensions.get('window')
 
-const categories = CATEGORIES
-
-const featuredServices = [
-  {
-    id: '1',
-    title: 'Deep House Cleaning',
-    price: '2,500 ETB',
-    rating: 4.9,
-    reviews: 120,
-    category: 'Cleaning',
-    icon: 'sparkles',
-  },
-  {
-    id: '2',
-    title: 'Furniture Assembly',
-    price: '1,500 ETB',
-    rating: 4.8,
-    reviews: 85,
-    category: 'Handyman',
-    icon: 'build',
-  },
-  {
-    id: '3',
-    title: 'Local Delivery',
-    price: '500 ETB',
-    rating: 4.7,
-    reviews: 150,
-    category: 'Delivery',
-    icon: 'bicycle',
-  },
-  {
-    id: '4',
-    title: 'Portrait Photography',
-    price: '3,000 ETB',
-    rating: 5.0,
-    reviews: 60,
-    category: 'Photography',
-    icon: 'camera',
-  },
-]
-
 export default function Index() {
   const { isAuthenticated, loading: isLoading, user } = useAuth()
   const insets = useSafeAreaInsets()
   const { unreadCount } = useNotifications()
   const [featuredTasks, setFeaturedTasks] = useState<Task[]>([])
-  const [recentTasks, setRecentTasks] = useState<Task[]>([])
   const [loadingTasks, setLoadingTasks] = useState(true)
   const [notificationsVisible, setNotificationsVisible] = useState(false)
   const [showAllCategories, setShowAllCategories] = useState(false)
@@ -109,10 +66,6 @@ export default function Index() {
       })
 
       setFeaturedTasks(sortedFeatured.slice(0, 4)) // Show top 4
-
-      // Load recent tasks
-      const recentTasksData = await TaskService.getRecentTasks()
-      setRecentTasks(recentTasksData.slice(0, 6)) // Show top 6
     } catch (error) {
       console.error('Error loading tasks:', error)
     } finally {
@@ -128,7 +81,7 @@ export default function Index() {
 
   useEffect(() => {
     loadTasks()
-  }, [user])
+  }, [user, loadTasks])
 
   const scrollViewRef = useRef<ScrollView>(null)
 
@@ -364,7 +317,7 @@ export default function Index() {
               </TouchableOpacity>
             </View>
             <View style={styles.categoriesGrid}>
-              {(showAllCategories ? categories : categories.slice(0, 6)).map((category, index) => (
+              {(showAllCategories ? CATEGORIES : CATEGORIES.slice(0, 6)).map((category, index) => (
                 <TouchableOpacity
                   key={index}
                   style={styles.categoryCard}

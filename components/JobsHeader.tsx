@@ -1,14 +1,7 @@
 import React from 'react'
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-} from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
-import { useRouter } from 'expo-router'
+import { View, Text, StyleSheet } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 import { moderateFont } from '../utils/fontScale'
 
 interface JobsHeaderProps {
@@ -16,12 +9,9 @@ interface JobsHeaderProps {
   subtitle?: string
 }
 
-export default function JobsHeader({
-  title,
-  subtitle,
-}: JobsHeaderProps) {
+export default function JobsHeader({ title, subtitle }: JobsHeaderProps) {
   const insets = useSafeAreaInsets()
-  
+
   return (
     <View style={[styles.header, { paddingTop: 8 + insets.top }]}>
       <View style={styles.headerContent}>

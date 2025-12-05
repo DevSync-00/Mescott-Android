@@ -9,13 +9,16 @@ import {
   Alert,
   ActivityIndicator,
   Image,
-  Switch
+  Switch,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { TaskerApplicationService, TaskerApplication } from '../services/TaskerApplicationService'
-import { ProfileVerificationService, VerificationStatus } from '../services/ProfileVerificationService'
+import {
+  ProfileVerificationService,
+  VerificationStatus,
+} from '../services/ProfileVerificationService'
 import { ImageService } from '../services/ImageService'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 interface TaskerApplicationWithVerificationProps {
   userId: string
@@ -31,7 +34,7 @@ interface ApplicationRequirementsState {
 const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificationProps> = ({
   userId,
   onApplicationSubmitted,
-  onVerificationComplete
+  onVerificationComplete,
 }) => {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -39,7 +42,7 @@ const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificat
   const [verificationStatus, setVerificationStatus] = useState<VerificationStatus | null>(null)
   const [requirements, setRequirements] = useState<ApplicationRequirementsState>({
     missingRequirements: [],
-    completedRequirements: []
+    completedRequirements: [],
   })
   const [applicationData, setApplicationData] = useState({
     full_name: '',
@@ -59,7 +62,7 @@ const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificat
     availability: [] as string[],
     certifications: [] as string[],
     id_front_url: '',
-    id_back_url: ''
+    id_back_url: '',
   })
   const [newSkill, setNewSkill] = useState('')
   const [newCertification, setNewCertification] = useState('')
@@ -72,17 +75,17 @@ const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificat
   const checkApplicationEligibility = async () => {
     try {
       setLoading(true)
-      
+
       const [eligibility, reqs, verification] = await Promise.all([
         TaskerApplicationService.canUserApplyToBeTasker(userId),
         TaskerApplicationService.getApplicationRequirements(userId),
         ProfileVerificationService.getVerificationStatus(userId),
       ])
-      
+
       setCanApply(eligibility.canApply)
       setRequirements(reqs)
       setVerificationStatus(verification)
-      
+
       if (verification && onVerificationComplete) {
         onVerificationComplete(verification)
       }
@@ -125,7 +128,7 @@ const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificat
     if (newSkill.trim() && !applicationData.skills.includes(newSkill.trim())) {
       setApplicationData({
         ...applicationData,
-        skills: [...applicationData.skills, newSkill.trim()]
+        skills: [...applicationData.skills, newSkill.trim()],
       })
       setNewSkill('')
     }
@@ -134,15 +137,18 @@ const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificat
   const removeSkill = (skill: string) => {
     setApplicationData({
       ...applicationData,
-      skills: applicationData.skills.filter(s => s !== skill)
+      skills: applicationData.skills.filter((s) => s !== skill),
     })
   }
 
   const addCertification = () => {
-    if (newCertification.trim() && !applicationData.certifications.includes(newCertification.trim())) {
+    if (
+      newCertification.trim() &&
+      !applicationData.certifications.includes(newCertification.trim())
+    ) {
       setApplicationData({
         ...applicationData,
-        certifications: [...applicationData.certifications, newCertification.trim()]
+        certifications: [...applicationData.certifications, newCertification.trim()],
       })
       setNewCertification('')
     }
@@ -151,7 +157,7 @@ const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificat
   const removeCertification = (cert: string) => {
     setApplicationData({
       ...applicationData,
-      certifications: applicationData.certifications.filter(c => c !== cert)
+      certifications: applicationData.certifications.filter((c) => c !== cert),
     })
   }
 
@@ -173,7 +179,7 @@ const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificat
 
     try {
       setSubmitting(true)
-      
+
       const application = await TaskerApplicationService.createApplication({
         ...applicationData,
         user_id: userId,
@@ -184,11 +190,16 @@ const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificat
         Alert.alert(
           'Application Submitted',
           'Your tasker application has been submitted successfully. We will review it and get back to you soon.',
-          [{ text: 'OK', onPress: () => {
-            if (onApplicationSubmitted) {
-              onApplicationSubmitted(application)
-            }
-          }}]
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                if (onApplicationSubmitted) {
+                  onApplicationSubmitted(application)
+                }
+              },
+            },
+          ],
         )
       } else {
         Alert.alert('Error', 'Failed to submit application')
@@ -217,10 +228,18 @@ const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificat
         <Text style={styles.sectionTitle}>Verification Status</Text>
         <View style={styles.verificationCard}>
           <View style={styles.verificationHeader}>
-            <Ionicons 
-              name={verificationStatus?.verification_badge === 'verified' ? 'checkmark-circle' : 'alert-circle'} 
-              size={24} 
-              color={verificationStatus?.verification_badge === 'verified' ? Colors.success[500] : Colors.warning[500]} 
+            <Ionicons
+              name={
+                verificationStatus?.verification_badge === 'verified'
+                  ? 'checkmark-circle'
+                  : 'alert-circle'
+              }
+              size={24}
+              color={
+                verificationStatus?.verification_badge === 'verified'
+                  ? Colors.success[500]
+                  : Colors.warning[500]
+              }
             />
             <Text style={styles.verificationTitle}>
               {verificationStatus?.verification_badge?.toUpperCase() || 'UNVERIFIED'}
@@ -229,37 +248,41 @@ const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificat
           <Text style={styles.verificationScore}>
             Verification Score: {verificationStatus?.overall_verification_score || 0}/100
           </Text>
-          
+
           <View style={styles.verificationDetails}>
             <View style={styles.verificationItem}>
-              <Ionicons 
-                name={verificationStatus?.phone_verified ? 'checkmark' : 'close'} 
-                size={16} 
-                color={verificationStatus?.phone_verified ? Colors.success[500] : Colors.error[500]} 
+              <Ionicons
+                name={verificationStatus?.phone_verified ? 'checkmark' : 'close'}
+                size={16}
+                color={verificationStatus?.phone_verified ? Colors.success[500] : Colors.error[500]}
               />
               <Text style={styles.verificationItemText}>Phone Verified</Text>
             </View>
             <View style={styles.verificationItem}>
-              <Ionicons 
-                name={verificationStatus?.email_verified ? 'checkmark' : 'close'} 
-                size={16} 
-                color={verificationStatus?.email_verified ? Colors.success[500] : Colors.error[500]} 
+              <Ionicons
+                name={verificationStatus?.email_verified ? 'checkmark' : 'close'}
+                size={16}
+                color={verificationStatus?.email_verified ? Colors.success[500] : Colors.error[500]}
               />
               <Text style={styles.verificationItemText}>Email Verified</Text>
             </View>
             <View style={styles.verificationItem}>
-              <Ionicons 
-                name={verificationStatus?.identity_verified ? 'checkmark' : 'close'} 
-                size={16} 
-                color={verificationStatus?.identity_verified ? Colors.success[500] : Colors.error[500]} 
+              <Ionicons
+                name={verificationStatus?.identity_verified ? 'checkmark' : 'close'}
+                size={16}
+                color={
+                  verificationStatus?.identity_verified ? Colors.success[500] : Colors.error[500]
+                }
               />
               <Text style={styles.verificationItemText}>Identity Verified</Text>
             </View>
             <View style={styles.verificationItem}>
-              <Ionicons 
-                name={verificationStatus?.skills_verified ? 'checkmark' : 'close'} 
-                size={16} 
-                color={verificationStatus?.skills_verified ? Colors.success[500] : Colors.error[500]} 
+              <Ionicons
+                name={verificationStatus?.skills_verified ? 'checkmark' : 'close'}
+                size={16}
+                color={
+                  verificationStatus?.skills_verified ? Colors.success[500] : Colors.error[500]
+                }
               />
               <Text style={styles.verificationItemText}>Skills Verified</Text>
             </View>
@@ -300,18 +323,18 @@ const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificat
       {canApply && (
         <View style={styles.formSection}>
           <Text style={styles.sectionTitle}>Application Form</Text>
-          
+
           {/* Personal Information */}
           <View style={styles.formGroup}>
             <Text style={styles.formGroupTitle}>Personal Information</Text>
-            
+
             <TextInput
               style={styles.input}
               placeholder="Full Name"
               value={applicationData.full_name}
               onChangeText={(text) => setApplicationData({ ...applicationData, full_name: text })}
             />
-            
+
             <TextInput
               style={styles.input}
               placeholder="Email"
@@ -319,7 +342,7 @@ const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificat
               onChangeText={(text) => setApplicationData({ ...applicationData, email: text })}
               keyboardType="email-address"
             />
-            
+
             <TextInput
               style={styles.input}
               placeholder="Phone"
@@ -327,14 +350,14 @@ const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificat
               onChangeText={(text) => setApplicationData({ ...applicationData, phone: text })}
               keyboardType="phone-pad"
             />
-            
+
             <TextInput
               style={styles.input}
               placeholder="Address"
               value={applicationData.address}
               onChangeText={(text) => setApplicationData({ ...applicationData, address: text })}
             />
-            
+
             <View style={styles.row}>
               <TextInput
                 style={[styles.input, styles.halfInput]}
@@ -349,58 +372,68 @@ const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificat
                 onChangeText={(text) => setApplicationData({ ...applicationData, state: text })}
               />
             </View>
-            
+
             <TextInput
               style={styles.input}
               placeholder="ZIP Code"
               value={applicationData.zip_code}
               onChangeText={(text) => setApplicationData({ ...applicationData, zip_code: text })}
             />
-            
+
             <TextInput
               style={styles.input}
               placeholder="Date of Birth (YYYY-MM-DD)"
               value={applicationData.date_of_birth}
-              onChangeText={(text) => setApplicationData({ ...applicationData, date_of_birth: text })}
+              onChangeText={(text) =>
+                setApplicationData({ ...applicationData, date_of_birth: text })
+              }
             />
           </View>
 
           {/* Emergency Contact */}
           <View style={styles.formGroup}>
             <Text style={styles.formGroupTitle}>Emergency Contact</Text>
-            
+
             <TextInput
               style={styles.input}
               placeholder="Emergency Contact Name"
               value={applicationData.emergency_contact_name}
-              onChangeText={(text) => setApplicationData({ ...applicationData, emergency_contact_name: text })}
+              onChangeText={(text) =>
+                setApplicationData({ ...applicationData, emergency_contact_name: text })
+              }
             />
-            
+
             <TextInput
               style={styles.input}
               placeholder="Emergency Contact Phone"
               value={applicationData.emergency_contact_phone}
-              onChangeText={(text) => setApplicationData({ ...applicationData, emergency_contact_phone: text })}
+              onChangeText={(text) =>
+                setApplicationData({ ...applicationData, emergency_contact_phone: text })
+              }
               keyboardType="phone-pad"
             />
-            
+
             <TextInput
               style={styles.input}
               placeholder="Relationship"
               value={applicationData.emergency_contact_relationship}
-              onChangeText={(text) => setApplicationData({ ...applicationData, emergency_contact_relationship: text })}
+              onChangeText={(text) =>
+                setApplicationData({ ...applicationData, emergency_contact_relationship: text })
+              }
             />
           </View>
 
           {/* Professional Information */}
           <View style={styles.formGroup}>
             <Text style={styles.formGroupTitle}>Professional Information</Text>
-            
+
             <TextInput
               style={styles.input}
               placeholder="Years of Experience"
               value={applicationData.experience_years.toString()}
-              onChangeText={(text) => setApplicationData({ ...applicationData, experience_years: parseInt(text) || 0 })}
+              onChangeText={(text) =>
+                setApplicationData({ ...applicationData, experience_years: parseInt(text) || 0 })
+              }
               keyboardType="numeric"
             />
           </View>
@@ -408,7 +441,7 @@ const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificat
           {/* Skills */}
           <View style={styles.formGroup}>
             <Text style={styles.formGroupTitle}>Skills</Text>
-            
+
             <View style={styles.addItemContainer}>
               <TextInput
                 style={[styles.input, styles.addItemInput]}
@@ -420,7 +453,7 @@ const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificat
                 <Ionicons name="add" size={20} color="#fff" />
               </TouchableOpacity>
             </View>
-            
+
             <View style={styles.itemsList}>
               {applicationData.skills.map((skill, index) => (
                 <View key={index} style={styles.itemChip}>
@@ -436,7 +469,7 @@ const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificat
           {/* Certifications */}
           <View style={styles.formGroup}>
             <Text style={styles.formGroupTitle}>Certifications</Text>
-            
+
             <View style={styles.addItemContainer}>
               <TextInput
                 style={[styles.input, styles.addItemInput]}
@@ -448,7 +481,7 @@ const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificat
                 <Ionicons name="add" size={20} color="#fff" />
               </TouchableOpacity>
             </View>
-            
+
             <View style={styles.itemsList}>
               {applicationData.certifications.map((cert, index) => (
                 <View key={index} style={styles.itemChip}>
@@ -464,15 +497,18 @@ const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificat
           {/* ID Documents */}
           <View style={styles.formGroup}>
             <Text style={styles.formGroupTitle}>Identity Documents</Text>
-            
+
             <View style={styles.documentUploadContainer}>
               <Text style={styles.documentLabel}>ID Front</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.documentUploadButton}
                 onPress={() => handleImageUpload('front')}
               >
                 {applicationData.id_front_url ? (
-                  <Image source={{ uri: applicationData.id_front_url }} style={styles.documentPreview} />
+                  <Image
+                    source={{ uri: applicationData.id_front_url }}
+                    style={styles.documentPreview}
+                  />
                 ) : (
                   <View style={styles.documentPlaceholder}>
                     <Ionicons name="camera" size={24} color={Colors.neutral[400]} />
@@ -481,15 +517,18 @@ const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificat
                 )}
               </TouchableOpacity>
             </View>
-            
+
             <View style={styles.documentUploadContainer}>
               <Text style={styles.documentLabel}>ID Back</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.documentUploadButton}
                 onPress={() => handleImageUpload('back')}
               >
                 {applicationData.id_back_url ? (
-                  <Image source={{ uri: applicationData.id_back_url }} style={styles.documentPreview} />
+                  <Image
+                    source={{ uri: applicationData.id_back_url }}
+                    style={styles.documentPreview}
+                  />
                 ) : (
                   <View style={styles.documentPlaceholder}>
                     <Ionicons name="camera" size={24} color={Colors.neutral[400]} />
@@ -502,12 +541,10 @@ const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificat
 
           {/* Terms Agreement */}
           <View style={styles.termsContainer}>
-            <Switch
-              value={agreedToTerms}
-              onValueChange={setAgreedToTerms}
-            />
+            <Switch value={agreedToTerms} onValueChange={setAgreedToTerms} />
             <Text style={styles.termsText}>
-              I agree to the terms and conditions and understand that my application will be reviewed.
+              I agree to the terms and conditions and understand that my application will be
+              reviewed.
             </Text>
           </View>
 

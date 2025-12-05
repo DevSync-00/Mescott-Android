@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 import { CATEGORIES } from '../constants/Categories'
 import BottomSheet, { BottomSheetRef } from './BottomSheet'
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   View,
   Text,
@@ -16,7 +16,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { PortfolioService, TaskerPortfolio } from '../services/PortfolioService'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 const { width } = Dimensions.get('window')
 
@@ -40,7 +40,7 @@ export default function TaskerProfile() {
     }
   }, [taskerId])
 
-  const loadPortfolio = async () => {
+  const loadPortfolio = useCallback(async () => {
     try {
       setLoading(true)
       console.log('Loading portfolio for tasker ID (profile ID):', taskerId)
@@ -61,7 +61,7 @@ export default function TaskerProfile() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [taskerId])
 
   const handleLinkPress = async (url: string) => {
     try {

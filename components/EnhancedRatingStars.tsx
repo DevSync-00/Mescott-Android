@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { View, TouchableOpacity, Text, StyleSheet, Animated } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 interface RatingCategory {
   id: string
@@ -40,7 +40,7 @@ export default function EnhancedRatingStars({
   maxRating = 5,
   showCategories = false,
   categories = defaultCategories,
-  categoryRatings = {}
+  categoryRatings = {},
 }: EnhancedRatingStarsProps) {
   const [hoveredStar, setHoveredStar] = useState(0)
   const [scaleAnim] = useState(new Animated.Value(1))
@@ -48,7 +48,7 @@ export default function EnhancedRatingStars({
   const handleStarPress = (starRating: number) => {
     if (!readonly && onRatingChange) {
       onRatingChange(starRating)
-      
+
       // Add animation feedback
       Animated.sequence([
         Animated.timing(scaleAnim, {
@@ -89,11 +89,7 @@ export default function EnhancedRatingStars({
           name={isFilled ? 'star' : 'star-outline'}
           size={size}
           color={
-            isFilled 
-              ? Colors.warning[500] 
-              : isHovered 
-                ? Colors.warning[300] 
-                : Colors.neutral[300]
+            isFilled ? Colors.warning[500] : isHovered ? Colors.warning[300] : Colors.neutral[300]
           }
         />
       </TouchableOpacity>
@@ -102,21 +98,19 @@ export default function EnhancedRatingStars({
 
   const renderCategoryRating = (category: RatingCategory) => {
     const categoryRating = categoryRatings[category.id] || 0
-    
+
     return (
       <View key={category.id} style={styles.categoryContainer}>
         <View style={styles.categoryHeader}>
           <Ionicons name={category.icon as any} size={16} color={Colors.primary[500]} />
           <Text style={styles.categoryLabel}>{category.label}</Text>
-          {showNumber && (
-            <Text style={styles.categoryRatingText}>
-              {categoryRating.toFixed(1)}
-            </Text>
-          )}
+          {showNumber && <Text style={styles.categoryRatingText}>{categoryRating.toFixed(1)}</Text>}
         </View>
         <View style={styles.starsContainer}>
-          {Array.from({ length: maxRating }, (_, index) => 
-            renderStar(index, categoryRating, (rating) => handleCategoryRating(category.id, rating))
+          {Array.from({ length: maxRating }, (_, index) =>
+            renderStar(index, categoryRating, (rating) =>
+              handleCategoryRating(category.id, rating),
+            ),
           )}
         </View>
       </View>
@@ -128,22 +122,18 @@ export default function EnhancedRatingStars({
       {/* Overall Rating */}
       <View style={styles.overallRating}>
         <View style={styles.starsContainer}>
-          {Array.from({ length: maxRating }, (_, index) => 
-            renderStar(index, rating, handleStarPress)
+          {Array.from({ length: maxRating }, (_, index) =>
+            renderStar(index, rating, handleStarPress),
           )}
         </View>
         {showNumber && (
-          <Text style={[styles.ratingText, { fontSize: size * 0.7 }]}>
-            {rating.toFixed(1)}
-          </Text>
+          <Text style={[styles.ratingText, { fontSize: size * 0.7 }]}>{rating.toFixed(1)}</Text>
         )}
       </View>
 
       {/* Category Ratings */}
       {showCategories && (
-        <View style={styles.categoriesContainer}>
-          {categories.map(renderCategoryRating)}
-        </View>
+        <View style={styles.categoriesContainer}>{categories.map(renderCategoryRating)}</View>
       )}
     </Animated.View>
   )

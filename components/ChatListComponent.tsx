@@ -7,13 +7,13 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
-  RefreshControl
+  RefreshControl,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { RealtimeChatService, Chat } from '../services/RealtimeChatService'
 import { useAuth } from '../contexts/SimpleAuthContext'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 interface ChatListComponentProps {
   onChatSelect: (chatId: string) => void
@@ -37,18 +37,26 @@ export default function ChatListComponent({ onChatSelect }: ChatListComponentPro
       console.log('🚀 CHAT LIST - Loading chats for user:', user.id)
       const userChats = await RealtimeChatService.getUserChats(user.id)
       console.log('🚀 CHAT LIST - Loaded chats:', userChats)
-      
+
       // Sort by most recent activity (last_message_at desc, fallback to updated_at or created_at)
       const sorted = [...userChats].sort((a, b) => {
-        const aTime = a.last_message_at 
-          ? new Date(a.last_message_at).getTime() 
-          : (a.updated_at ? new Date(a.updated_at).getTime() : (a.created_at ? new Date(a.created_at).getTime() : 0))
-        const bTime = b.last_message_at 
-          ? new Date(b.last_message_at).getTime() 
-          : (b.updated_at ? new Date(b.updated_at).getTime() : (b.created_at ? new Date(b.created_at).getTime() : 0))
+        const aTime = a.last_message_at
+          ? new Date(a.last_message_at).getTime()
+          : a.updated_at
+            ? new Date(a.updated_at).getTime()
+            : a.created_at
+              ? new Date(a.created_at).getTime()
+              : 0
+        const bTime = b.last_message_at
+          ? new Date(b.last_message_at).getTime()
+          : b.updated_at
+            ? new Date(b.updated_at).getTime()
+            : b.created_at
+              ? new Date(b.created_at).getTime()
+              : 0
         return bTime - aTime // Most recent first
       })
-      
+
       setChats(sorted)
     } catch (error) {
       console.error('Error loading chats:', error)
@@ -65,14 +73,15 @@ export default function ChatListComponent({ onChatSelect }: ChatListComponentPro
 
   const formatLastMessageTime = (timestamp: string | null) => {
     if (!timestamp) return ''
-    
+
     const date = new Date(timestamp)
     const now = new Date()
     const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
-    
+
     if (diffInHours < 24) {
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    } else if (diffInHours < 168) { // 7 days
+    } else if (diffInHours < 168) {
+      // 7 days
       return date.toLocaleDateString([], { weekday: 'short' })
     } else {
       return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
@@ -81,14 +90,14 @@ export default function ChatListComponent({ onChatSelect }: ChatListComponentPro
 
   const getOtherParticipant = (chat: Chat) => {
     if (!user) return null
-    
+
     console.log('🚀 CHAT LIST - Getting other participant:', {
       chatCustomerId: chat.customer_id,
       chatTaskerId: chat.tasker_id,
       userId: user.id,
-      userRole: user.role
+      userRole: user.role,
     })
-    
+
     if (chat.customer_id === user.id) {
       // User is the customer, show tasker
       console.log('🚀 CHAT LIST - User is customer, showing tasker:', chat.tasker)
@@ -105,16 +114,10 @@ export default function ChatListComponent({ onChatSelect }: ChatListComponentPro
     const hasUnread = (item.unread_count || 0) > 0
 
     return (
-      <TouchableOpacity
-        style={styles.chatItem}
-        onPress={() => onChatSelect(item.id)}
-      >
+      <TouchableOpacity style={styles.chatItem} onPress={() => onChatSelect(item.id)}>
         <View style={styles.avatarContainer}>
           {otherParticipant?.avatar_url ? (
-            <Image
-              source={{ uri: otherParticipant.avatar_url }}
-              style={styles.avatar}
-            />
+            <Image source={{ uri: otherParticipant.avatar_url }} style={styles.avatar} />
           ) : (
             <View style={styles.avatarPlaceholder}>
               <Ionicons name="person" size={24} color={Colors.neutral[400]} />
@@ -122,7 +125,7 @@ export default function ChatListComponent({ onChatSelect }: ChatListComponentPro
           )}
           {hasUnread && <View style={styles.unreadBadge} />}
         </View>
-        
+
         <View style={styles.chatContent}>
           <View style={styles.chatHeader}>
             <Text style={styles.participantName}>
@@ -132,16 +135,14 @@ export default function ChatListComponent({ onChatSelect }: ChatListComponentPro
               {formatLastMessageTime(item.last_message_at)}
             </Text>
           </View>
-          
+
           <View style={styles.chatFooter}>
             <Text style={styles.taskTitle} numberOfLines={1}>
               {item.task?.title || 'Task Discussion'}
             </Text>
             {hasUnread && (
               <View style={styles.unreadCount}>
-                <Text style={styles.unreadCountText}>
-                  {item.unread_count}
-                </Text>
+                <Text style={styles.unreadCountText}>{item.unread_count}</Text>
               </View>
             )}
           </View>
@@ -166,7 +167,7 @@ export default function ChatListComponent({ onChatSelect }: ChatListComponentPro
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Messages</Text>
       </View>
-      
+
       {chats.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Ionicons name="chatbubbles-outline" size={64} color={Colors.neutral[300]} />

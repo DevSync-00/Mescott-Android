@@ -11,7 +11,7 @@ import {
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { PaymentService, Payment, PaymentMethod } from '../services/PaymentService'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 interface PaymentModalProps {
   visible: boolean
@@ -20,7 +20,12 @@ interface PaymentModalProps {
   onPaymentSuccess: () => void
 }
 
-export default function PaymentModal({ visible, onClose, payment, onPaymentSuccess }: PaymentModalProps) {
+export default function PaymentModal({
+  visible,
+  onClose,
+  payment,
+  onPaymentSuccess,
+}: PaymentModalProps) {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -34,14 +39,14 @@ export default function PaymentModal({ visible, onClose, payment, onPaymentSucce
 
   const loadPaymentMethods = async () => {
     if (!payment) return
-    
+
     try {
       setLoading(true)
       const methods = await PaymentService.getPaymentMethods(payment.user_id)
       setPaymentMethods(methods)
-      
+
       // Select default method if available
-      const defaultMethod = methods.find(m => m.is_default)
+      const defaultMethod = methods.find((m) => m.is_default)
       if (defaultMethod) {
         setSelectedMethod(defaultMethod.id)
       } else if (methods.length > 0) {
@@ -64,20 +69,20 @@ export default function PaymentModal({ visible, onClose, payment, onPaymentSucce
     try {
       setProcessing(true)
       const success = await PaymentService.processPayment(payment.id, selectedMethod)
-      
+
       if (success) {
         Alert.alert(
           'Payment Processing',
-          'Your payment is being processed. You will receive a confirmation once it\'s completed.',
+          "Your payment is being processed. You will receive a confirmation once it's completed.",
           [
             {
               text: 'OK',
               onPress: () => {
                 onPaymentSuccess()
                 onClose()
-              }
-            }
-          ]
+              },
+            },
+          ],
         )
       } else {
         Alert.alert('Error', 'Failed to process payment. Please try again.')
@@ -119,7 +124,9 @@ export default function PaymentModal({ visible, onClose, payment, onPaymentSucce
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Amount:</Text>
-              <Text style={styles.summaryAmount}>{payment.amount} {payment.currency}</Text>
+              <Text style={styles.summaryAmount}>
+                {payment.amount} {payment.currency}
+              </Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Description:</Text>
@@ -130,7 +137,7 @@ export default function PaymentModal({ visible, onClose, payment, onPaymentSucce
           {/* Payment Methods */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Select Payment Method</Text>
-            
+
             {loading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="small" color={Colors.primary[500]} />
@@ -155,27 +162,35 @@ export default function PaymentModal({ visible, onClose, payment, onPaymentSucce
                     key={method.id}
                     style={[
                       styles.methodCard,
-                      selectedMethod === method.id && styles.methodCardSelected
+                      selectedMethod === method.id && styles.methodCardSelected,
                     ]}
                     onPress={() => setSelectedMethod(method.id)}
                   >
                     <View style={styles.methodInfo}>
-                      <Ionicons 
-                        name={method.type === 'card' ? 'card' : 'wallet'} 
-                        size={24} 
-                        color={selectedMethod === method.id ? Colors.primary[500] : Colors.neutral[600]} 
+                      <Ionicons
+                        name={method.type === 'card' ? 'card' : 'wallet'}
+                        size={24}
+                        color={
+                          selectedMethod === method.id ? Colors.primary[500] : Colors.neutral[600]
+                        }
                       />
                       <View style={styles.methodDetails}>
-                        <Text style={[
-                          styles.methodName,
-                          selectedMethod === method.id && styles.methodNameSelected
-                        ]}>
+                        <Text
+                          style={[
+                            styles.methodName,
+                            selectedMethod === method.id && styles.methodNameSelected,
+                          ]}
+                        >
                           {method.display_name}
                         </Text>
                         <Text style={styles.methodType}>
-                          {method.type === 'card' ? 'Credit/Debit Card' : 
-                           method.type === 'bank_account' ? 'Bank Account' :
-                           method.type === 'mobile_money' ? 'Mobile Money' : 'Wallet'}
+                          {method.type === 'card'
+                            ? 'Credit/Debit Card'
+                            : method.type === 'bank_account'
+                              ? 'Bank Account'
+                              : method.type === 'mobile_money'
+                                ? 'Mobile Money'
+                                : 'Wallet'}
                         </Text>
                       </View>
                     </View>
@@ -192,7 +207,8 @@ export default function PaymentModal({ visible, onClose, payment, onPaymentSucce
           <View style={styles.securityNotice}>
             <Ionicons name="shield-checkmark" size={20} color={Colors.success[500]} />
             <Text style={styles.securityText}>
-              Your payment information is secure and encrypted. We use industry-standard security measures to protect your data.
+              Your payment information is secure and encrypted. We use industry-standard security
+              measures to protect your data.
             </Text>
           </View>
         </ScrollView>
@@ -200,10 +216,7 @@ export default function PaymentModal({ visible, onClose, payment, onPaymentSucce
         {/* Footer */}
         <View style={styles.footer}>
           <TouchableOpacity
-            style={[
-              styles.payButton,
-              (!selectedMethod || processing) && styles.payButtonDisabled
-            ]}
+            style={[styles.payButton, (!selectedMethod || processing) && styles.payButtonDisabled]}
             onPress={handlePayment}
             disabled={!selectedMethod || processing}
           >

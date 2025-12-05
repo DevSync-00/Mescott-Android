@@ -7,12 +7,10 @@ import {
   TouchableOpacity,
   ScrollView,
   Modal,
-  FlatList,
-  ActivityIndicator
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { SearchService, SearchFilters, SearchSuggestion } from '../services/SearchService'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 interface AdvancedSearchProps {
   visible: boolean
@@ -25,11 +23,9 @@ export default function AdvancedSearch({
   visible,
   onClose,
   onSearch,
-  initialFilters = {}
+  initialFilters = {},
 }: AdvancedSearchProps) {
   const [filters, setFilters] = useState<SearchFilters>(initialFilters)
-  const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([])
-  const [loading, setLoading] = useState(false)
   const [searchData, setSearchData] = useState<any>(null)
 
   useEffect(() => {
@@ -62,34 +58,16 @@ export default function AdvancedSearch({
   const handleSuggestionSelect = (suggestion: SearchSuggestion) => {
     switch (suggestion.type) {
       case 'category':
-        setFilters(prev => ({ ...prev, category: suggestion.id.replace('category_', '') }))
+        setFilters((prev) => ({ ...prev, category: suggestion.id.replace('category_', '') }))
         break
       case 'location':
-        setFilters(prev => ({ ...prev, location: suggestion.text }))
+        setFilters((prev) => ({ ...prev, location: suggestion.text }))
         break
       case 'task':
-        setFilters(prev => ({ ...prev, query: suggestion.text }))
+        setFilters((prev) => ({ ...prev, query: suggestion.text }))
         break
     }
   }
-
-  const renderSuggestion = ({ item }: { item: SearchSuggestion }) => (
-    <TouchableOpacity
-      style={styles.suggestionItem}
-      onPress={() => handleSuggestionSelect(item)}
-    >
-      <Ionicons
-        name={
-          item.type === 'category' ? 'folder-outline' :
-          item.type === 'location' ? 'location-outline' :
-          item.type === 'task' ? 'briefcase-outline' : 'search-outline'
-        }
-        size={16}
-        color={Colors.neutral[500]}
-      />
-      <Text style={styles.suggestionText}>{item.text}</Text>
-    </TouchableOpacity>
-  )
 
   if (!visible) return null
 
@@ -111,7 +89,13 @@ export default function AdvancedSearch({
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false} bounces={false} alwaysBounceVertical={false} overScrollMode="never">
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          alwaysBounceVertical={false}
+          overScrollMode="never"
+        >
           {/* Search Query */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Search Terms</Text>
@@ -119,7 +103,7 @@ export default function AdvancedSearch({
               style={styles.input}
               placeholder="What are you looking for?"
               value={filters.query || ''}
-              onChangeText={(text) => setFilters(prev => ({ ...prev, query: text }))}
+              onChangeText={(text) => setFilters((prev) => ({ ...prev, query: text }))}
               placeholderTextColor={Colors.neutral[400]}
             />
           </View>
@@ -128,23 +112,33 @@ export default function AdvancedSearch({
           {searchData?.categories && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Category</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} bounces={false} alwaysBounceVertical={false} overScrollMode="never">
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                bounces={false}
+                alwaysBounceVertical={false}
+                overScrollMode="never"
+              >
                 {searchData.categories.map((category: any) => (
                   <TouchableOpacity
                     key={category.id}
                     style={[
                       styles.filterChip,
-                      filters.category === category.id && styles.filterChipActive
+                      filters.category === category.id && styles.filterChipActive,
                     ]}
-                    onPress={() => setFilters(prev => ({
-                      ...prev,
-                      category: prev.category === category.id ? undefined : category.id
-                    }))}
+                    onPress={() =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        category: prev.category === category.id ? undefined : category.id,
+                      }))
+                    }
                   >
-                    <Text style={[
-                      styles.filterChipText,
-                      filters.category === category.id && styles.filterChipTextActive
-                    ]}>
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        filters.category === category.id && styles.filterChipTextActive,
+                      ]}
+                    >
                       {category.name}
                     </Text>
                   </TouchableOpacity>
@@ -161,10 +155,12 @@ export default function AdvancedSearch({
                 style={styles.budgetInput}
                 placeholder="Min"
                 value={filters.budgetMin?.toString() || ''}
-                onChangeText={(text) => setFilters(prev => ({
-                  ...prev,
-                  budgetMin: text ? parseFloat(text) : undefined
-                }))}
+                onChangeText={(text) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    budgetMin: text ? parseFloat(text) : undefined,
+                  }))
+                }
                 keyboardType="numeric"
                 placeholderTextColor={Colors.neutral[400]}
               />
@@ -173,10 +169,12 @@ export default function AdvancedSearch({
                 style={styles.budgetInput}
                 placeholder="Max"
                 value={filters.budgetMax?.toString() || ''}
-                onChangeText={(text) => setFilters(prev => ({
-                  ...prev,
-                  budgetMax: text ? parseFloat(text) : undefined
-                }))}
+                onChangeText={(text) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    budgetMax: text ? parseFloat(text) : undefined,
+                  }))
+                }
                 keyboardType="numeric"
                 placeholderTextColor={Colors.neutral[400]}
               />
@@ -190,7 +188,7 @@ export default function AdvancedSearch({
               style={styles.input}
               placeholder="City, State"
               value={filters.location || ''}
-              onChangeText={(text) => setFilters(prev => ({ ...prev, location: text }))}
+              onChangeText={(text) => setFilters((prev) => ({ ...prev, location: text }))}
               placeholderTextColor={Colors.neutral[400]}
             />
           </View>
@@ -199,23 +197,33 @@ export default function AdvancedSearch({
           {searchData?.statuses && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Status</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} bounces={false} alwaysBounceVertical={false} overScrollMode="never">
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                bounces={false}
+                alwaysBounceVertical={false}
+                overScrollMode="never"
+              >
                 {searchData.statuses.map((status: any) => (
                   <TouchableOpacity
                     key={status.value}
                     style={[
                       styles.filterChip,
-                      filters.status === status.value && styles.filterChipActive
+                      filters.status === status.value && styles.filterChipActive,
                     ]}
-                    onPress={() => setFilters(prev => ({
-                      ...prev,
-                      status: prev.status === status.value ? undefined : status.value
-                    }))}
+                    onPress={() =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        status: prev.status === status.value ? undefined : status.value,
+                      }))
+                    }
                   >
-                    <Text style={[
-                      styles.filterChipText,
-                      filters.status === status.value && styles.filterChipTextActive
-                    ]}>
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        filters.status === status.value && styles.filterChipTextActive,
+                      ]}
+                    >
                       {status.label}
                     </Text>
                   </TouchableOpacity>
@@ -231,42 +239,42 @@ export default function AdvancedSearch({
               <TouchableOpacity
                 style={[
                   styles.sortOption,
-                  filters.sortBy === 'created_at' && styles.sortOptionActive
+                  filters.sortBy === 'created_at' && styles.sortOptionActive,
                 ]}
-                onPress={() => setFilters(prev => ({ ...prev, sortBy: 'created_at' }))}
+                onPress={() => setFilters((prev) => ({ ...prev, sortBy: 'created_at' }))}
               >
-                <Text style={[
-                  styles.sortOptionText,
-                  filters.sortBy === 'created_at' && styles.sortOptionTextActive
-                ]}>
+                <Text
+                  style={[
+                    styles.sortOptionText,
+                    filters.sortBy === 'created_at' && styles.sortOptionTextActive,
+                  ]}
+                >
                   Date
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.sortOption,
-                  filters.sortBy === 'budget' && styles.sortOptionActive
-                ]}
-                onPress={() => setFilters(prev => ({ ...prev, sortBy: 'budget' }))}
+                style={[styles.sortOption, filters.sortBy === 'budget' && styles.sortOptionActive]}
+                onPress={() => setFilters((prev) => ({ ...prev, sortBy: 'budget' }))}
               >
-                <Text style={[
-                  styles.sortOptionText,
-                  filters.sortBy === 'budget' && styles.sortOptionTextActive
-                ]}>
+                <Text
+                  style={[
+                    styles.sortOptionText,
+                    filters.sortBy === 'budget' && styles.sortOptionTextActive,
+                  ]}
+                >
                   Budget
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.sortOption,
-                  filters.sortBy === 'title' && styles.sortOptionActive
-                ]}
-                onPress={() => setFilters(prev => ({ ...prev, sortBy: 'title' }))}
+                style={[styles.sortOption, filters.sortBy === 'title' && styles.sortOptionActive]}
+                onPress={() => setFilters((prev) => ({ ...prev, sortBy: 'title' }))}
               >
-                <Text style={[
-                  styles.sortOptionText,
-                  filters.sortBy === 'title' && styles.sortOptionTextActive
-                ]}>
+                <Text
+                  style={[
+                    styles.sortOptionText,
+                    filters.sortBy === 'title' && styles.sortOptionTextActive,
+                  ]}
+                >
                   Title
                 </Text>
               </TouchableOpacity>

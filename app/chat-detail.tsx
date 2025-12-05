@@ -18,21 +18,15 @@ import {
   InteractionManager,
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
-import * as ImagePicker from 'expo-image-picker'
-import * as DocumentPicker from 'expo-document-picker'
 import { Ionicons } from '@expo/vector-icons'
-import { DeviceEventEmitter } from 'react-native'
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated'
 import { useKeyboardHandler } from 'react-native-keyboard-controller'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { ChatService, Chat } from '../services/ChatService'
-import { BookingService } from '../services/BookingService'
-import { SimpleNotificationService } from '../services/SimpleNotificationService'
 import { supabase } from '../lib/supabase'
-import Colors from '../constants/Colors'
-import SkeletonLoader, { SkeletonList, SkeletonProfile } from '../components/SkeletonLoader'
-import { ImageService } from '../services/ImageService'
+import { Colors } from '../constants/Colors'
+import { SkeletonList } from '../components/SkeletonLoader'
 import { LinearGradient } from 'expo-linear-gradient'
 
 const { width: screenWidth } = Dimensions.get('window')
@@ -78,7 +72,7 @@ export default function ChatDetail() {
   const { user, isAuthenticated, loading: isLoading } = useAuth()
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { chatId, taskId, taskTitle, otherUserName } = useLocalSearchParams<{
+  const { chatId, taskId, otherUserName } = useLocalSearchParams<{
     chatId: string
     taskId: string
     taskTitle: string
@@ -98,12 +92,10 @@ export default function ChatDetail() {
     const [first] = participantName.trim().split(' ')
     return first || 'there'
   }, [participantName])
-  const [lastSeen, setLastSeen] = useState<string>('')
   const [isSubscribed, setIsSubscribed] = useState(false)
   const [imageModalVisible, setImageModalVisible] = useState(false)
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null)
   const [optionsVisible, setOptionsVisible] = useState(false)
-  const [deleting, setDeleting] = useState(false)
   const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT)
   const [keyboardInset, setKeyboardInset] = useState(0)
 
@@ -232,44 +224,6 @@ export default function ChatDetail() {
       }
     }
   }, [])
-
-  const loadParticipantName = async (chatData: Chat) => {
-    if (!user?.id || !chatData) return
-    try {
-      // Prefer hydrated chat relations when available
-      if (chatData.customer && chatData.tasker) {
-        const isCustomer = user.id === chatData.customer_id
-        const otherParticipant = isCustomer ? chatData.tasker : chatData.customer
-
-        if (otherParticipant?.full_name && otherParticipant.full_name !== 'Unknown') {
-          setParticipantName(otherParticipant.full_name)
-        }
-
-        if (otherParticipant?.avatar_url) {
-          setParticipantAvatarUrl(otherParticipant.avatar_url)
-        }
-      }
-
-      const otherParticipantId =
-        user.id === chatData.customer_id ? chatData.tasker_id : chatData.customer_id
-      if (otherParticipantId) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name, avatar_url')
-          .eq('id', otherParticipantId)
-          .single()
-
-        if (profile?.full_name) {
-          setParticipantName(profile.full_name)
-        }
-        if (profile?.avatar_url) {
-          setParticipantAvatarUrl(profile.avatar_url)
-        }
-      }
-    } catch (error) {
-      console.error('Error loading participant name:', error)
-    }
-  }
 
   const loadChatData = async () => {
     if (!user?.id) return
@@ -420,7 +374,7 @@ export default function ChatDetail() {
         setMessages((prev) => prev.filter((m) => m.id !== tempId))
         Alert.alert('Error', 'Message failed to send')
       }
-    } catch (error) {
+    } catch {
       setMessages((prev) => prev.filter((m) => m.id !== tempId))
       Alert.alert('Error', 'Failed to send message')
     } finally {

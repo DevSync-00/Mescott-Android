@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
   Alert,
   RefreshControl,
   StatusBar,
@@ -15,11 +14,10 @@ import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { PaymentMethodService, PaymentMethod } from '../services/PaymentMethodService'
-import { WithdrawalOrderService, WithdrawalOrder } from '../services/WithdrawalOrderService'
-import { WalletService, Wallet as WalletType, WalletTransaction, WalletStats } from '../services/WalletService'
+import { WalletService, Wallet as WalletType, WalletStats } from '../services/WalletService'
 import WithdrawalModal from '../components/WithdrawalModal'
-import Colors from '../constants/Colors'
-import SkeletonLoader, { SkeletonList } from '../components/SkeletonLoader'
+import { Colors } from '../constants/Colors'
+import { SkeletonList } from '../components/SkeletonLoader'
 
 export default function WalletScreen() {
   const { user, isAuthenticated, isLoading } = useAuth()
@@ -29,49 +27,42 @@ export default function WalletScreen() {
   const [refreshing, setRefreshing] = useState(false)
   const [wallet, setWallet] = useState<WalletType | null>(null)
   const [walletStats, setWalletStats] = useState<WalletStats | null>(null)
-  const [recentTransactions, setRecentTransactions] = useState<WalletTransaction[]>([])
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
-  const [withdrawalOrders, setWithdrawalOrders] = useState<WithdrawalOrder[]>([])
   const [showWithdrawalModal, setShowWithdrawalModal] = useState(false)
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.replace('/auth')
     }
-  }, [isAuthenticated, isLoading])
+  }, [isAuthenticated, isLoading, router])
 
   useEffect(() => {
     if (isAuthenticated && user) {
       loadWalletData()
     }
-  }, [isAuthenticated, user])
+  }, [isAuthenticated, user, loadWalletData])
 
-  const loadWalletData = async () => {
+  const loadWalletData = useCallback(async () => {
     if (!user) return
-    
+
     try {
       setLoading(true)
-      
+
       // Load wallet details with stats and transactions
       const walletDetails = await WalletService.getWalletDetails(user.user_id)
       setWallet(walletDetails.wallet)
       setWalletStats(walletDetails.stats)
-      setRecentTransactions(walletDetails.recentTransactions)
-      
+
       // Load payment methods
       const methods = await PaymentMethodService.getPaymentMethods(user.user_id)
       setPaymentMethods(methods)
-      
-      // Load withdrawal orders
-      const orders = await WithdrawalOrderService.getWithdrawalOrders(user.user_id)
-      setWithdrawalOrders(orders)
     } catch (error) {
       console.error('Error loading wallet data:', error)
       Alert.alert('Error', 'Failed to load wallet data. Please try again.')
     } finally {
       setLoading(false)
     }
-  }
+  }, [user])
 
   const handleRefresh = async () => {
     setRefreshing(true)
@@ -85,15 +76,15 @@ export default function WalletScreen() {
 
   const handleSetDefaultPaymentMethod = async (methodId: string) => {
     if (!user) return
-    
+
     try {
       await PaymentMethodService.setDefaultPaymentMethod(user.user_id, methodId)
       // Update local state
-      setPaymentMethods(prev => 
-        prev.map(method => ({
+      setPaymentMethods((prev) =>
+        prev.map((method) => ({
           ...method,
-          is_default: method.id === methodId
-        }))
+          is_default: method.id === methodId,
+        })),
       )
       Alert.alert('Success', 'Default payment method updated')
     } catch (error) {
@@ -115,10 +106,7 @@ export default function WalletScreen() {
       <SafeAreaView style={styles.container} edges={[]}>
         <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
         <View style={[styles.header, { paddingTop: 8 + insets.top }]}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.push('/profile')}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => router.push('/profile')}>
             <Ionicons name="arrow-back" size={24} color={Colors.neutral[700]} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Wallet</Text>
@@ -130,10 +118,7 @@ export default function WalletScreen() {
           <Text style={styles.errorSubtitle}>
             Wallet is only available for taskers. Switch to tasker mode to access your wallet.
           </Text>
-          <TouchableOpacity 
-            style={styles.switchModeButton}
-            onPress={() => router.push('/profile')}
-          >
+          <TouchableOpacity style={styles.switchModeButton} onPress={() => router.push('/profile')}>
             <Text style={styles.switchModeButtonText}>Go to Profile</Text>
           </TouchableOpacity>
         </View>
@@ -146,10 +131,7 @@ export default function WalletScreen() {
       <SafeAreaView style={styles.container} edges={[]}>
         <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
         <View style={[styles.header, { paddingTop: 8 + insets.top }]}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.push('/profile')}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => router.push('/profile')}>
             <Ionicons name="arrow-back" size={24} color={Colors.neutral[700]} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Wallet</Text>
@@ -166,17 +148,14 @@ export default function WalletScreen() {
     <SafeAreaView style={styles.container} edges={[]}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
       <View style={[styles.header, { paddingTop: 8 + insets.top }]}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.push('/profile')}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => router.push('/profile')}>
           <Ionicons name="arrow-back" size={24} color={Colors.neutral[700]} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Wallet</Text>
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.content}
         contentContainerStyle={{ paddingBottom: 24 }}
         refreshControl={
@@ -212,28 +191,34 @@ export default function WalletScreen() {
           </View>
           <View style={styles.statCard}>
             <Ionicons name="arrow-up" size={20} color={Colors.warning[500]} />
-            <Text style={styles.statValue}>{formatCurrency(walletStats?.totalWithdrawals || 0)}</Text>
+            <Text style={styles.statValue}>
+              {formatCurrency(walletStats?.totalWithdrawals || 0)}
+            </Text>
             <Text style={styles.statLabel}>Total Withdrawals</Text>
           </View>
           <View style={styles.statCard}>
             <Ionicons name="calendar" size={20} color={Colors.primary[500]} />
-            <Text style={styles.statValue}>{formatCurrency(walletStats?.thisMonthEarnings || 0)}</Text>
+            <Text style={styles.statValue}>
+              {formatCurrency(walletStats?.thisMonthEarnings || 0)}
+            </Text>
             <Text style={styles.statLabel}>This Month</Text>
           </View>
         </View>
 
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.actionButton, styles.withdrawButton]}
             onPress={() => setShowWithdrawalModal(true)}
           >
             <Ionicons name="arrow-up" size={20} color="#fff" />
             <Text style={styles.actionButtonText}>Withdraw Funds</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.actionButton, styles.historyButton]}
-            onPress={() => Alert.alert('Withdrawal History', 'Withdrawal history feature coming soon!')}
+            onPress={() =>
+              Alert.alert('Withdrawal History', 'Withdrawal history feature coming soon!')
+            }
           >
             <Ionicons name="time" size={20} color={Colors.primary[500]} />
             <Text style={[styles.actionButtonText, styles.historyButtonText]}>History</Text>
@@ -250,9 +235,7 @@ export default function WalletScreen() {
             <View style={styles.emptyState}>
               <Ionicons name="card-outline" size={48} color={Colors.neutral[300]} />
               <Text style={styles.emptyTitle}>No Payment Methods</Text>
-              <Text style={styles.emptySubtitle}>
-                Payment methods will appear here once added
-              </Text>
+              <Text style={styles.emptySubtitle}>Payment methods will appear here once added</Text>
             </View>
           ) : (
             <View style={styles.paymentMethodsList}>
@@ -261,31 +244,37 @@ export default function WalletScreen() {
                   key={method.id}
                   style={[
                     styles.paymentMethodItem,
-                    method.is_default && styles.paymentMethodItemDefault
+                    method.is_default && styles.paymentMethodItemDefault,
                   ]}
                 >
                   <View style={styles.paymentMethodIcon}>
                     <Ionicons
                       name={
-                        method.type === 'bank_account' ? 'card-outline' :
-                        method.type === 'mobile_money' ? 'phone-portrait-outline' :
-                        'location-outline'
+                        method.type === 'bank_account'
+                          ? 'card-outline'
+                          : method.type === 'mobile_money'
+                            ? 'phone-portrait-outline'
+                            : 'location-outline'
                       }
                       size={20}
                       color={method.is_default ? Colors.primary[600] : Colors.primary[500]}
                     />
                   </View>
                   <View style={styles.paymentMethodInfo}>
-                    <Text style={[
-                      styles.paymentMethodName,
-                      method.is_default && styles.paymentMethodNameDefault
-                    ]}>
+                    <Text
+                      style={[
+                        styles.paymentMethodName,
+                        method.is_default && styles.paymentMethodNameDefault,
+                      ]}
+                    >
                       {method.display_name}
                     </Text>
                     <Text style={styles.paymentMethodType}>
-                      {method.type === 'bank_account' ? 'Bank Account' :
-                       method.type === 'mobile_money' ? 'Mobile Money' :
-                       'Cash Pickup'}
+                      {method.type === 'bank_account'
+                        ? 'Bank Account'
+                        : method.type === 'mobile_money'
+                          ? 'Mobile Money'
+                          : 'Cash Pickup'}
                     </Text>
                   </View>
                   {method.is_default ? (
@@ -333,7 +322,6 @@ export default function WalletScreen() {
         currentBalance={wallet?.balance || 0}
         userId={user?.user_id || ''}
       />
-
     </SafeAreaView>
   )
 }

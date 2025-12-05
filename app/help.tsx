@@ -11,164 +11,190 @@ import {
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 const faqCategories = [
   {
     id: 'getting-started',
     title: 'Getting Started',
     icon: 'play-circle-outline',
-    color: Colors.primary[500]
+    color: Colors.primary[500],
   },
   {
     id: 'account',
     title: 'Account & Profile',
     icon: 'person-outline',
-    color: Colors.success[500]
+    color: Colors.success[500],
   },
   {
     id: 'payments',
     title: 'Payments & Wallet',
     icon: 'card-outline',
-    color: Colors.warning[500]
+    color: Colors.warning[500],
   },
   {
     id: 'tasks',
     title: 'Tasks & Bookings',
     icon: 'list-outline',
-    color: Colors.primary[500]
+    color: Colors.primary[500],
   },
   {
     id: 'safety',
     title: 'Safety & Security',
     icon: 'shield-outline',
-    color: Colors.error[500]
+    color: Colors.error[500],
   },
   {
     id: 'technical',
     title: 'Technical Support',
     icon: 'settings-outline',
-    color: Colors.neutral[600]
-  }
+    color: Colors.neutral[600],
+  },
 ]
 
 const faqData = {
   'getting-started': [
     {
       question: 'How do I create an account?',
-      answer: 'Download the Mescott app and tap "Sign Up". Enter your phone number, verify it with the SMS code, then complete your profile with your name and basic information.'
+      answer:
+        'Download the Mescott app and tap "Sign Up". Enter your phone number, verify it with the SMS code, then complete your profile with your name and basic information.',
     },
     {
       question: 'What can I do on Mescott?',
-      answer: 'Mescott is a marketplace where you can either post tasks you need done (as a customer) or offer your services to complete tasks (as a tasker). You can browse services, chat with users, make secure payments, and build your reputation.'
+      answer:
+        'Mescott is a marketplace where you can either post tasks you need done (as a customer) or offer your services to complete tasks (as a tasker). You can browse services, chat with users, make secure payments, and build your reputation.',
     },
     {
       question: 'Is Mescott free to use?',
-      answer: 'Yes, downloading and using Mescott is completely free. We only charge a small service fee when tasks are completed successfully.'
+      answer:
+        'Yes, downloading and using Mescott is completely free. We only charge a small service fee when tasks are completed successfully.',
     },
     {
       question: 'How do I switch between customer and tasker mode?',
-      answer: 'Go to your profile settings and tap "Switch Mode". You can be both a customer and tasker, but you can only be in one mode at a time.'
-    }
+      answer:
+        'Go to your profile settings and tap "Switch Mode". You can be both a customer and tasker, but you can only be in one mode at a time.',
+    },
   ],
-  'account': [
+  account: [
     {
       question: 'How do I verify my profile?',
-      answer: 'Go to Profile > Verification and upload your ID document. Verified profiles get more trust from other users and appear higher in search results.'
+      answer:
+        'Go to Profile > Verification and upload your ID document. Verified profiles get more trust from other users and appear higher in search results.',
     },
     {
       question: 'Can I change my phone number?',
-      answer: 'Yes, go to Profile > Settings > Account Info and tap "Change Phone Number". You\'ll need to verify the new number with an SMS code.'
+      answer:
+        'Yes, go to Profile > Settings > Account Info and tap "Change Phone Number". You\'ll need to verify the new number with an SMS code.',
     },
     {
       question: 'How do I update my profile information?',
-      answer: 'Go to Profile > Edit Profile to update your name, bio, skills, location, and profile photo.'
+      answer:
+        'Go to Profile > Edit Profile to update your name, bio, skills, location, and profile photo.',
     },
     {
       question: 'What if I forget my password?',
-      answer: 'Mescott uses phone number verification, so you don\'t need a password. Just enter your phone number and we\'ll send you a verification code.'
-    }
+      answer:
+        "Mescott uses phone number verification, so you don't need a password. Just enter your phone number and we'll send you a verification code.",
+    },
   ],
-  'payments': [
+  payments: [
     {
       question: 'How do I add a payment method?',
-      answer: 'Go to Wallet > Payment Methods and tap "Add Payment Method". You can add bank accounts, mobile money, or set up cash pickup locations.'
+      answer:
+        'Go to Wallet > Payment Methods and tap "Add Payment Method". You can add bank accounts, mobile money, or set up cash pickup locations.',
     },
     {
       question: 'Is my payment information secure?',
-      answer: 'Yes, all payments are processed securely through Chapa, a trusted payment processor. We never store your full payment details on our servers.'
+      answer:
+        'Yes, all payments are processed securely through Chapa, a trusted payment processor. We never store your full payment details on our servers.',
     },
     {
       question: 'How do I withdraw my earnings?',
-      answer: 'Go to Wallet > Withdraw and select your preferred withdrawal method. You can withdraw to your bank account, mobile money, or pick up cash at our office.'
+      answer:
+        'Go to Wallet > Withdraw and select your preferred withdrawal method. You can withdraw to your bank account, mobile money, or pick up cash at our office.',
     },
     {
       question: 'What payment methods are accepted?',
-      answer: 'We accept bank transfers, mobile money (Telebirr, M-Pesa), and cash pickup. All major Ethiopian banks are supported.'
+      answer:
+        'We accept bank transfers, mobile money (Telebirr, M-Pesa), and cash pickup. All major Ethiopian banks are supported.',
     },
     {
       question: 'When will I receive my payment?',
-      answer: 'For taskers, payments are released 24 hours after task completion. For customers, payments are held securely until the task is completed to your satisfaction.'
-    }
+      answer:
+        'For taskers, payments are released 24 hours after task completion. For customers, payments are held securely until the task is completed to your satisfaction.',
+    },
   ],
-  'tasks': [
+  tasks: [
     {
       question: 'How do I post a task?',
-      answer: 'Tap the "+" button on the home screen, select "Post Task", fill in the task details including description, location, budget, and timeline, then publish your task.'
+      answer:
+        'Tap the "+" button on the home screen, select "Post Task", fill in the task details including description, location, budget, and timeline, then publish your task.',
     },
     {
       question: 'How do I find taskers?',
-      answer: 'Browse the "Find Taskers" section, use filters to narrow down by skills, location, and price range, then review profiles and ratings before making a choice.'
+      answer:
+        'Browse the "Find Taskers" section, use filters to narrow down by skills, location, and price range, then review profiles and ratings before making a choice.',
     },
     {
       question: 'How do I apply for tasks?',
-      answer: 'Browse available tasks, tap on one you\'re interested in, read the details, and tap "Apply". Write a brief message explaining why you\'re the right person for the job.'
+      answer:
+        'Browse available tasks, tap on one you\'re interested in, read the details, and tap "Apply". Write a brief message explaining why you\'re the right person for the job.',
     },
     {
       question: 'Can I cancel a task?',
-      answer: 'Yes, you can cancel tasks before they start. If you cancel after the tasker has started, cancellation fees may apply. Check our cancellation policy for details.'
+      answer:
+        'Yes, you can cancel tasks before they start. If you cancel after the tasker has started, cancellation fees may apply. Check our cancellation policy for details.',
     },
     {
       question: 'How do I rate and review?',
-      answer: 'After a task is completed, you\'ll receive a notification to rate and review. Tap on the notification or go to the completed task to leave your feedback.'
-    }
+      answer:
+        "After a task is completed, you'll receive a notification to rate and review. Tap on the notification or go to the completed task to leave your feedback.",
+    },
   ],
-  'safety': [
+  safety: [
     {
       question: 'How do I report inappropriate behavior?',
-      answer: 'Tap the three dots menu on any profile or task, select "Report", choose the reason, and provide details. We take all reports seriously and investigate promptly.'
+      answer:
+        'Tap the three dots menu on any profile or task, select "Report", choose the reason, and provide details. We take all reports seriously and investigate promptly.',
     },
     {
       question: 'What if I have a safety concern?',
-      answer: 'If you feel unsafe at any time, contact our support team immediately. We have a 24/7 safety hotline and can help resolve issues quickly.'
+      answer:
+        'If you feel unsafe at any time, contact our support team immediately. We have a 24/7 safety hotline and can help resolve issues quickly.',
     },
     {
       question: 'How do I verify a tasker is legitimate?',
-      answer: 'Look for verified badges, check their ratings and reviews, and communicate through the app before meeting. Never share personal contact information before confirming the booking.'
+      answer:
+        'Look for verified badges, check their ratings and reviews, and communicate through the app before meeting. Never share personal contact information before confirming the booking.',
     },
     {
-      question: 'What if a tasker doesn\'t show up?',
-      answer: 'Contact our support team immediately. We\'ll help you find a replacement tasker or process a full refund if needed.'
-    }
+      question: "What if a tasker doesn't show up?",
+      answer:
+        "Contact our support team immediately. We'll help you find a replacement tasker or process a full refund if needed.",
+    },
   ],
-  'technical': [
+  technical: [
     {
       question: 'The app is not working properly. What should I do?',
-      answer: 'Try closing and reopening the app, check your internet connection, and make sure you have the latest version. If problems persist, contact our technical support.'
+      answer:
+        'Try closing and reopening the app, check your internet connection, and make sure you have the latest version. If problems persist, contact our technical support.',
     },
     {
-      question: 'I\'m not receiving notifications. How do I fix this?',
-      answer: 'Go to your phone settings > Apps > Mescott > Notifications and make sure notifications are enabled. Also check that you\'ve allowed notifications in the app.'
+      question: "I'm not receiving notifications. How do I fix this?",
+      answer:
+        "Go to your phone settings > Apps > Mescott > Notifications and make sure notifications are enabled. Also check that you've allowed notifications in the app.",
     },
     {
       question: 'How do I update the app?',
-      answer: 'Go to your app store (Google Play or App Store), search for Mescott, and tap "Update" if an update is available.'
+      answer:
+        'Go to your app store (Google Play or App Store), search for Mescott, and tap "Update" if an update is available.',
     },
     {
       question: 'The app is using too much data. How can I reduce it?',
-      answer: 'Go to Settings > Data Usage and enable "Data Saver" mode. This will reduce image quality and limit background data usage.'
-    }
-  ]
+      answer:
+        'Go to Settings > Data Usage and enable "Data Saver" mode. This will reduce image quality and limit background data usage.',
+    },
+  ],
 }
 
 export default function HelpScreen() {
@@ -185,14 +211,15 @@ export default function HelpScreen() {
     Linking.openURL('tel:+251911234567')
   }
 
-  const filteredFAQs = selectedCategory 
-    ? faqData[selectedCategory as keyof typeof faqData] 
+  const filteredFAQs = selectedCategory
+    ? faqData[selectedCategory as keyof typeof faqData]
     : Object.values(faqData).flat()
 
-  const searchResults = searchQuery 
-    ? filteredFAQs.filter(faq => 
-        faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        faq.answer.toLowerCase().includes(searchQuery.toLowerCase())
+  const searchResults = searchQuery
+    ? filteredFAQs.filter(
+        (faq) =>
+          faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          faq.answer.toLowerCase().includes(searchQuery.toLowerCase()),
       )
     : filteredFAQs
 
@@ -212,10 +239,10 @@ export default function HelpScreen() {
         <View style={styles.headerRight} />
       </View>
 
-      <ScrollView 
-        style={styles.content} 
-        showsVerticalScrollIndicator={false} 
-        bounces={true} 
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        bounces={true}
         alwaysBounceVertical={true}
       >
         {/* Search */}
@@ -242,26 +269,33 @@ export default function HelpScreen() {
                   key={category.id}
                   style={[
                     styles.categoryCard,
-                    selectedCategory === category.id && styles.categoryCardSelected
+                    selectedCategory === category.id && styles.categoryCardSelected,
                   ]}
-                  onPress={() => setSelectedCategory(
-                    selectedCategory === category.id ? null : category.id
-                  )}
+                  onPress={() =>
+                    setSelectedCategory(selectedCategory === category.id ? null : category.id)
+                  }
                 >
-                  <View style={[
-                    styles.categoryIcon,
-                    { backgroundColor: selectedCategory === category.id ? category.color : Colors.neutral[100] }
-                  ]}>
+                  <View
+                    style={[
+                      styles.categoryIcon,
+                      {
+                        backgroundColor:
+                          selectedCategory === category.id ? category.color : Colors.neutral[100],
+                      },
+                    ]}
+                  >
                     <Ionicons
                       name={category.icon as any}
                       size={24}
                       color={selectedCategory === category.id ? Colors.neutral[0] : category.color}
                     />
                   </View>
-                  <Text style={[
-                    styles.categoryTitle,
-                    selectedCategory === category.id && styles.categoryTitleSelected
-                  ]}>
+                  <Text
+                    style={[
+                      styles.categoryTitle,
+                      selectedCategory === category.id && styles.categoryTitleSelected,
+                    ]}
+                  >
                     {category.title}
                   </Text>
                 </TouchableOpacity>
@@ -273,9 +307,13 @@ export default function HelpScreen() {
         {/* FAQs */}
         <View style={styles.faqSection}>
           <Text style={styles.sectionTitle}>
-            {searchQuery ? 'Search Results' : selectedCategory ? 'Frequently Asked Questions' : 'All Questions'}
+            {searchQuery
+              ? 'Search Results'
+              : selectedCategory
+                ? 'Frequently Asked Questions'
+                : 'All Questions'}
           </Text>
-          
+
           {searchResults.length === 0 ? (
             <View style={styles.noResults}>
               <Ionicons name="search" size={48} color={Colors.neutral[400]} />
@@ -289,13 +327,10 @@ export default function HelpScreen() {
               {searchResults.map((faq, index) => {
                 const faqKey = `${selectedCategory || 'all'}-${index}`
                 const isExpanded = expandedFAQ === faqKey
-                
+
                 return (
                   <View key={index} style={styles.faqItem}>
-                    <TouchableOpacity
-                      style={styles.faqQuestion}
-                      onPress={() => toggleFAQ(index)}
-                    >
+                    <TouchableOpacity style={styles.faqQuestion} onPress={() => toggleFAQ(index)}>
                       <Text style={styles.faqQuestionText}>{faq.question}</Text>
                       <Ionicons
                         name={isExpanded ? 'chevron-up' : 'chevron-down'}
@@ -318,16 +353,14 @@ export default function HelpScreen() {
         {/* Contact Support */}
         <View style={styles.contactSection}>
           <Text style={styles.sectionTitle}>Still need help?</Text>
-          <Text style={styles.contactSubtitle}>
-            Our support team is here to help you 24/7
-          </Text>
-          
+          <Text style={styles.contactSubtitle}>Our support team is here to help you 24/7</Text>
+
           <View style={styles.contactButtons}>
             <TouchableOpacity style={styles.contactButton} onPress={handleContactSupport}>
               <Ionicons name="mail" size={20} color={Colors.primary[500]} />
               <Text style={styles.contactButtonText}>Email Support</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity style={styles.contactButton} onPress={handleCallSupport}>
               <Ionicons name="call" size={20} color={Colors.primary[500]} />
               <Text style={styles.contactButtonText}>Call Support</Text>

@@ -7,14 +7,13 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
-  Image,
-  ActivityIndicator
+  ActivityIndicator,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { RealtimeChatService, RealtimeMessage } from '../services/RealtimeChatService'
 import { useAuth } from '../contexts/SimpleAuthContext'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 interface ChatComponentProps {
   chatId: string
@@ -42,16 +41,16 @@ export default function ChatComponent({ chatId, onClose }: ChatComponentProps) {
   const loadChatData = async () => {
     try {
       setLoading(true)
-      
+
       // Load chat info and messages
       const [chat, chatMessages] = await Promise.all([
         RealtimeChatService.getChatById(chatId),
-        RealtimeChatService.getChatMessages(chatId, 50, 0)
+        RealtimeChatService.getChatMessages(chatId, 50, 0),
       ])
 
       setChatInfo(chat)
       setMessages(chatMessages)
-      
+
       // Mark messages as read
       if (user?.id) {
         await RealtimeChatService.markMessagesAsRead(chatId, user.id)
@@ -67,12 +66,12 @@ export default function ChatComponent({ chatId, onClose }: ChatComponentProps) {
   const subscribeToChat = () => {
     RealtimeChatService.subscribeToChat(chatId, {
       onMessage: (message) => {
-        setMessages(prev => [...prev, message])
+        setMessages((prev) => [...prev, message])
         // Auto-scroll to bottom
         setTimeout(() => {
           flatListRef.current?.scrollToEnd({ animated: true })
         }, 100)
-      }
+      },
     })
   }
 
@@ -82,7 +81,7 @@ export default function ChatComponent({ chatId, onClose }: ChatComponentProps) {
     try {
       setSending(true)
       const success = await RealtimeChatService.sendMessage(chatId, user.id, newMessage.trim())
-      
+
       if (success) {
         setNewMessage('')
       } else {
@@ -113,9 +112,7 @@ export default function ChatComponent({ chatId, onClose }: ChatComponentProps) {
           </View>
         )}
         <View style={[styles.messageBubble, isOwn && styles.ownMessageBubble]}>
-          <Text style={[styles.messageText, isOwn && styles.ownMessageText]}>
-            {item.message}
-          </Text>
+          <Text style={[styles.messageText, isOwn && styles.ownMessageText]}>{item.message}</Text>
           <Text style={[styles.messageTime, isOwn && styles.ownMessageTime]}>
             {formatTime(item.created_at)}
           </Text>
@@ -126,7 +123,7 @@ export default function ChatComponent({ chatId, onClose }: ChatComponentProps) {
 
   const getOtherParticipant = () => {
     if (!chatInfo || !user) return null
-    
+
     if (chatInfo.customer_id === user.id) {
       return chatInfo.tasker
     } else {
@@ -155,12 +152,8 @@ export default function ChatComponent({ chatId, onClose }: ChatComponentProps) {
           <Ionicons name="arrow-back" size={24} color={Colors.neutral[900]} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>
-            {otherParticipant?.full_name || 'Chat'}
-          </Text>
-          <Text style={styles.headerSubtitle}>
-            {chatInfo?.task?.title || 'Task Discussion'}
-          </Text>
+          <Text style={styles.headerTitle}>{otherParticipant?.full_name || 'Chat'}</Text>
+          <Text style={styles.headerSubtitle}>{chatInfo?.task?.title || 'Task Discussion'}</Text>
         </View>
         <View style={styles.placeholder} />
       </View>

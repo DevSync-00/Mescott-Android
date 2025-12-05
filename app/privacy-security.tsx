@@ -12,15 +12,13 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import { useAuth } from '../contexts/SimpleAuthContext'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 import { SettingsService } from '../services/SettingsService'
 
 export default function PrivacySecurity() {
-  const { user } = useAuth()
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const [settings, setSettings] = useState({
+  const [settings] = useState({
     showLocation: true,
     showPhoneNumber: false,
     showEmail: false,
@@ -52,7 +50,7 @@ export default function PrivacySecurity() {
     try {
       const success = await SettingsService.updatePrivacySettings({ [key]: value })
       if (success) {
-        setSettings(prev => ({ ...prev, [key]: value }))
+        setSettings((prev) => ({ ...prev, [key]: value }))
       } else {
         Alert.alert('Error', 'Failed to update setting')
       }
@@ -60,51 +58,6 @@ export default function PrivacySecurity() {
       console.error('Error updating setting:', error)
       Alert.alert('Error', 'Failed to update setting')
     }
-  }
-
-  const handleChangePassword = () => {
-    Alert.alert(
-      'Change Password',
-      'Password change functionality will be implemented with email verification.',
-      [{ text: 'OK' }]
-    )
-  }
-
-  const handleTwoFactorAuth = () => {
-    Alert.alert(
-      'Two-Factor Authentication',
-      'Two-factor authentication setup will be available soon.',
-      [{ text: 'OK' }]
-    )
-  }
-
-  const handleDataExport = () => {
-    Alert.alert(
-      'Export Data',
-      'Your data export request has been submitted. You will receive an email with your data within 24 hours.',
-      [{ text: 'OK' }]
-    )
-  }
-
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete Account',
-      'Are you sure you want to delete your account? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert(
-              'Account Deletion',
-              'To delete your account, please contact our support team at support@mescott.com',
-              [{ text: 'OK' }]
-            )
-          }
-        }
-      ]
-    )
   }
 
   interface PrivacySettingItem {
@@ -258,8 +211,8 @@ export default function PrivacySecurity() {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView 
-        style={styles.content} 
+      <ScrollView
+        style={styles.content}
         showsVerticalScrollIndicator={true}
         contentContainerStyle={styles.scrollContent}
         bounces={true}
@@ -267,57 +220,55 @@ export default function PrivacySecurity() {
         overScrollMode="always"
         scrollEventThrottle={16}
       >
-        {privacySettings
-          .filter(section => section.items.length > 0) // Hide empty sections
-          .length > 0 ? (
+        {privacySettings.filter((section) => section.items.length > 0).length > 0 ? ( // Hide empty sections
           privacySettings
-            .filter(section => section.items.length > 0)
+            .filter((section) => section.items.length > 0)
             .map((section, sectionIndex) => (
-          <View key={sectionIndex} style={styles.section}>
-            <Text style={styles.sectionTitle}>{section.title}</Text>
-            <View style={styles.sectionContent}>
-              {section.items.map((item: PrivacySettingItem, itemIndex: number) => (
-                <TouchableOpacity
-                  key={itemIndex}
-                  style={[
-                    styles.settingItem,
-                    itemIndex === section.items.length - 1 && styles.lastItem
-                  ]}
-                  onPress={item.onPress}
-                >
-                  <View style={styles.settingLeft}>
-                    <View style={styles.iconContainer}>
-                      <Ionicons 
-                        name={item.icon as any} 
-                        size={20} 
-                        color={item.color || Colors.neutral[600]} 
-                      />
-                    </View>
-                    <View style={styles.settingText}>
-                      <Text style={[styles.settingTitle, item.color && { color: item.color }]}>
-                        {item.title}
-                      </Text>
-                      <Text style={styles.settingSubtitle}>{item.subtitle}</Text>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.settingRight}>
-                    {item.switch !== undefined ? (
-                      <Switch
-                        value={item.value}
-                        onValueChange={(value) => updateSetting(item.key!, value)}
-                        trackColor={{ false: Colors.neutral[300], true: Colors.primary[200] }}
-                        thumbColor={item.value ? Colors.primary[500] : Colors.neutral[400]}
-                      />
-                    ) : item.showArrow ? (
-                      <Ionicons name="chevron-forward" size={20} color={Colors.neutral[400]} />
-                    ) : null}
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        ))
+              <View key={sectionIndex} style={styles.section}>
+                <Text style={styles.sectionTitle}>{section.title}</Text>
+                <View style={styles.sectionContent}>
+                  {section.items.map((item: PrivacySettingItem, itemIndex: number) => (
+                    <TouchableOpacity
+                      key={itemIndex}
+                      style={[
+                        styles.settingItem,
+                        itemIndex === section.items.length - 1 && styles.lastItem,
+                      ]}
+                      onPress={item.onPress}
+                    >
+                      <View style={styles.settingLeft}>
+                        <View style={styles.iconContainer}>
+                          <Ionicons
+                            name={item.icon as any}
+                            size={20}
+                            color={item.color || Colors.neutral[600]}
+                          />
+                        </View>
+                        <View style={styles.settingText}>
+                          <Text style={[styles.settingTitle, item.color && { color: item.color }]}>
+                            {item.title}
+                          </Text>
+                          <Text style={styles.settingSubtitle}>{item.subtitle}</Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.settingRight}>
+                        {item.switch !== undefined ? (
+                          <Switch
+                            value={item.value}
+                            onValueChange={(value) => updateSetting(item.key!, value)}
+                            trackColor={{ false: Colors.neutral[300], true: Colors.primary[200] }}
+                            thumbColor={item.value ? Colors.primary[500] : Colors.neutral[400]}
+                          />
+                        ) : item.showArrow ? (
+                          <Ionicons name="chevron-forward" size={20} color={Colors.neutral[400]} />
+                        ) : null}
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ))
         ) : (
           <View style={styles.emptyState}>
             <Ionicons name="shield-checkmark-outline" size={64} color={Colors.neutral[300]} />

@@ -1,13 +1,7 @@
 import React from 'react'
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-} from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 interface LoadingErrorStateProps {
   loading?: boolean
@@ -145,4 +139,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 })
-

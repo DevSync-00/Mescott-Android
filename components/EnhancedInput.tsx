@@ -10,7 +10,7 @@ import {
   Animated,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 import { Typography, BorderRadius, Spacing } from '../constants/Design'
 
 const focusShadow: ViewStyle = {
@@ -118,24 +118,20 @@ export default function EnhancedInput({
         borderColor: error
           ? Colors.error[500]
           : isFocused
-          ? Colors.primary[500]
-          : Colors.border.light,
+            ? Colors.primary[500]
+            : Colors.border.light,
       },
       filled: {
         backgroundColor: Colors.neutral[50],
-        borderColor: error
-          ? Colors.error[500]
-          : isFocused
-          ? Colors.primary[500]
-          : 'transparent',
+        borderColor: error ? Colors.error[500] : isFocused ? Colors.primary[500] : 'transparent',
       },
       outlined: {
         backgroundColor: 'transparent',
         borderColor: error
           ? Colors.error[500]
           : isFocused
-          ? Colors.primary[500]
-          : Colors.border.medium,
+            ? Colors.primary[500]
+            : Colors.border.medium,
       },
     }
 
@@ -192,7 +188,7 @@ export default function EnhancedInput({
           {required && <Text style={styles.required}> *</Text>}
         </Animated.Text>
       )}
-      
+
       <View style={getContainerStyles()}>
         {leftIcon && (
           <View style={styles.leftIconContainer}>
@@ -203,8 +199,8 @@ export default function EnhancedInput({
                 disabled
                   ? Colors.neutral[400]
                   : isFocused
-                  ? Colors.primary[500]
-                  : Colors.neutral[500]
+                    ? Colors.primary[500]
+                    : Colors.neutral[500]
               }
             />
           </View>
@@ -238,19 +234,15 @@ export default function EnhancedInput({
           >
             <Ionicons
               name={
-                secureTextEntry
-                  ? showPassword
-                    ? 'eye-off-outline'
-                    : 'eye-outline'
-                  : rightIcon!
+                secureTextEntry ? (showPassword ? 'eye-off-outline' : 'eye-outline') : rightIcon!
               }
               size={20}
               color={
                 disabled
                   ? Colors.neutral[400]
                   : isFocused
-                  ? Colors.primary[500]
-                  : Colors.neutral[500]
+                    ? Colors.primary[500]
+                    : Colors.neutral[500]
               }
             />
           </TouchableOpacity>
@@ -258,9 +250,7 @@ export default function EnhancedInput({
       </View>
 
       {(error || helperText) && (
-        <Text style={[styles.helperText, error && styles.errorText]}>
-          {error || helperText}
-        </Text>
+        <Text style={[styles.helperText, error && styles.errorText]}>{error || helperText}</Text>
       )}
 
       {maxLength && (
@@ -283,27 +273,15 @@ export const EmailInput = (props: Omit<EnhancedInputProps, 'keyboardType' | 'aut
 )
 
 export const PasswordInput = (props: Omit<EnhancedInputProps, 'secureTextEntry'>) => (
-  <EnhancedInput
-    {...props}
-    secureTextEntry
-    leftIcon="lock-closed-outline"
-  />
+  <EnhancedInput {...props} secureTextEntry leftIcon="lock-closed-outline" />
 )
 
 export const PhoneInput = (props: Omit<EnhancedInputProps, 'keyboardType'>) => (
-  <EnhancedInput
-    {...props}
-    keyboardType="phone-pad"
-    leftIcon="call-outline"
-  />
+  <EnhancedInput {...props} keyboardType="phone-pad" leftIcon="call-outline" />
 )
 
 export const SearchInput = (props: Omit<EnhancedInputProps, 'leftIcon'>) => (
-  <EnhancedInput
-    {...props}
-    leftIcon="search-outline"
-    variant="filled"
-  />
+  <EnhancedInput {...props} leftIcon="search-outline" variant="filled" />
 )
 
 const styles = StyleSheet.create({

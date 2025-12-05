@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   View,
   Text,
@@ -10,17 +10,16 @@ import {
   Image,
   StatusBar,
 } from 'react-native'
-import SkeletonLoader, { SkeletonList } from '../components/SkeletonLoader'
+import { SkeletonList } from '../components/SkeletonLoader'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { TaskApplicationService, TaskApplication } from '../services/TaskApplicationService'
-import { ProfileService } from '../services/ProfileService'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 export default function TaskApplications() {
-  const { user, isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading } = useAuth()
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { taskId } = useLocalSearchParams()
@@ -28,31 +27,7 @@ export default function TaskApplications() {
   const [loading, setLoading] = useState(true)
   const [processingApplication, setProcessingApplication] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace('/auth')
-    } else if (isAuthenticated && taskId) {
-      loadApplications()
-    }
-  }, [isAuthenticated, taskId, isLoading])
-
-  // Show loading while auth is being determined
-  if (isLoading) {
-    return (
-      <SafeAreaView style={styles.container} edges={[]}>
-        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
-        <View style={styles.loadingContainer}>
-          <SkeletonList count={3} />
-        </View>
-      </SafeAreaView>
-    )
-  }
-
-  if (!isAuthenticated) {
-    return null
-  }
-
-  const loadApplications = async () => {
+  const loadApplications = useCallback(async () => {
     if (!taskId || typeof taskId !== 'string') return
 
     try {
@@ -65,7 +40,7 @@ export default function TaskApplications() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [taskId])
 
   const handleAcceptApplication = async (applicationId: string) => {
     Alert.alert(
@@ -96,7 +71,7 @@ export default function TaskApplications() {
                 Alert.alert('Error', 'Failed to accept application')
                 setProcessingApplication(null)
               }
-            } catch (error) {
+            } catch {
               Alert.alert('Error', 'An error occurred while accepting the application')
               setProcessingApplication(null)
             }
@@ -122,7 +97,7 @@ export default function TaskApplications() {
             } else {
               Alert.alert('Error', 'Failed to reject application')
             }
-          } catch (error) {
+          } catch {
             Alert.alert('Error', 'An error occurred while rejecting the application')
           } finally {
             setProcessingApplication(null)

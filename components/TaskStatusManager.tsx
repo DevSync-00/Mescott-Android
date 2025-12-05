@@ -12,7 +12,7 @@ import {
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { TaskStatusService, TaskStatus, TaskStatusUpdate } from '../services/TaskStatusService'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 interface TaskStatusManagerProps {
   taskId: string
@@ -29,7 +29,7 @@ export default function TaskStatusManager({
   userId,
   userRole,
   onStatusUpdate,
-  showHistory = true
+  showHistory = true,
 }: TaskStatusManagerProps) {
   const [showModal, setShowModal] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -74,7 +74,7 @@ export default function TaskStatusManager({
         selectedStatus,
         userId,
         reason || undefined,
-        notes || undefined
+        notes || undefined,
       )
 
       if (success) {
@@ -122,11 +122,7 @@ export default function TaskStatusManager({
       <View style={styles.currentStatusContainer}>
         <View style={styles.statusHeader}>
           <View style={[styles.statusIcon, { backgroundColor: currentStep?.color + '20' }]}>
-            <Ionicons 
-              name={currentStep?.icon as any} 
-              size={24} 
-              color={currentStep?.color} 
-            />
+            <Ionicons name={currentStep?.icon as any} size={24} color={currentStep?.color} />
           </View>
           <View style={styles.statusInfo}>
             <Text style={styles.statusTitle}>{currentStep?.title}</Text>
@@ -136,10 +132,7 @@ export default function TaskStatusManager({
 
         {/* Action Buttons */}
         {nextStatuses.length > 0 && (
-          <TouchableOpacity
-            style={styles.updateButton}
-            onPress={() => setShowModal(true)}
-          >
+          <TouchableOpacity style={styles.updateButton} onPress={() => setShowModal(true)}>
             <Ionicons name="arrow-forward" size={16} color={Colors.primary[500]} />
             <Text style={styles.updateButtonText}>Update Status</Text>
           </TouchableOpacity>
@@ -154,25 +147,21 @@ export default function TaskStatusManager({
             {statusHistory.map((update, index) => (
               <View key={update.id} style={styles.historyItem}>
                 <View style={styles.historyIcon}>
-                  <Ionicons 
-                    name={getStatusIcon(update.status) as any} 
-                    size={16} 
-                    color={getStatusColor(update.status)} 
+                  <Ionicons
+                    name={getStatusIcon(update.status) as any}
+                    size={16}
+                    color={getStatusColor(update.status)}
                   />
                 </View>
                 <View style={styles.historyContent}>
                   <Text style={styles.historyStatus}>
                     {TaskStatusService.getWorkflowStep(update.status)?.title}
                   </Text>
-                  <Text style={styles.historyDate}>
-                    {formatDate(update.created_at)}
-                  </Text>
+                  <Text style={styles.historyDate}>{formatDate(update.created_at)}</Text>
                   {update.reason && (
                     <Text style={styles.historyReason}>Reason: {update.reason}</Text>
                   )}
-                  {update.notes && (
-                    <Text style={styles.historyNotes}>{update.notes}</Text>
-                  )}
+                  {update.notes && <Text style={styles.historyNotes}>{update.notes}</Text>}
                 </View>
               </View>
             ))}
@@ -181,18 +170,11 @@ export default function TaskStatusManager({
       )}
 
       {/* Status Update Modal */}
-      <Modal
-        visible={showModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
+      <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Update Task Status</Text>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setShowModal(false)}
-            >
+            <TouchableOpacity style={styles.closeButton} onPress={() => setShowModal(false)}>
               <Ionicons name="close" size={24} color={Colors.neutral[600]} />
             </TouchableOpacity>
           </View>
@@ -208,7 +190,7 @@ export default function TaskStatusManager({
                     key={status}
                     style={[
                       styles.statusOption,
-                      selectedStatus === status && styles.statusOptionSelected
+                      selectedStatus === status && styles.statusOptionSelected,
                     ]}
                     onPress={() => setSelectedStatus(status)}
                   >
@@ -258,7 +240,7 @@ export default function TaskStatusManager({
             <TouchableOpacity
               style={[
                 styles.confirmButton,
-                (!selectedStatus || loading) && styles.confirmButtonDisabled
+                (!selectedStatus || loading) && styles.confirmButtonDisabled,
               ]}
               onPress={handleStatusUpdate}
               disabled={!selectedStatus || loading}

@@ -12,7 +12,7 @@ import {
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { RatingService, CreateRatingRequest } from '../services/RatingService'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 interface RatingModalProps {
   visible: boolean

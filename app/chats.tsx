@@ -6,27 +6,22 @@ import {
   FlatList,
   TouchableOpacity,
   Image,
-  ActivityIndicator,
   RefreshControl,
   TextInput,
   StatusBar,
-  Dimensions,
   Alert,
   Platform,
+  DeviceEventEmitter,
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
-import { DeviceEventEmitter } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { RealtimeChatService } from '../services/RealtimeChatService'
 import { ChatService, Chat } from '../services/ChatService'
-import { InteractionManager } from 'react-native'
-import Colors from '../constants/Colors'
-import SkeletonLoader, { SkeletonList } from '../components/SkeletonLoader'
-
-const { width } = Dimensions.get('window')
+import { Colors } from '../constants/Colors'
+import { SkeletonList } from '../components/SkeletonLoader'
 
 export default function Chats() {
   const { isAuthenticated, isLoading, user } = useAuth()
@@ -40,19 +35,69 @@ export default function Chats() {
   const [clearedChats, setClearedChats] = useState<Set<string>>(new Set())
   const CLEARED_KEY = user ? `cleared_unread_${user.id}` : 'cleared_unread'
 
+  const loadChats = useCallback(async () => {
+    if (!user?.id) return
+
+    try {
+      // Only show loading on initial load, not on refresh
+      if (chats.length === 0) {
+        setLoading(true)
+      }
+      const userChats = await RealtimeChatService.getUserChats(user.id)
+      // Sort by most recent activity (last_message_at desc, fallback to updated_at or created_at)
+      const sorted = [...userChats].sort((a, b) => {
+        const at = a.last_message_at
+          ? new Date(a.last_message_at).getTime()
+          : a.updated_at
+            ? new Date(a.updated_at).getTime()
+            : a.created_at
+              ? new Date(a.created_at).getTime()
+              : 0
+        const bt = b.last_message_at
+          ? new Date(b.last_message_at).getTime()
+          : b.updated_at
+            ? new Date(b.updated_at).getTime()
+            : b.created_at
+              ? new Date(b.created_at).getTime()
+              : 0
+        return bt - at // Most recent first
+      })
+      // Apply client-side suppression for chats the user has opened
+      const suppressed = sorted.map((c) => (clearedChats.has(c.id) ? { ...c, unread_count: 0 } : c))
+      setChats(suppressed)
+    } catch (error) {
+      console.error('Error loading chats:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [user, clearedChats, chats.length])
+
+  const getOtherParticipant = useCallback(
+    (chat: Chat) => {
+      if (!user) return null
+
+      if (chat.customer_id === user.id) {
+        return chat.tasker
+      } else {
+        return chat.customer
+      }
+    },
+    [user],
+  )
+
   useFocusEffect(
     React.useCallback(() => {
       if (!isLoading && !isAuthenticated) {
         router.replace('/auth')
       }
-    }, [isAuthenticated, isLoading]),
+    }, [isAuthenticated, isLoading, router]),
   )
 
   useEffect(() => {
     if (isAuthenticated) {
       loadChats()
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, loadChats])
 
   // Load persisted cleared chats
   useEffect(() => {
@@ -95,7 +140,7 @@ export default function Chats() {
       if (isAuthenticated) {
         loadChats()
       }
-    }, [isAuthenticated]),
+    }, [isAuthenticated, loadChats]),
   )
 
   useEffect(() => {
@@ -114,44 +159,7 @@ export default function Chats() {
     } else {
       setFilteredChats(chats)
     }
-  }, [searchQuery, chats])
-
-  const loadChats = async () => {
-    if (!user?.id) return
-
-    try {
-      // Only show loading on initial load, not on refresh
-      if (chats.length === 0) {
-        setLoading(true)
-      }
-      const userChats = await RealtimeChatService.getUserChats(user.id)
-      // Sort by most recent activity (last_message_at desc, fallback to updated_at or created_at)
-      const sorted = [...userChats].sort((a, b) => {
-        const at = a.last_message_at
-          ? new Date(a.last_message_at).getTime()
-          : a.updated_at
-            ? new Date(a.updated_at).getTime()
-            : a.created_at
-              ? new Date(a.created_at).getTime()
-              : 0
-        const bt = b.last_message_at
-          ? new Date(b.last_message_at).getTime()
-          : b.updated_at
-            ? new Date(b.updated_at).getTime()
-            : b.created_at
-              ? new Date(b.created_at).getTime()
-              : 0
-        return bt - at // Most recent first
-      })
-      // Apply client-side suppression for chats the user has opened
-      const suppressed = sorted.map((c) => (clearedChats.has(c.id) ? { ...c, unread_count: 0 } : c))
-      setChats(suppressed)
-    } catch (error) {
-      console.error('Error loading chats:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+  }, [searchQuery, chats, getOtherParticipant])
 
   const onRefresh = async () => {
     setRefreshing(true)
@@ -159,29 +167,32 @@ export default function Chats() {
     setRefreshing(false)
   }
 
-  const handleChatSelect = async (chatId: string) => {
-    // Preload messages BEFORE navigation for instant display
-    ChatService.preloadChatMessages(chatId).catch(() => {})
+  const handleChatSelect = useCallback(
+    async (chatId: string) => {
+      // Preload messages BEFORE navigation for instant display
+      ChatService.preloadChatMessages(chatId).catch(() => {})
 
-    // Optimistically clear unread badge for immediate feedback
-    setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, unread_count: 0 } : c)))
-    setFilteredChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, unread_count: 0 } : c)))
-    setClearedChats((prev) => {
-      const next = new Set([...Array.from(prev), chatId])
-      AsyncStorage.setItem(CLEARED_KEY, JSON.stringify(Array.from(next))).catch(() => {})
-      return next
-    })
+      // Optimistically clear unread badge for immediate feedback
+      setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, unread_count: 0 } : c)))
+      setFilteredChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, unread_count: 0 } : c)))
+      setClearedChats((prev) => {
+        const next = new Set([...Array.from(prev), chatId])
+        AsyncStorage.setItem(CLEARED_KEY, JSON.stringify(Array.from(next))).catch(() => {})
+        return next
+      })
 
-    // Navigate immediately to chats detail (not replace, so back button works)
-    router.push(`/chat-detail?chatId=${chatId}`)
+      // Navigate immediately to chats detail (not replace, so back button works)
+      router.push(`/chat-detail?chatId=${chatId}`)
 
-    if (user?.id) {
-      // Mark as read in background (non-blocking)
-      RealtimeChatService.markMessagesAsRead(chatId, user.id).catch(() => {})
-      // Reload chats in background without blocking navigation
-      loadChats().catch(() => {})
-    }
-  }
+      if (user?.id) {
+        // Mark as read in background (non-blocking)
+        RealtimeChatService.markMessagesAsRead(chatId, user.id).catch(() => {})
+        // Reload chats in background without blocking navigation
+        loadChats().catch(() => {})
+      }
+    },
+    [user, router, loadChats],
+  )
 
   const formatLastMessageTime = (timestamp: string | null) => {
     if (!timestamp) return ''
@@ -199,16 +210,6 @@ export default function Chats() {
       return date.toLocaleDateString([], { weekday: 'short' })
     } else {
       return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
-    }
-  }
-
-  const getOtherParticipant = (chat: Chat) => {
-    if (!user) return null
-
-    if (chat.customer_id === user.id) {
-      return chat.tasker
-    } else {
-      return chat.customer
     }
   }
 
@@ -234,6 +235,7 @@ export default function Chats() {
         ChatService.preloadChatMessages(chat.id).catch(() => {})
       })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chats.length > 0 ? chats[0]?.id : null]) // Only when first chat changes
 
   const renderChat = React.useCallback(
@@ -322,7 +324,7 @@ export default function Chats() {
         </TouchableOpacity>
       )
     },
-    [clearedChats, user?.id],
+    [clearedChats, user?.id, getOtherParticipant, handleChatSelect],
   )
 
   if (isLoading) {

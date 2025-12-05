@@ -16,18 +16,15 @@ import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { ProfileService } from '../services/ProfileService'
-import ImageUpload from '../components/ImageUpload'
 import * as ImagePicker from 'expo-image-picker'
 import { ImageService } from '../services/ImageService'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 import SkeletonLoader from '../components/SkeletonLoader'
-
 
 export default function EditProfile() {
   const { user, refreshUserProfile } = useAuth()
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [formData, setFormData] = useState({
@@ -36,7 +33,7 @@ export default function EditProfile() {
     phone: '',
     bio: '',
     location: '',
-    avatarUrl: ''
+    avatarUrl: '',
   })
 
   useEffect(() => {
@@ -47,7 +44,7 @@ export default function EditProfile() {
         phone: user.profile?.phone || (user as any).phone || '',
         bio: (user.profile as any)?.bio || '',
         location: (user.profile as any)?.location || '',
-        avatarUrl: user.profile?.avatar_url || (user as any).avatar_url || ''
+        avatarUrl: user.profile?.avatar_url || (user as any).avatar_url || '',
       })
     }
   }, [user])
@@ -55,7 +52,7 @@ export default function EditProfile() {
   const handleAvatarUpload = async () => {
     try {
       setUploadingAvatar(true)
-      
+
       // Request permissions
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
       if (status !== 'granted') {
@@ -73,12 +70,12 @@ export default function EditProfile() {
 
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0]
-        
+
         // Upload to Supabase Storage
         const uploadResult = await ImageService.uploadImage(asset.uri, 'profile-pictures')
-        
+
         if (uploadResult.success && uploadResult.url) {
-          setFormData(prev => ({ ...prev, avatarUrl: uploadResult.url! }))
+          setFormData((prev) => ({ ...prev, avatarUrl: uploadResult.url! }))
         } else {
           Alert.alert('Upload Failed', uploadResult.error || 'Failed to upload image')
         }
@@ -92,18 +89,14 @@ export default function EditProfile() {
   }
 
   const handleRemoveAvatar = () => {
-    Alert.alert(
-      'Remove Photo',
-      'Are you sure you want to remove your profile picture?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Remove', 
-          style: 'destructive', 
-          onPress: () => setFormData(prev => ({ ...prev, avatarUrl: '' }))
-        }
-      ]
-    )
+    Alert.alert('Remove Photo', 'Are you sure you want to remove your profile picture?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => setFormData((prev) => ({ ...prev, avatarUrl: '' })),
+      },
+    ])
   }
 
   const handleSave = async () => {
@@ -126,12 +119,12 @@ export default function EditProfile() {
       }
 
       await ProfileService.updateProfile(user.id, updates)
-      
+
       // Refresh user profile in auth context so changes appear everywhere
       await refreshUserProfile()
-      
+
       Alert.alert('Success', 'Profile updated successfully!', [
-        { text: 'OK', onPress: () => router.push('/profile') }
+        { text: 'OK', onPress: () => router.push('/profile') },
       ])
     } catch (error) {
       console.error('Error updating profile:', error)
@@ -148,18 +141,11 @@ export default function EditProfile() {
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
       {/* Header */}
       <View style={[styles.header, { paddingTop: 4 + insets.top }]}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.push('/profile')}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => router.push('/profile')}>
           <Ionicons name="arrow-back" size={24} color={Colors.neutral[900]} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Edit Profile</Text>
-        <TouchableOpacity 
-          style={styles.saveButton}
-          onPress={handleSave}
-          disabled={saving}
-        >
+        <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
           {saving ? (
             <SkeletonLoader width={20} height={20} borderRadius={10} />
           ) : (
@@ -168,8 +154,8 @@ export default function EditProfile() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
-        style={styles.content} 
+      <ScrollView
+        style={styles.content}
         contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
         bounces={true}
@@ -180,16 +166,13 @@ export default function EditProfile() {
           <Text style={styles.photoSectionTitle}>Profile Photo</Text>
           <View style={styles.avatarContainer}>
             {formData.avatarUrl ? (
-              <Image 
-                source={{ uri: formData.avatarUrl }} 
-                style={styles.avatarImage}
-              />
+              <Image source={{ uri: formData.avatarUrl }} style={styles.avatarImage} />
             ) : (
               <View style={styles.avatarPlaceholder}>
                 <Ionicons name="person" size={48} color={Colors.primary[500]} />
               </View>
             )}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.changePhotoButton}
               onPress={handleAvatarUpload}
               disabled={uploadingAvatar}
@@ -204,10 +187,7 @@ export default function EditProfile() {
               )}
             </TouchableOpacity>
             {formData.avatarUrl && (
-              <TouchableOpacity 
-                style={styles.removePhotoButton}
-                onPress={handleRemoveAvatar}
-              >
+              <TouchableOpacity style={styles.removePhotoButton} onPress={handleRemoveAvatar}>
                 <Ionicons name="close-circle" size={24} color={Colors.error[500]} />
               </TouchableOpacity>
             )}
@@ -217,13 +197,13 @@ export default function EditProfile() {
         {/* Basic Information */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Basic Information</Text>
-          
+
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Full Name *</Text>
             <TextInput
               style={styles.input}
               value={formData.fullName}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, fullName: text }))}
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, fullName: text }))}
               placeholder="Enter your full name"
               placeholderTextColor={Colors.neutral[400]}
             />
@@ -234,7 +214,7 @@ export default function EditProfile() {
             <TextInput
               style={styles.input}
               value={formData.username}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, username: text }))}
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, username: text }))}
               placeholder="Enter your username"
               placeholderTextColor={Colors.neutral[400]}
             />
@@ -247,7 +227,7 @@ export default function EditProfile() {
             <TextInput
               style={styles.input}
               value={formData.phone}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, phone: text }))}
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, phone: text }))}
               placeholder="Enter your phone number"
               placeholderTextColor={Colors.neutral[400]}
               keyboardType="phone-pad"
@@ -259,7 +239,7 @@ export default function EditProfile() {
             <TextInput
               style={[styles.input, styles.textArea]}
               value={formData.bio}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, bio: text }))}
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, bio: text }))}
               placeholder="Tell us about yourself"
               placeholderTextColor={Colors.neutral[400]}
               multiline
@@ -271,13 +251,13 @@ export default function EditProfile() {
         {/* Location */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Location</Text>
-          
+
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Location</Text>
             <TextInput
               style={styles.input}
               value={formData.location}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, location: text }))}
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, location: text }))}
               placeholder="City, Area (optional)"
               placeholderTextColor={Colors.neutral[400]}
             />

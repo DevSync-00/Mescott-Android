@@ -10,7 +10,6 @@ import {
   Alert,
   ActivityIndicator,
   SafeAreaView,
-  Dimensions,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { PaymentMethodService, PaymentMethod } from '../services/PaymentMethodService'
@@ -19,12 +18,8 @@ import {
   MOBILE_MONEY_PROVIDERS,
   validateAccountNumber,
   validatePhoneNumber,
-  formatAccountNumber,
-  formatPhoneNumber,
 } from '../constants/EthiopianBanks'
-import Colors from '../constants/Colors'
-
-const { width, height } = Dimensions.get('window')
+import { Colors } from '../constants/Colors'
 
 interface PaymentMethodModalProps {
   visible: boolean

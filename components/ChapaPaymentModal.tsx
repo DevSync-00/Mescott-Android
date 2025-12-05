@@ -12,7 +12,7 @@ import {
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { PaymentService, Payment, PaymentCalculation } from '../services/PaymentService'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 import BottomSheet, { BottomSheetRef } from './BottomSheet'
 
 const { width } = Dimensions.get('window')

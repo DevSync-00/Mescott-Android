@@ -12,7 +12,7 @@ import {
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { TaskerApprovalService, TaskerApprovalData } from '../services/TaskerApprovalService'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 interface TaskerApprovalPanelProps {
   visible: boolean
@@ -22,7 +22,13 @@ interface TaskerApprovalPanelProps {
   userName?: string
 }
 
-export default function TaskerApprovalPanel({ visible, onClose, adminId, userEmail, userName }: TaskerApprovalPanelProps) {
+export default function TaskerApprovalPanel({
+  visible,
+  onClose,
+  adminId,
+  userEmail,
+  userName,
+}: TaskerApprovalPanelProps) {
   const [applications, setApplications] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedApplication, setSelectedApplication] = useState<any | null>(null)
@@ -51,14 +57,14 @@ export default function TaskerApprovalPanel({ visible, onClose, adminId, userEma
     try {
       // Get or create admin record first
       let actualAdminId = adminId
-      
+
       if (userEmail && userName) {
         const adminRecordId = await TaskerApprovalService.getOrCreateAdminRecord(
           adminId, // user_id
           userEmail,
-          userName
+          userName,
         )
-        
+
         if (adminRecordId) {
           actualAdminId = adminRecordId
         } else {
@@ -71,15 +77,13 @@ export default function TaskerApprovalPanel({ visible, onClose, adminId, userEma
         applicationId,
         adminId: actualAdminId,
         status,
-        adminNotes: `Application ${status} by admin`
+        adminNotes: `Application ${status} by admin`,
       })
 
       if (success) {
-        Alert.alert(
-          'Success',
-          `Application ${status} successfully!`,
-          [{ text: 'OK', onPress: loadApplications }]
-        )
+        Alert.alert('Success', `Application ${status} successfully!`, [
+          { text: 'OK', onPress: loadApplications },
+        ])
       } else {
         Alert.alert('Error', `Failed to ${status} application`)
       }
@@ -105,10 +109,7 @@ export default function TaskerApprovalPanel({ visible, onClose, adminId, userEma
       <View style={styles.applicationHeader}>
         <View style={styles.avatarContainer}>
           {application.profile?.avatar_url ? (
-            <Image
-              source={{ uri: application.profile.avatar_url }}
-              style={styles.avatar}
-            />
+            <Image source={{ uri: application.profile.avatar_url }} style={styles.avatar} />
           ) : (
             <View style={styles.avatarPlaceholder}>
               <Ionicons name="person" size={24} color={Colors.neutral[400]} />
@@ -132,9 +133,7 @@ export default function TaskerApprovalPanel({ visible, onClose, adminId, userEma
       </View>
 
       <View style={styles.applicationDetails}>
-        <Text style={styles.bioText}>
-          {application.bio || 'No bio provided'}
-        </Text>
+        <Text style={styles.bioText}>{application.bio || 'No bio provided'}</Text>
         <Text style={styles.experienceText}>
           Experience: {application.experience_years || 0} years
         </Text>
@@ -148,9 +147,7 @@ export default function TaskerApprovalPanel({ visible, onClose, adminId, userEma
                 </View>
               ))}
               {application.skills.length > 3 && (
-                <Text style={styles.moreSkillsText}>
-                  +{application.skills.length - 3} more
-                </Text>
+                <Text style={styles.moreSkillsText}>+{application.skills.length - 3} more</Text>
               )}
             </View>
           </View>
@@ -165,7 +162,7 @@ export default function TaskerApprovalPanel({ visible, onClose, adminId, userEma
           <Ionicons name="eye" size={16} color={Colors.primary[500]} />
           <Text style={styles.detailButtonText}>View Details</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={styles.rejectButton}
           onPress={() => handleApproval(application.id, 'rejected')}
@@ -173,7 +170,7 @@ export default function TaskerApprovalPanel({ visible, onClose, adminId, userEma
           <Ionicons name="close" size={16} color={Colors.error[500]} />
           <Text style={styles.rejectButtonText}>Reject</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={styles.approveButton}
           onPress={() => handleApproval(application.id, 'approved')}
@@ -219,9 +216,7 @@ export default function TaskerApprovalPanel({ visible, onClose, adminId, userEma
                 </Text>
               </View>
             ) : (
-              <View style={styles.applicationsList}>
-                {applications.map(renderApplicationCard)}
-              </View>
+              <View style={styles.applicationsList}>{applications.map(renderApplicationCard)}</View>
             )}
           </ScrollView>
         )}
@@ -245,7 +240,7 @@ export default function TaskerApprovalPanel({ visible, onClose, adminId, userEma
                 <Text style={styles.headerTitle}>Application Details</Text>
                 <View style={styles.placeholder} />
               </View>
-              
+
               <ScrollView style={styles.content}>
                 <View style={styles.detailCard}>
                   <Text style={styles.detailTitle}>Full Application Details</Text>

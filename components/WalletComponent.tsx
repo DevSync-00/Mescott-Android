@@ -1,18 +1,16 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { PaymentService } from '../services/PaymentService'
-import { WalletService, WalletStats, WalletTransaction } from '../services/WalletService'
-import Colors from '../constants/Colors'
+import { WalletTransaction } from '../services/WalletService'
+import { Colors } from '../constants/Colors'
 
 interface WalletComponentProps {
   wallet: any
@@ -21,8 +19,12 @@ interface WalletComponentProps {
   onRefresh?: () => void
 }
 
-export default function WalletComponent({ wallet, transactions, onWithdraw, onRefresh }: WalletComponentProps) {
-  const [loading, setLoading] = useState(false)
+export default function WalletComponent({
+  wallet,
+  transactions,
+  onWithdraw,
+  onRefresh,
+}: WalletComponentProps) {
   const [refreshing, setRefreshing] = useState(false)
 
   const handleRefresh = async () => {
@@ -100,29 +102,27 @@ export default function WalletComponent({ wallet, transactions, onWithdraw, onRe
   // Calculate stats from transactions
   const stats = {
     totalEarnings: transactions
-      .filter(t => t.type === 'deposit')
+      .filter((t) => t.type === 'deposit')
       .reduce((sum, t) => sum + (t.amount || 0), 0),
-    completedTasks: transactions
-      .filter(t => t.type === 'deposit')
-      .length,
+    completedTasks: transactions.filter((t) => t.type === 'deposit').length,
     totalWithdrawals: transactions
-      .filter(t => t.type === 'withdrawal')
+      .filter((t) => t.type === 'withdrawal')
       .reduce((sum, t) => sum + (t.amount || 0), 0),
     thisMonthEarnings: transactions
-      .filter(t => t.type === 'deposit' && 
-        new Date(t.created_at || '').getMonth() === new Date().getMonth())
+      .filter(
+        (t) =>
+          t.type === 'deposit' && new Date(t.created_at || '').getMonth() === new Date().getMonth(),
+      )
       .reduce((sum, t) => sum + (t.amount || 0), 0),
-    pendingWithdrawals: transactions
-      .filter(t => t.type === 'withdrawal' && t.status === 'pending')
-      .length
+    pendingWithdrawals: transactions.filter(
+      (t) => t.type === 'withdrawal' && t.status === 'pending',
+    ).length,
   }
 
   return (
-    <ScrollView 
+    <ScrollView
       style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-      }
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
     >
       {/* Balance Card */}
       <View style={styles.balanceCard}>
@@ -160,7 +160,7 @@ export default function WalletComponent({ wallet, transactions, onWithdraw, onRe
 
       {/* Action Buttons */}
       <View style={styles.actionButtons}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.actionButton, styles.withdrawButton]}
           onPress={onWithdraw}
           disabled={wallet?.balance <= 0}
@@ -196,29 +196,33 @@ export default function WalletComponent({ wallet, transactions, onWithdraw, onRe
             {transactions.map((transaction) => (
               <View key={transaction.id} style={styles.transactionItem}>
                 <View style={styles.transactionIcon}>
-                  <Ionicons 
-                    name={getTransactionIcon(transaction.type)} 
-                    size={20} 
-                    color={getTransactionColor(transaction.type)} 
+                  <Ionicons
+                    name={getTransactionIcon(transaction.type)}
+                    size={20}
+                    color={getTransactionColor(transaction.type)}
                   />
                 </View>
                 <View style={styles.transactionDetails}>
                   <Text style={styles.transactionTitle}>
                     {transaction.transaction_type_display}
                   </Text>
-                  <Text style={styles.transactionDescription}>
-                    {transaction.description}
-                  </Text>
-                  <Text style={styles.transactionDate}>
-                    {formatDate(transaction.created_at)}
-                  </Text>
+                  <Text style={styles.transactionDescription}>{transaction.description}</Text>
+                  <Text style={styles.transactionDate}>{formatDate(transaction.created_at)}</Text>
                 </View>
                 <View style={styles.transactionAmount}>
-                  <Text style={[
-                    styles.transactionAmountText,
-                    { color: transaction.type === 'deposit' ? Colors.success[500] : Colors.warning[500] }
-                  ]}>
-                    {transaction.type === 'deposit' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                  <Text
+                    style={[
+                      styles.transactionAmountText,
+                      {
+                        color:
+                          transaction.type === 'deposit'
+                            ? Colors.success[500]
+                            : Colors.warning[500],
+                      },
+                    ]}
+                  >
+                    {transaction.type === 'deposit' ? '+' : '-'}
+                    {formatCurrency(transaction.amount)}
                   </Text>
                   <Text style={styles.transactionStatus}>
                     {transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1)}
@@ -238,7 +242,8 @@ export default function WalletComponent({ wallet, transactions, onWithdraw, onRe
             <Text style={styles.pendingTitle}>Pending Withdrawals</Text>
           </View>
           <Text style={styles.pendingText}>
-            You have {stats.pendingWithdrawals} withdrawal request{stats.pendingWithdrawals > 1 ? 's' : ''} pending approval.
+            You have {stats.pendingWithdrawals} withdrawal request
+            {stats.pendingWithdrawals > 1 ? 's' : ''} pending approval.
           </Text>
         </View>
       )}
@@ -247,8 +252,8 @@ export default function WalletComponent({ wallet, transactions, onWithdraw, onRe
       <View style={styles.infoCard}>
         <Ionicons name="information-circle" size={20} color={Colors.info[500]} />
         <Text style={styles.infoText}>
-          Payments are processed automatically after task completion. 
-          You can withdraw your earnings using various methods available in Ethiopia.
+          Payments are processed automatically after task completion. You can withdraw your earnings
+          using various methods available in Ethiopia.
         </Text>
       </View>
     </ScrollView>

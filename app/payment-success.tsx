@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native'
+import React, { useState, useCallback, useEffect } from 'react'
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native'
 import { useLocalSearchParams, router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { PaymentService } from '../services/PaymentService'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 import SkeletonLoader from '../components/SkeletonLoader'
 
 export default function PaymentSuccessScreen() {
@@ -15,16 +15,7 @@ export default function PaymentSuccessScreen() {
     breakdown: any
   } | null>(null)
 
-  useEffect(() => {
-    if (tx_ref) {
-      verifyPayment()
-    } else {
-      Alert.alert('Error', 'Invalid payment reference')
-      router.replace('/')
-    }
-  }, [tx_ref])
-
-  const verifyPayment = async () => {
+  const verifyPayment = useCallback(async () => {
     if (!tx_ref) return
 
     try {
@@ -47,7 +38,16 @@ export default function PaymentSuccessScreen() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [tx_ref])
+
+  useEffect(() => {
+    if (tx_ref) {
+      verifyPayment()
+    } else {
+      Alert.alert('Error', 'Invalid payment reference')
+      router.replace('/')
+    }
+  }, [tx_ref, verifyPayment, router])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ET', {

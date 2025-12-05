@@ -36,7 +36,7 @@ export default function Auth() {
       }, 100)
       return () => clearTimeout(timer)
     }
-  }, [isAuthenticated, isLoading])
+  }, [isAuthenticated, isLoading, router])
 
   // Reset auth state when user logs out
   useEffect(() => {
@@ -91,17 +91,17 @@ export default function Auth() {
     }
 
     const formattedPhone = cleanPhoneNumber(phoneNumber)
-    
+
     if (formattedPhone.length !== 13) {
       Alert.alert('Error', 'Please enter a valid 9-digit phone number (e.g., 0912345678)')
       return
     }
 
     setLoading(true)
-    
+
     try {
       const result = await sendVerificationCode(formattedPhone, isSignUp, fullName, username)
-      
+
       if (result.success) {
         Alert.alert('Success', result.message)
         setIsCodeSent(true)
@@ -127,10 +127,10 @@ export default function Auth() {
     try {
       const formattedPhone = cleanPhoneNumber(phoneNumber)
       const result = await verifyPhoneCode(formattedPhone, verificationCode)
-      
+
       if (result.success) {
         Alert.alert('Success', result.message)
-        
+
         // Reset form state
         setVerificationCode('')
         setIsCodeSent(false)
@@ -153,7 +153,7 @@ export default function Auth() {
       try {
         const formattedPhone = cleanPhoneNumber(phoneNumber)
         const result = await sendVerificationCode(formattedPhone, isSignUp, fullName, username)
-        
+
         if (result.success) {
           setVerificationCode('')
           Alert.alert('Success', 'New verification code sent')
@@ -172,8 +172,8 @@ export default function Auth() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" translucent={false} />
-      
-      <KeyboardAvoidingView 
+
+      <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
@@ -189,7 +189,7 @@ export default function Auth() {
             <Text style={styles.subtitle}>
               {isCodeSent
                 ? 'Verify your phone number'
-                : isSignUp 
+                : isSignUp
                   ? 'Create your account'
                   : 'Good to see you again'}
             </Text>
@@ -209,7 +209,7 @@ export default function Auth() {
                     Sign In
                   </Text>
                 </TouchableOpacity>
-                
+
                 <TouchableOpacity
                   style={[styles.toggleButton, isSignUp && styles.toggleButtonActive]}
                   onPress={() => setIsSignUp(true)}
@@ -265,16 +265,14 @@ export default function Auth() {
                     onSubmitEditing={handleSendCode}
                   />
                 </View>
-                
+
                 <TouchableOpacity
                   style={[styles.primaryButton, loading && styles.buttonDisabled]}
                   onPress={handleSendCode}
                   disabled={loading}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.buttonText}>
-                    {loading ? 'Sending Code...' : 'Continue'}
-                  </Text>
+                  <Text style={styles.buttonText}>{loading ? 'Sending Code...' : 'Continue'}</Text>
                 </TouchableOpacity>
               </>
             ) : (
@@ -291,9 +289,7 @@ export default function Auth() {
                   <Text style={styles.backButtonText}>← Change Number</Text>
                 </TouchableOpacity>
 
-                <Text style={styles.codeHint}>
-                  Enter the 6-digit code sent to {phoneNumber}
-                </Text>
+                <Text style={styles.codeHint}>Enter the 6-digit code sent to {phoneNumber}</Text>
 
                 {/* Verification Code Input */}
                 <View style={styles.inputWrapper}>
@@ -310,16 +306,14 @@ export default function Auth() {
                     onSubmitEditing={handleVerifyCode}
                   />
                 </View>
-                
+
                 <TouchableOpacity
                   style={[styles.primaryButton, loading && styles.buttonDisabled]}
                   onPress={handleVerifyCode}
                   disabled={loading}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.buttonText}>
-                    {loading ? 'Verifying...' : 'Verify'}
-                  </Text>
+                  <Text style={styles.buttonText}>{loading ? 'Verifying...' : 'Verify'}</Text>
                 </TouchableOpacity>
 
                 {/* Resend Code */}

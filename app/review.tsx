@@ -9,7 +9,6 @@ import {
   TextInput,
   Alert,
   KeyboardAvoidingView,
-  Platform,
   Keyboard,
   TouchableWithoutFeedback,
 } from 'react-native'
@@ -19,7 +18,7 @@ import { useAuth } from '../contexts/SimpleAuthContext'
 import { RatingService } from '../services/RatingService'
 import RatingStars from '../components/RatingStars'
 import EnhancedRatingStars from '../components/EnhancedRatingStars'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 export default function ReviewScreen() {
   const { user, isAuthenticated, isLoading } = useAuth()
@@ -35,7 +34,7 @@ export default function ReviewScreen() {
     if (!isLoading && !isAuthenticated) {
       router.replace('/auth')
     }
-  }, [isAuthenticated, isLoading])
+  }, [isAuthenticated, isLoading, router])
 
   // Show loading while auth is being determined
   if (isLoading) {
@@ -77,16 +76,16 @@ export default function ReviewScreen() {
         rating,
         comment: comment.trim(),
         review_type: 'customer_to_tasker' as const,
-        is_public: true
+        is_public: true,
       }
 
       await RatingService.createReview(reviewData)
-      
+
       Alert.alert('Success', 'Review submitted successfully!', [
         {
           text: 'OK',
-          onPress: () => router.push('/jobs')
-        }
+          onPress: () => router.push('/jobs'),
+        },
       ])
     } catch (error) {
       console.error('Error submitting review:', error)
@@ -98,18 +97,12 @@ export default function ReviewScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior="height"
-        style={styles.keyboardView}
-      >
+      <KeyboardAvoidingView behavior="height" style={styles.keyboardView}>
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.content}>
             {/* Header */}
             <View style={styles.header}>
-              <TouchableOpacity 
-                style={styles.backButton}
-                onPress={() => router.push('/jobs')}
-              >
+              <TouchableOpacity style={styles.backButton} onPress={() => router.push('/jobs')}>
                 <Ionicons name="arrow-back" size={24} color={Colors.neutral[900]} />
               </TouchableOpacity>
               <View style={styles.headerContent}>
@@ -145,16 +138,16 @@ export default function ReviewScreen() {
                   {rating === 4 && 'Very Good'}
                   {rating === 5 && 'Excellent'}
                 </Text>
-                
+
                 {/* Enhanced Rating Toggle */}
                 <TouchableOpacity
                   style={styles.enhancedRatingToggle}
                   onPress={() => setShowEnhancedRating(!showEnhancedRating)}
                 >
-                  <Ionicons 
-                    name={showEnhancedRating ? "chevron-up" : "chevron-down"} 
-                    size={16} 
-                    color={Colors.primary[500]} 
+                  <Ionicons
+                    name={showEnhancedRating ? 'chevron-up' : 'chevron-down'}
+                    size={16}
+                    color={Colors.primary[500]}
                   />
                   <Text style={styles.enhancedRatingToggleText}>
                     {showEnhancedRating ? 'Hide' : 'Show'} Detailed Rating
@@ -169,9 +162,9 @@ export default function ReviewScreen() {
                       rating={rating}
                       onRatingChange={setRating}
                       onCategoryRatingChange={(category, categoryRating) => {
-                        setCategoryRatings(prev => ({
+                        setCategoryRatings((prev) => ({
                           ...prev,
-                          [category]: categoryRating
+                          [category]: categoryRating,
                         }))
                       }}
                       showCategories={true}
@@ -203,10 +196,8 @@ export default function ReviewScreen() {
               <View style={styles.guidelines}>
                 <Text style={styles.guidelinesTitle}>Review Guidelines</Text>
                 <Text style={styles.guidelinesText}>
-                  • Be honest and constructive{'\n'}
-                  • Focus on the service provided{'\n'}
-                  • Avoid personal attacks{'\n'}
-                  • Keep it professional
+                  • Be honest and constructive{'\n'}• Focus on the service provided{'\n'}• Avoid
+                  personal attacks{'\n'}• Keep it professional
                 </Text>
               </View>
 

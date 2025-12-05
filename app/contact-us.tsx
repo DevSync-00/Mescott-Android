@@ -12,8 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import { useAuth } from '../contexts/SimpleAuthContext'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 interface ContactMethod {
   id: string
@@ -77,7 +76,7 @@ export default function ContactUs() {
     'Account Issue',
     'Task Related',
     'Feedback',
-    'Other'
+    'Other',
   ]
 
   const handleContactMethod = async (method: ContactMethod) => {
@@ -113,10 +112,10 @@ export default function ContactUs() {
 
     Alert.alert(
       'Message Sent',
-      'Your message has been sent to our support team. We\'ll get back to you within 24 hours.',
-      [{ text: 'OK' }]
+      "Your message has been sent to our support team. We'll get back to you within 24 hours.",
+      [{ text: 'OK' }],
     )
-    
+
     setMessage('')
     setSubject('')
   }
@@ -125,7 +124,7 @@ export default function ContactUs() {
     Alert.alert(
       'Report Bug',
       'Bug reporting feature will be available soon. For now, please contact us through the methods below.',
-      [{ text: 'OK' }]
+      [{ text: 'OK' }],
     )
   }
 
@@ -133,7 +132,7 @@ export default function ContactUs() {
     Alert.alert(
       'Request Feature',
       'Feature request functionality will be available soon. For now, please contact us through the methods below.',
-      [{ text: 'OK' }]
+      [{ text: 'OK' }],
     )
   }
 
@@ -148,8 +147,8 @@ export default function ContactUs() {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView 
-        style={styles.content} 
+      <ScrollView
+        style={styles.content}
         showsVerticalScrollIndicator={true}
         contentContainerStyle={styles.scrollContent}
         bounces={true}
@@ -200,7 +199,7 @@ export default function ContactUs() {
         {/* Send Message Form */}
         <View style={styles.messageForm}>
           <Text style={styles.sectionTitle}>Send us a Message</Text>
-          
+
           <View style={styles.formContainer}>
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Category</Text>
@@ -210,14 +209,16 @@ export default function ContactUs() {
                     key={category}
                     style={[
                       styles.categoryOption,
-                      selectedCategory === category && styles.categoryOptionSelected
+                      selectedCategory === category && styles.categoryOptionSelected,
                     ]}
                     onPress={() => setSelectedCategory(category)}
                   >
-                    <Text style={[
-                      styles.categoryText,
-                      selectedCategory === category && styles.categoryTextSelected
-                    ]}>
+                    <Text
+                      style={[
+                        styles.categoryText,
+                        selectedCategory === category && styles.categoryTextSelected,
+                      ]}
+                    >
                       {category}
                     </Text>
                   </TouchableOpacity>

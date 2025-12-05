@@ -12,7 +12,7 @@ import {
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { ContentModerationService } from '../services/ContentModerationService'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 interface ReportModalProps {
   visible: boolean
@@ -29,50 +29,50 @@ const reportTypes = [
     title: 'Inappropriate Content',
     description: 'Content that violates community guidelines',
     icon: 'warning-outline',
-    color: Colors.warning[500]
+    color: Colors.warning[500],
   },
   {
     id: 'spam',
     title: 'Spam',
     description: 'Repetitive or unwanted content',
     icon: 'refresh-outline',
-    color: Colors.error[500]
+    color: Colors.error[500],
   },
   {
     id: 'harassment',
     title: 'Harassment',
     description: 'Bullying, threats, or abusive behavior',
     icon: 'person-remove-outline',
-    color: Colors.error[600]
+    color: Colors.error[600],
   },
   {
     id: 'fake_profile',
     title: 'Fake Profile',
     description: 'Suspected fake or misleading profile',
     icon: 'person-outline',
-    color: Colors.warning[600]
+    color: Colors.warning[600],
   },
   {
     id: 'payment_issue',
     title: 'Payment Issue',
     description: 'Problems with payment or money',
     icon: 'card-outline',
-    color: Colors.error[500]
+    color: Colors.error[500],
   },
   {
     id: 'safety_concern',
     title: 'Safety Concern',
     description: 'Safety or security issue',
     icon: 'shield-outline',
-    color: Colors.error[700]
+    color: Colors.error[700],
   },
   {
     id: 'other',
     title: 'Other',
     description: 'Something else not listed above',
     icon: 'ellipsis-horizontal-outline',
-    color: Colors.neutral[600]
-  }
+    color: Colors.neutral[600],
+  },
 ]
 
 function ReportModal({
@@ -81,7 +81,7 @@ function ReportModal({
   reporterId,
   reportedUserId,
   reportedTaskId,
-  reportedContent
+  reportedContent,
 }: ReportModalProps) {
   const [selectedType, setSelectedType] = useState<string | null>(null)
   const [description, setDescription] = useState('')
@@ -108,14 +108,14 @@ function ReportModal({
         report_type: selectedType as any,
         description: description.trim(),
         reported_content: reportedContent,
-        priority: selectedType === 'safety_concern' ? 'urgent' : 'medium'
+        priority: selectedType === 'safety_concern' ? 'urgent' : 'medium',
       })
 
       if (report) {
         Alert.alert(
           'Report Submitted',
           'Thank you for your report. We will review it and take appropriate action.',
-          [{ text: 'OK', onPress: handleClose }]
+          [{ text: 'OK', onPress: handleClose }],
         )
       } else {
         Alert.alert('Error', 'Failed to submit report. Please try again.')
@@ -165,15 +165,20 @@ function ReportModal({
                   key={type.id}
                   style={[
                     styles.reportTypeCard,
-                    selectedType === type.id && styles.reportTypeCardSelected
+                    selectedType === type.id && styles.reportTypeCardSelected,
                   ]}
                   onPress={() => setSelectedType(type.id)}
                 >
                   <View style={styles.reportTypeContent}>
-                    <View style={[
-                      styles.reportTypeIcon,
-                      { backgroundColor: selectedType === type.id ? type.color : Colors.neutral[100] }
-                    ]}>
+                    <View
+                      style={[
+                        styles.reportTypeIcon,
+                        {
+                          backgroundColor:
+                            selectedType === type.id ? type.color : Colors.neutral[100],
+                        },
+                      ]}
+                    >
                       <Ionicons
                         name={type.icon as any}
                         size={20}
@@ -181,15 +186,15 @@ function ReportModal({
                       />
                     </View>
                     <View style={styles.reportTypeText}>
-                      <Text style={[
-                        styles.reportTypeTitle,
-                        selectedType === type.id && styles.reportTypeTitleSelected
-                      ]}>
+                      <Text
+                        style={[
+                          styles.reportTypeTitle,
+                          selectedType === type.id && styles.reportTypeTitleSelected,
+                        ]}
+                      >
                         {type.title}
                       </Text>
-                      <Text style={styles.reportTypeDescription}>
-                        {type.description}
-                      </Text>
+                      <Text style={styles.reportTypeDescription}>{type.description}</Text>
                     </View>
                   </View>
                   {selectedType === type.id && (
@@ -204,7 +209,8 @@ function ReportModal({
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Additional Details</Text>
             <Text style={styles.sectionSubtitle}>
-              Please provide more details about the issue. This helps us investigate and take appropriate action.
+              Please provide more details about the issue. This helps us investigate and take
+              appropriate action.
             </Text>
 
             <TextInput
@@ -217,9 +223,7 @@ function ReportModal({
               textAlignVertical="top"
               maxLength={500}
             />
-            <Text style={styles.characterCount}>
-              {description.length}/500 characters
-            </Text>
+            <Text style={styles.characterCount}>{description.length}/500 characters</Text>
           </View>
 
           {/* Privacy Notice */}
@@ -236,7 +240,8 @@ function ReportModal({
           <TouchableOpacity
             style={[
               styles.submitButton,
-              (!selectedType || description.trim().length < 10 || submitting) && styles.submitButtonDisabled
+              (!selectedType || description.trim().length < 10 || submitting) &&
+                styles.submitButtonDisabled,
             ]}
             onPress={handleSubmit}
             disabled={!selectedType || description.trim().length < 10 || submitting}

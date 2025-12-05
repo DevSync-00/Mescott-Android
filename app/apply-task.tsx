@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { TaskApplicationService } from '../services/TaskApplicationService'
-import Colors from '../constants/Colors'
+import { Colors } from '../constants/Colors'
 
 export default function ApplyTask() {
   const { user, isAuthenticated, isLoading } = useAuth()
@@ -33,7 +33,7 @@ export default function ApplyTask() {
     if (!isLoading && !isAuthenticated) {
       router.replace('/auth')
     }
-  }, [isAuthenticated, isLoading])
+  }, [isAuthenticated, isLoading, router])
 
   // Show loading while auth is being determined
   if (isLoading) {
@@ -92,20 +92,20 @@ export default function ApplyTask() {
         proposed_price: price,
         estimated_time: time,
         message: coverLetter.trim(),
-        status: 'pending' as const
+        status: 'pending' as const,
       }
 
       await TaskApplicationService.createApplication(applicationData)
-      
+
       Alert.alert(
-        'Application Submitted!', 
+        'Application Submitted!',
         'Your application has been sent to the customer. You will be notified when they respond.',
         [
           {
             text: 'OK',
-            onPress: () => router.push('/jobs')
-          }
-        ]
+            onPress: () => router.push('/jobs'),
+          },
+        ],
       )
     } catch (error) {
       console.error('Error submitting application:', error)
@@ -121,10 +121,7 @@ export default function ApplyTask() {
       {/* Header - Fixed */}
       <View style={styles.headerContainer}>
         <View style={[styles.header, { paddingTop: 8 + insets.top }]}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.push('/jobs')}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => router.push('/jobs')}>
             <Ionicons name="arrow-back" size={24} color={Colors.neutral[700]} />
           </TouchableOpacity>
           <View style={styles.headerContent}>
@@ -135,10 +132,7 @@ export default function ApplyTask() {
         </View>
       </View>
 
-      <KeyboardAvoidingView
-        behavior="height"
-        style={styles.keyboardView}
-      >
+      <KeyboardAvoidingView behavior="height" style={styles.keyboardView}>
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <ScrollView
             style={styles.content}
@@ -148,93 +142,89 @@ export default function ApplyTask() {
             showsVerticalScrollIndicator={false}
             overScrollMode="always"
           >
-              {/* Task Info */}
-              <View style={styles.taskInfo}>
-                <Text style={styles.taskTitle}>{taskTitle}</Text>
-                <Text style={styles.customerName}>Posted by {customerName}</Text>
-                <Text style={styles.budget}>Budget: {budget} ETB</Text>
+            {/* Task Info */}
+            <View style={styles.taskInfo}>
+              <Text style={styles.taskTitle}>{taskTitle}</Text>
+              <Text style={styles.customerName}>Posted by {customerName}</Text>
+              <Text style={styles.budget}>Budget: {budget} ETB</Text>
+            </View>
+
+            {/* Proposed Price */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Your Proposed Price *</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="cash-outline" size={20} color={Colors.neutral[400]} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your price"
+                  placeholderTextColor={Colors.neutral[400]}
+                  value={proposedPrice}
+                  onChangeText={setProposedPrice}
+                  keyboardType="numeric"
+                />
               </View>
+              <Text style={styles.helperText}>Make sure your price is competitive</Text>
+            </View>
 
-              {/* Proposed Price */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Your Proposed Price *</Text>
-                <View style={styles.inputContainer}>
-                  <Ionicons name="cash-outline" size={20} color={Colors.neutral[400]} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Enter your price"
-                    placeholderTextColor={Colors.neutral[400]}
-                    value={proposedPrice}
-                    onChangeText={setProposedPrice}
-                    keyboardType="numeric"
-                  />
-                </View>
-                <Text style={styles.helperText}>Make sure your price is competitive</Text>
+            {/* Estimated Time */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Estimated Time (hours) *</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="time-outline" size={20} color={Colors.neutral[400]} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g., 2, 4, 8"
+                  placeholderTextColor={Colors.neutral[400]}
+                  value={estimatedTime}
+                  onChangeText={setEstimatedTime}
+                  keyboardType="numeric"
+                />
               </View>
+              <Text style={styles.helperText}>How long do you think this will take?</Text>
+            </View>
 
-              {/* Estimated Time */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Estimated Time (hours) *</Text>
-                <View style={styles.inputContainer}>
-                  <Ionicons name="time-outline" size={20} color={Colors.neutral[400]} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="e.g., 2, 4, 8"
-                    placeholderTextColor={Colors.neutral[400]}
-                    value={estimatedTime}
-                    onChangeText={setEstimatedTime}
-                    keyboardType="numeric"
-                  />
-                </View>
-                <Text style={styles.helperText}>How long do you think this will take?</Text>
+            {/* Cover Letter */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Cover Letter *</Text>
+              <Text style={styles.helperText}>
+                Tell the customer why you&apos;re the right person for this task
+              </Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="document-text-outline" size={20} color={Colors.neutral[400]} />
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  placeholder="Write your cover letter here..."
+                  placeholderTextColor={Colors.neutral[400]}
+                  value={coverLetter}
+                  onChangeText={setCoverLetter}
+                  multiline
+                  numberOfLines={6}
+                  maxLength={500}
+                />
               </View>
+              <Text style={styles.characterCount}>{coverLetter.length}/500</Text>
+            </View>
 
+            {/* Guidelines */}
+            <View style={styles.guidelines}>
+              <Text style={styles.guidelinesTitle}>Application Guidelines</Text>
+              <Text style={styles.guidelinesText}>
+                • Be professional and honest{'\n'}• Explain your relevant experience{'\n'}• Mention
+                any special skills or tools{'\n'}• Ask questions if you need clarification
+              </Text>
+            </View>
 
-
-              {/* Cover Letter */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Cover Letter *</Text>
-                <Text style={styles.helperText}>
-                  Tell the customer why you&apos;re the right person for this task
-                </Text>
-                <View style={styles.inputContainer}>
-                  <Ionicons name="document-text-outline" size={20} color={Colors.neutral[400]} />
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    placeholder="Write your cover letter here..."
-                    placeholderTextColor={Colors.neutral[400]}
-                    value={coverLetter}
-                    onChangeText={setCoverLetter}
-                    multiline
-                    numberOfLines={6}
-                    maxLength={500}
-                  />
-                </View>
-                <Text style={styles.characterCount}>{coverLetter.length}/500</Text>
-              </View>
-
-              {/* Guidelines */}
-              <View style={styles.guidelines}>
-                <Text style={styles.guidelinesTitle}>Application Guidelines</Text>
-                <Text style={styles.guidelinesText}>
-                  • Be professional and honest{'\n'}
-                  • Explain your relevant experience{'\n'}
-                  • Mention any special skills or tools{'\n'}
-                  • Ask questions if you need clarification
-                </Text>
-              </View>
-
-              {/* Submit Button */}
-              <TouchableOpacity
-                style={[styles.submitButton, loading && styles.submitButtonDisabled]}
-                onPress={handleSubmitApplication}
-                disabled={loading}
-              >
-                <Ionicons name="send" size={20} color="#fff" />
-                <Text style={styles.submitButtonText}>
-                  {loading ? 'Submitting...' : 'Submit Application'}
-                </Text>
-              </TouchableOpacity>
+            {/* Submit Button */}
+            <TouchableOpacity
+              style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+              onPress={handleSubmitApplication}
+              disabled={loading}
+            >
+              <Ionicons name="send" size={20} color="#fff" />
+              <Text style={styles.submitButtonText}>
+                {loading ? 'Submitting...' : 'Submit Application'}
+              </Text>
+            </TouchableOpacity>
           </ScrollView>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
