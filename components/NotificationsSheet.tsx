@@ -1,12 +1,5 @@
 import React, { useEffect, useRef } from 'react'
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-} from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import Colors from '../constants/Colors'
 import { useNotifications } from '../contexts/NotificationContext'
@@ -39,33 +32,28 @@ function NotificationsSheet({ visible, onClose }: NotificationsSheetProps) {
     }
   }, [visible, refreshNotifications])
 
-  const handleDelete = React.useCallback(async (notificationId: string) => {
-    Alert.alert(
-      'Delete Notification',
-      'Are you sure you want to delete this notification?',
-      [
+  const handleDelete = React.useCallback(
+    async (notificationId: string) => {
+      Alert.alert('Delete Notification', 'Are you sure you want to delete this notification?', [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
           onPress: () => deleteNotification(notificationId),
         },
-      ]
-    )
-  }, [deleteNotification])
+      ])
+    },
+    [deleteNotification],
+  )
 
   const handleMarkAllAsRead = () => {
-    Alert.alert(
-      'Mark All as Read',
-      'Are you sure you want to mark all notifications as read?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Mark All',
-          onPress: markAllAsRead,
-        },
-      ]
-    )
+    Alert.alert('Mark All as Read', 'Are you sure you want to mark all notifications as read?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Mark All',
+        onPress: markAllAsRead,
+      },
+    ])
   }
 
   const handleClearAll = () => {
@@ -79,7 +67,7 @@ function NotificationsSheet({ visible, onClose }: NotificationsSheetProps) {
           style: 'destructive',
           onPress: clearAllNotifications,
         },
-      ]
+      ],
     )
   }
 
@@ -136,92 +124,84 @@ function NotificationsSheet({ visible, onClose }: NotificationsSheetProps) {
   // Memoize notification list to prevent unnecessary re-renders
   const notificationList = React.useMemo(() => {
     return notifications
-      .filter((notification): notification is typeof notifications[number] => Boolean(notification && notification.id))
+      .filter((notification): notification is (typeof notifications)[number] =>
+        Boolean(notification && notification.id),
+      )
       .map((notification) => {
-      const icon = getNotificationIcon(notification.type || 'system')
-      const color = getNotificationColor(notification.type || 'system')
-      const time = notification.created_at ? formatTime(notification.created_at) : ''
-      
-      return (
-        <TouchableOpacity
-          key={`${notification.id}-${notification.is_read ? 'read' : 'unread'}`}
-          style={[
-            styles.notificationCard,
-            notification.is_read ? styles.readCard : styles.unreadCard,
-          ]}
-          onPress={async () => {
-            if (!notification.is_read) {
-              await markAsRead(notification.id)
-            }
-          }}
-        >
-          <View style={styles.notificationContent}>
-            <View style={styles.notificationHeader}>
-              <View
-                style={[
-                  styles.iconContainer,
-                  { backgroundColor: color + '20' },
-                ]}
-              >
-                <Ionicons
-                  name={icon}
-                  size={20}
-                  color={color}
-                />
-              </View>
-              <View style={styles.notificationInfo}>
-                <Text
-                  style={notification.is_read ? styles.readTitle : styles.unreadTitle}
-                  numberOfLines={2}
-                >
-                  {notification.title || 'Notification'}
-                </Text>
-                <Text style={styles.notificationTime}>
-                  {time}
-                </Text>
-              </View>
-              {!notification.is_read && <View style={styles.unreadDot} />}
-            </View>
+        const icon = getNotificationIcon(notification.type || 'system')
+        const color = getNotificationColor(notification.type || 'system')
+        const time = notification.created_at ? formatTime(notification.created_at) : ''
 
-            {notification.message ? (
-              <Text style={notification.is_read ? styles.readMessage : styles.unreadMessage}>
-                {notification.message}
-              </Text>
-            ) : null}
-          </View>
-
+        return (
           <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={(e) => {
-              e.stopPropagation()
-              handleDelete(notification.id)
+            key={`${notification.id}-${notification.is_read ? 'read' : 'unread'}`}
+            style={[
+              styles.notificationCard,
+              notification.is_read ? styles.readCard : styles.unreadCard,
+            ]}
+            onPress={async () => {
+              if (!notification.is_read) {
+                await markAsRead(notification.id)
+              }
             }}
           >
-            <Ionicons name="trash-outline" size={16} color={Colors.error[500]} />
+            <View style={styles.notificationContent}>
+              <View style={styles.notificationHeader}>
+                <View style={[styles.iconContainer, { backgroundColor: color + '20' }]}>
+                  <Ionicons name={icon} size={20} color={color} />
+                </View>
+                <View style={styles.notificationInfo}>
+                  <Text
+                    style={notification.is_read ? styles.readTitle : styles.unreadTitle}
+                    numberOfLines={2}
+                  >
+                    {notification.title || 'Notification'}
+                  </Text>
+                  <Text style={styles.notificationTime}>{time}</Text>
+                </View>
+                {!notification.is_read && <View style={styles.unreadDot} />}
+              </View>
+
+              {notification.message ? (
+                <Text style={notification.is_read ? styles.readMessage : styles.unreadMessage}>
+                  {notification.message}
+                </Text>
+              ) : null}
+            </View>
+
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={(e) => {
+                e.stopPropagation()
+                handleDelete(notification.id)
+              }}
+            >
+              <Ionicons name="trash-outline" size={16} color={Colors.error[500]} />
+            </TouchableOpacity>
           </TouchableOpacity>
-        </TouchableOpacity>
-      )
-    })
-  }, [notifications, getNotificationIcon, getNotificationColor, formatTime, markAsRead, handleDelete])
+        )
+      })
+  }, [
+    notifications,
+    getNotificationIcon,
+    getNotificationColor,
+    formatTime,
+    markAsRead,
+    handleDelete,
+  ])
 
   return (
-    <BottomSheet 
+    <BottomSheet
       ref={bottomSheetRef}
-      visible={visible} 
-      onClose={onClose} 
-      snapPoints={[0.3, 0.9, 1.0]} 
+      visible={visible}
+      onClose={onClose}
+      snapPoints={[0.3, 0.9, 1.0]}
       initialSnapPoint={1}
       useInternalScroll={false}
     >
       <View style={styles.container}>
         {/* Fixed Header */}
         <View style={styles.header}>
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Notifications</Text>
-            {isAuthenticated && unreadCount > 0 ? (
-              <Text style={styles.headerSubtitle}>{unreadCount} unread</Text>
-            ) : null}
-          </View>
           <View style={styles.headerActions}>
             {isAuthenticated && notifications.length > 0 ? (
               <TouchableOpacity
@@ -238,6 +218,15 @@ function NotificationsSheet({ visible, onClose }: NotificationsSheetProps) {
               <View style={styles.headerActionPlaceholder} />
             )}
           </View>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>Notifications</Text>
+            {isAuthenticated && unreadCount > 0 ? (
+              <Text style={styles.headerSubtitle}>{unreadCount} unread</Text>
+            ) : null}
+          </View>
+          <View style={styles.headerActions}>
+            <View style={styles.headerActionPlaceholder} />
+          </View>
         </View>
 
         {/* Scrollable Content */}
@@ -246,8 +235,8 @@ function NotificationsSheet({ visible, onClose }: NotificationsSheetProps) {
             <SkeletonList count={3} />
           </View>
         ) : (
-          <ScrollView 
-            style={styles.scrollView} 
+          <ScrollView
+            style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={true}
             bounces={true}
@@ -296,6 +285,9 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'absolute',
+    left: 0,
+    right: 0,
   },
   headerTitle: {
     fontSize: 20,
@@ -311,8 +303,9 @@ const styles = StyleSheet.create({
   },
   headerActions: {
     width: 44,
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 1,
   },
   headerActionButton: {
     width: 36,
@@ -460,5 +453,3 @@ const styles = StyleSheet.create({
 })
 
 export default React.memo(NotificationsSheet)
-
-

@@ -22,13 +22,24 @@ export interface TaskApplication {
 
 export class TaskApplicationService {
   // Create a new application
-  static async createApplication(applicationData: Omit<TaskApplication, 'id' | 'created_at' | 'updated_at' | 'tasker_name' | 'tasker_avatar' | 'task_title' | 'customer_name'> & { user_id: string }): Promise<TaskApplication | null> {
+  static async createApplication(
+    applicationData: Omit<
+      TaskApplication,
+      | 'id'
+      | 'created_at'
+      | 'updated_at'
+      | 'tasker_name'
+      | 'tasker_avatar'
+      | 'task_title'
+      | 'customer_name'
+    > & { user_id: string },
+  ): Promise<TaskApplication | null> {
     try {
       // Add user_id field to match the database schema
       // user_id should reference auth.users.id, not profiles.id
       const applicationWithUserId = {
         ...applicationData,
-        user_id: applicationData.user_id // This should be passed from the calling code
+        user_id: applicationData.user_id, // This should be passed from the calling code
       }
 
       const { data, error } = await supabase
@@ -41,8 +52,12 @@ export class TaskApplicationService {
 
       // Get tasker and task details
       const [taskerResult, taskResult] = await Promise.all([
-        supabase.from('profiles').select('full_name, avatar_url').eq('id', data.tasker_id).maybeSingle(),
-        supabase.from('tasks').select('title, customer_id').eq('id', data.task_id).maybeSingle()
+        supabase
+          .from('profiles')
+          .select('full_name, avatar_url')
+          .eq('id', data.tasker_id)
+          .maybeSingle(),
+        supabase.from('tasks').select('title, customer_id').eq('id', data.task_id).maybeSingle(),
       ])
 
       // Get customer name
@@ -61,41 +76,47 @@ export class TaskApplicationService {
         tasker_name: taskerResult.data?.full_name,
         tasker_avatar: taskerResult.data?.avatar_url,
         task_title: taskResult.data?.title,
-        customer_name: customerName
+        customer_name: customerName,
       }
 
       // Send notification to customer
       await SimpleNotificationService.notifyTaskApplication(
-        data.task_id, 
-        application.tasker_name || 'Tasker', 
-        application.task_title || 'Task'
+        data.task_id,
+        application.tasker_name || 'Tasker',
+        application.task_title || 'Task',
       )
-      
+
       // Also send unified notification
-      console.log('🚀 TASK APPLICATION SERVICE - Sending unified notification for application:', data.id)
+      console.log(
+        '🚀 TASK APPLICATION SERVICE - Sending unified notification for application:',
+        data.id,
+      )
       console.log('  - Task ID:', data.task_id)
       console.log('  - Task Title:', application.task_title || 'Task')
       console.log('  - Customer ID:', taskResult.data?.customer_id || '')
       console.log('  - Tasker Name:', application.tasker_name || 'Tasker')
-      
+
       try {
         await UnifiedNotificationService.notifyTaskApplication(
           data.task_id,
           application.task_title || 'Task',
           taskResult.data?.customer_id || '',
           application.tasker_name || 'Tasker',
-          data.id
+          data.id,
         )
         console.log('✅ TASK APPLICATION SERVICE - Unified notification sent successfully')
       } catch (notificationError) {
-        console.error('❌ TASK APPLICATION SERVICE - Error sending unified notification:', notificationError)
+        console.error(
+          '❌ TASK APPLICATION SERVICE - Error sending unified notification:',
+          notificationError,
+        )
       }
-      
+
       // Send push notification
       await PushNotificationService.createApplicationNotification(
         application.tasker_name || 'Tasker',
         application.task_title || 'Task',
-        data.task_id
+        data.task_id,
       )
 
       return application
@@ -117,20 +138,20 @@ export class TaskApplicationService {
       if (error) throw error
 
       // Get tasker names and avatars
-      const taskerIds = [...new Set(data.map(app => app.tasker_id))]
+      const taskerIds = [...new Set(data.map((app) => app.tasker_id))]
       const { data: taskers } = await supabase
         .from('profiles')
         .select('id, full_name, avatar_url')
         .in('id', taskerIds)
 
-      const taskerMap = new Map(taskers?.map(t => [t.id, t]) || [])
+      const taskerMap = new Map(taskers?.map((t) => [t.id, t]) || [])
 
-      return data.map(app => ({
+      return data.map((app) => ({
         ...app,
         tasker_name: taskerMap.get(app.tasker_id)?.full_name,
         tasker_avatar: taskerMap.get(app.tasker_id)?.avatar_url,
         task_title: '', // Will be filled by caller if needed
-        customer_name: '' // Will be filled by caller if needed
+        customer_name: '', // Will be filled by caller if needed
       }))
     } catch (error) {
       console.error('Error getting task applications:', error)
@@ -142,7 +163,7 @@ export class TaskApplicationService {
   static async hasUserAppliedToTask(userId: string, taskId: string): Promise<boolean> {
     try {
       console.log('TaskApplicationService: Checking if user', userId, 'has applied to task', taskId)
-      
+
       // First get the profile ID for this user
       const { data: profile } = await supabase
         .from('profiles')
@@ -166,19 +187,24 @@ export class TaskApplicationService {
 
       console.log('TaskApplicationService: Application lookup result:', { data, error })
       console.log('TaskApplicationService: Looking for tasker_id:', profile.id, 'task_id:', taskId)
-      
+
       // Also check by user_id in case there's a mismatch
       if (!data || data.length === 0) {
-        console.log('TaskApplicationService: No application found by tasker_id, checking by user_id')
+        console.log(
+          'TaskApplicationService: No application found by tasker_id, checking by user_id',
+        )
         const { data: userData, error: userError } = await supabase
           .from('task_applications')
           .select('id, tasker_id, user_id')
           .eq('user_id', profile.id)
           .eq('task_id', taskId)
           .limit(1)
-        
-        console.log('TaskApplicationService: User_id lookup result:', { data: userData, error: userError })
-        
+
+        console.log('TaskApplicationService: User_id lookup result:', {
+          data: userData,
+          error: userError,
+        })
+
         if (userData && userData.length > 0) {
           console.log('TaskApplicationService: Found application by user_id instead of tasker_id')
           return true
@@ -207,30 +233,30 @@ export class TaskApplicationService {
       if (error) throw error
 
       // Get task details
-      const taskIds = [...new Set(data.map(app => app.task_id))]
+      const taskIds = [...new Set(data.map((app) => app.task_id))]
       const { data: tasks } = await supabase
         .from('tasks')
         .select('id, title, customer_id')
         .in('id', taskIds)
 
       // Get customer names
-      const customerIds = [...new Set(tasks?.map(t => t.customer_id) || [])]
+      const customerIds = [...new Set(tasks?.map((t) => t.customer_id) || [])]
       const { data: customers } = await supabase
         .from('profiles')
         .select('id, full_name')
         .in('id', customerIds)
 
-      const taskMap = new Map(tasks?.map(t => [t.id, t]) || [])
-      const customerMap = new Map(customers?.map(c => [c.id, c.full_name]) || [])
+      const taskMap = new Map(tasks?.map((t) => [t.id, t]) || [])
+      const customerMap = new Map(customers?.map((c) => [c.id, c.full_name]) || [])
 
-      return data.map(app => {
+      return data.map((app) => {
         const task = taskMap.get(app.task_id)
         return {
           ...app,
           tasker_name: '', // Not needed for user's own applications
           tasker_avatar: '', // Not needed for user's own applications
           task_title: task?.title || '',
-          customer_name: task?.customer_id ? customerMap.get(task.customer_id) || '' : ''
+          customer_name: task?.customer_id ? customerMap.get(task.customer_id) || '' : '',
         }
       })
     } catch (error) {
@@ -240,13 +266,16 @@ export class TaskApplicationService {
   }
 
   // Update application status
-  static async updateApplicationStatus(applicationId: string, status: TaskApplication['status']): Promise<boolean> {
+  static async updateApplicationStatus(
+    applicationId: string,
+    status: TaskApplication['status'],
+  ): Promise<boolean> {
     try {
       const { error } = await supabase
         .from('task_applications')
         .update({
           status,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', applicationId)
 
@@ -264,7 +293,8 @@ export class TaskApplicationService {
       // Get application details with task info in one query
       const { data: application, error: fetchError } = await supabase
         .from('task_applications')
-        .select(`
+        .select(
+          `
           tasker_id,
           proposed_price,
           task_id,
@@ -274,7 +304,8 @@ export class TaskApplicationService {
             customer_id,
             status
           )
-        `)
+        `,
+        )
         .eq('id', applicationId)
         .single()
 
@@ -289,10 +320,10 @@ export class TaskApplicationService {
           .from('task_applications')
           .update({
             status: 'accepted',
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           })
           .eq('id', applicationId),
-        
+
         // Update task with assigned tasker
         supabase
           .from('tasks')
@@ -300,19 +331,19 @@ export class TaskApplicationService {
             tasker_id: application.tasker_id,
             status: 'assigned',
             final_price: application.proposed_price,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           })
           .eq('id', application.task_id),
-        
+
         // Reject all other applications for this task
         supabase
           .from('task_applications')
           .update({
             status: 'rejected',
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           })
           .eq('task_id', application.task_id)
-          .neq('id', applicationId)
+          .neq('id', applicationId),
       ])
 
       // Check for errors
@@ -321,14 +352,24 @@ export class TaskApplicationService {
       if (rejectOthersResult.error) throw rejectOthersResult.error
 
       // Create chat synchronously to ensure it's available immediately
-      await this.createChatForAcceptedApplication(application.task_id, application.tasker_id)
-      
+      // Pass task data we already have to avoid extra query
+      await this.createChatForAcceptedApplication(
+        application.task_id,
+        application.tasker_id,
+        taskData.customer_id,
+        taskData.title,
+      )
+
       // Send notifications in background (non-blocking) to avoid blocking the response
-      this.sendAcceptanceNotifications(application.task_id, application.tasker_id, taskData.title, taskData.customer_id)
-        .catch(error => {
-          console.error('Error sending acceptance notifications:', error)
-          // Don't fail the main operation if notifications fail
-        })
+      this.sendAcceptanceNotifications(
+        application.task_id,
+        application.tasker_id,
+        taskData.title,
+        taskData.customer_id,
+      ).catch((error) => {
+        console.error('Error sending acceptance notifications:', error)
+        // Don't fail the main operation if notifications fail
+      })
 
       return true
     } catch (error) {
@@ -338,7 +379,12 @@ export class TaskApplicationService {
   }
 
   // Helper method to send acceptance notifications
-  private static async sendAcceptanceNotifications(taskId: string, taskerId: string, taskTitle: string, customerId: string): Promise<void> {
+  private static async sendAcceptanceNotifications(
+    taskId: string,
+    taskerId: string,
+    taskTitle: string,
+    customerId: string,
+  ): Promise<void> {
     try {
       // Get customer name
       const { data: customer } = await supabase
@@ -352,14 +398,14 @@ export class TaskApplicationService {
         SimpleNotificationService.notifyTaskAccepted(
           customer?.full_name || 'Customer',
           taskTitle,
-          taskId
+          taskId,
         ),
         UnifiedNotificationService.notifyApplicationAccepted(
           taskId,
           taskTitle,
           taskerId,
-          customer?.full_name || 'Customer'
-        )
+          customer?.full_name || 'Customer',
+        ),
       ])
     } catch (error) {
       console.error('Error sending acceptance notifications:', error)
@@ -367,7 +413,12 @@ export class TaskApplicationService {
   }
 
   // Helper method to send rejection notifications
-  private static async sendRejectionNotifications(taskId: string, taskerId: string, taskTitle: string, customerId: string): Promise<void> {
+  private static async sendRejectionNotifications(
+    taskId: string,
+    taskerId: string,
+    taskTitle: string,
+    customerId: string,
+  ): Promise<void> {
     try {
       // Get customer name
       const { data: customer } = await supabase
@@ -381,14 +432,14 @@ export class TaskApplicationService {
         SimpleNotificationService.notifyTaskRejected(
           customer?.full_name || 'Customer',
           taskTitle,
-          taskId
+          taskId,
         ),
         UnifiedNotificationService.notifyApplicationRejected(
           taskId,
           taskTitle,
           taskerId,
-          customer?.full_name || 'Customer'
-        )
+          customer?.full_name || 'Customer',
+        ),
       ])
     } catch (error) {
       console.error('Error sending rejection notifications:', error)
@@ -396,36 +447,32 @@ export class TaskApplicationService {
   }
 
   // Create a chat when an application is accepted
-  static async createChatForAcceptedApplication(taskId: string, taskerId: string): Promise<void> {
+  static async createChatForAcceptedApplication(
+    taskId: string,
+    taskerId: string,
+    customerId: string,
+    taskTitle: string,
+  ): Promise<void> {
     try {
-      // Get task details to find customer
-      const { data: task, error: taskError } = await supabase
-        .from('tasks')
-        .select('customer_id, title')
-        .eq('id', taskId)
-        .single()
-
-      if (taskError || !task) {
-        console.error('Error getting task details:', taskError)
-        return
-      }
-
       // Import ChatService dynamically to avoid circular imports
       const { ChatService } = await import('./ChatService')
-      
+
       // Create chat between customer and tasker
-      const chat = await ChatService.getOrCreateChat(taskId, task.customer_id, taskerId)
-      
+      const chat = await ChatService.getOrCreateChat(taskId, customerId, taskerId)
+
       if (chat) {
         console.log('Chat created successfully for accepted application')
-        
-        // Send initial welcome message
-        await ChatService.sendMessage(
+
+        // Send initial welcome message in background (non-blocking) to avoid delaying response
+        ChatService.sendMessage(
           chat.id,
-          task.customer_id,
-          `Great! I've accepted your application for "${task.title}". Let's discuss the details!`,
-          'text'
-        )
+          customerId,
+          `Great! I've accepted your application for "${taskTitle}". Let's discuss the details!`,
+          'text',
+        ).catch((error) => {
+          console.error('Error sending welcome message:', error)
+          // Don't fail the main operation if message fails
+        })
       } else {
         console.error('Failed to create chat for accepted application')
       }
@@ -440,7 +487,8 @@ export class TaskApplicationService {
       // Get application details with task info in one query
       const { data: application, error: fetchError } = await supabase
         .from('task_applications')
-        .select(`
+        .select(
+          `
           tasker_id,
           task_id,
           tasks!inner(
@@ -448,7 +496,8 @@ export class TaskApplicationService {
             title,
             customer_id
           )
-        `)
+        `,
+        )
         .eq('id', applicationId)
         .single()
 
@@ -461,7 +510,7 @@ export class TaskApplicationService {
         .from('task_applications')
         .update({
           status: 'rejected',
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', applicationId)
 
@@ -472,8 +521,8 @@ export class TaskApplicationService {
         application.task_id,
         application.tasker_id,
         taskData.title,
-        taskData.customer_id
-      ).catch(error => {
+        taskData.customer_id,
+      ).catch((error) => {
         console.error('Error sending rejection notifications:', error)
         // Don't fail the main operation if notifications fail
       })
@@ -503,8 +552,12 @@ export class TaskApplicationService {
 
       // Get tasker and task details
       const [taskerResult, taskResult] = await Promise.all([
-        supabase.from('profiles').select('full_name, avatar_url').eq('id', data.tasker_id).maybeSingle(),
-        supabase.from('tasks').select('title, customer_id').eq('id', data.task_id).maybeSingle()
+        supabase
+          .from('profiles')
+          .select('full_name, avatar_url')
+          .eq('id', data.tasker_id)
+          .maybeSingle(),
+        supabase.from('tasks').select('title, customer_id').eq('id', data.task_id).maybeSingle(),
       ])
 
       // Get customer name
@@ -523,7 +576,7 @@ export class TaskApplicationService {
         tasker_name: taskerResult.data?.full_name,
         tasker_avatar: taskerResult.data?.avatar_url,
         task_title: taskResult.data?.title,
-        customer_name: customerName
+        customer_name: customerName,
       }
     } catch (error) {
       console.error('Error getting application by ID:', error)
@@ -541,7 +594,8 @@ export class TaskApplicationService {
         .eq('tasker_id', userId)
         .single()
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+      if (error && error.code !== 'PGRST116') {
+        // PGRST116 = no rows found
         throw error
       }
 
@@ -562,13 +616,13 @@ export class TaskApplicationService {
   }> {
     try {
       const applications = await this.getUserApplications(userId)
-      
+
       return {
         total: applications.length,
-        pending: applications.filter(app => app.status === 'pending').length,
-        accepted: applications.filter(app => app.status === 'accepted').length,
-        rejected: applications.filter(app => app.status === 'rejected').length,
-        withdrawn: applications.filter(app => app.status === 'withdrawn').length,
+        pending: applications.filter((app) => app.status === 'pending').length,
+        accepted: applications.filter((app) => app.status === 'accepted').length,
+        rejected: applications.filter((app) => app.status === 'rejected').length,
+        withdrawn: applications.filter((app) => app.status === 'withdrawn').length,
       }
     } catch (error) {
       console.error('Error getting application stats:', error)
@@ -603,7 +657,7 @@ export class TaskApplicationService {
       await SimpleNotificationService.notifyTaskAccepted(
         customer?.full_name || 'Customer',
         task.title,
-        taskId
+        taskId,
       )
     } catch (error) {
       console.error('Error sending task accepted notification:', error)
@@ -639,7 +693,7 @@ export class TaskApplicationService {
       await SimpleNotificationService.notifyTaskRejected(
         customer?.full_name || 'Customer',
         task.title,
-        application.task_id
+        application.task_id,
       )
     } catch (error) {
       console.error('Error sending task rejected notification:', error)

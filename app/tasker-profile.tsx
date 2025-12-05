@@ -23,10 +23,16 @@ const { width } = Dimensions.get('window')
 export default function TaskerProfile() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { taskerId } = useLocalSearchParams<{ taskerId: string }>()
+  const { taskerId, taskId, returnRoute } = useLocalSearchParams<{
+    taskerId: string
+    taskId?: string
+    returnRoute?: string
+  }>()
   const [portfolio, setPortfolio] = useState<TaskerPortfolio | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'overview' | 'projects' | 'skills' | 'certifications'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'projects' | 'skills' | 'certifications'>(
+    'overview',
+  )
 
   useEffect(() => {
     if (taskerId) {
@@ -38,10 +44,10 @@ export default function TaskerProfile() {
     try {
       setLoading(true)
       console.log('Loading portfolio for tasker ID (profile ID):', taskerId)
-      
+
       // Since taskerId is actually a profile ID from task applications, use the profile ID method
       const portfolioData = await PortfolioService.getTaskerPortfolioByProfileId(taskerId)
-      
+
       if (portfolioData) {
         console.log('Portfolio found:', portfolioData)
         setPortfolio(portfolioData)
@@ -71,7 +77,7 @@ export default function TaskerProfile() {
         {[...Array(5)].map((_, i) => (
           <Ionicons
             key={i}
-            name={i < rating ? "star" : "star-outline"}
+            name={i < rating ? 'star' : 'star-outline'}
             size={16}
             color={Colors.warning[500]}
           />
@@ -86,10 +92,10 @@ export default function TaskerProfile() {
       style={[styles.tabButton, activeTab === tab && styles.tabButtonActive]}
       onPress={() => setActiveTab(tab as any)}
     >
-      <Ionicons 
-        name={icon as any} 
-        size={16} 
-        color={activeTab === tab ? Colors.primary[500] : Colors.neutral[600]} 
+      <Ionicons
+        name={icon as any}
+        size={16}
+        color={activeTab === tab ? Colors.primary[500] : Colors.neutral[600]}
       />
       <Text style={[styles.tabButtonText, activeTab === tab && styles.tabButtonTextActive]}>
         {label}
@@ -308,7 +314,16 @@ export default function TaskerProfile() {
       {/* Header - Fixed */}
       <View style={styles.headerContainer}>
         <View style={[styles.header, { paddingTop: 8 + insets.top }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity
+            onPress={() => {
+              if (returnRoute === 'task-applications' && taskId) {
+                router.replace(`/task-applications?taskId=${taskId}`)
+              } else {
+                router.back()
+              }
+            }}
+            style={styles.backButton}
+          >
             <Ionicons name="arrow-back" size={24} color={Colors.neutral[900]} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Tasker Profile</Text>
@@ -739,4 +754,3 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
 })
-

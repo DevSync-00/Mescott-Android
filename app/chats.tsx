@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   StatusBar,
   Dimensions,
   Alert,
+  Platform,
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { DeviceEventEmitter } from 'react-native'
@@ -21,6 +22,7 @@ import { useRouter, useFocusEffect } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { RealtimeChatService } from '../services/RealtimeChatService'
 import { ChatService, Chat } from '../services/ChatService'
+import { InteractionManager } from 'react-native'
 import Colors from '../constants/Colors'
 import SkeletonLoader, { SkeletonList } from '../components/SkeletonLoader'
 
@@ -43,7 +45,7 @@ export default function Chats() {
       if (!isLoading && !isAuthenticated) {
         router.replace('/auth')
       }
-    }, [isAuthenticated, isLoading])
+    }, [isAuthenticated, isLoading]),
   )
 
   useEffect(() => {
@@ -54,7 +56,7 @@ export default function Chats() {
 
   // Load persisted cleared chats
   useEffect(() => {
-    (async () => {
+    ;(async () => {
       if (!user?.id) return
       try {
         const stored = await AsyncStorage.getItem(`cleared_unread_${user.id}`)
@@ -71,9 +73,9 @@ export default function Chats() {
     const sub = DeviceEventEmitter.addListener('chat:read', (payload: any) => {
       const id = payload?.chatId
       if (!id) return
-      setChats(prev => prev.map(c => c.id === id ? { ...c, unread_count: 0 } : c))
-      setFilteredChats(prev => prev.map(c => c.id === id ? { ...c, unread_count: 0 } : c))
-      setClearedChats(prev => new Set([...Array.from(prev), id]))
+      setChats((prev) => prev.map((c) => (c.id === id ? { ...c, unread_count: 0 } : c)))
+      setFilteredChats((prev) => prev.map((c) => (c.id === id ? { ...c, unread_count: 0 } : c)))
+      setClearedChats((prev) => new Set([...Array.from(prev), id]))
     })
     return () => sub.remove()
   }, [])
@@ -81,8 +83,10 @@ export default function Chats() {
   // When cleared set changes, re-apply suppression to current lists
   useEffect(() => {
     if (clearedChats.size === 0) return
-    setChats(prev => prev.map(c => clearedChats.has(c.id) ? { ...c, unread_count: 0 } : c))
-    setFilteredChats(prev => prev.map(c => clearedChats.has(c.id) ? { ...c, unread_count: 0 } : c))
+    setChats((prev) => prev.map((c) => (clearedChats.has(c.id) ? { ...c, unread_count: 0 } : c)))
+    setFilteredChats((prev) =>
+      prev.map((c) => (clearedChats.has(c.id) ? { ...c, unread_count: 0 } : c)),
+    )
   }, [clearedChats])
 
   // Keep list fresh when returning from detail
@@ -91,18 +95,20 @@ export default function Chats() {
       if (isAuthenticated) {
         loadChats()
       }
-    }, [isAuthenticated])
+    }, [isAuthenticated]),
   )
 
   useEffect(() => {
     if (searchQuery.trim()) {
-      const filtered = chats.filter(chat => {
+      const filtered = chats.filter((chat) => {
         const otherParticipant = getOtherParticipant(chat)
         const participantName = otherParticipant?.full_name || 'Unknown User'
         const taskTitle = chat.task?.title || 'Task Discussion'
-        
-        return participantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-               taskTitle.toLowerCase().includes(searchQuery.toLowerCase())
+
+        return (
+          participantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          taskTitle.toLowerCase().includes(searchQuery.toLowerCase())
+        )
       })
       setFilteredChats(filtered)
     } else {
@@ -121,18 +127,24 @@ export default function Chats() {
       const userChats = await RealtimeChatService.getUserChats(user.id)
       // Sort by most recent activity (last_message_at desc, fallback to updated_at or created_at)
       const sorted = [...userChats].sort((a, b) => {
-        const at = a.last_message_at 
-          ? new Date(a.last_message_at).getTime() 
-          : (a.updated_at ? new Date(a.updated_at).getTime() : (a.created_at ? new Date(a.created_at).getTime() : 0))
-        const bt = b.last_message_at 
-          ? new Date(b.last_message_at).getTime() 
-          : (b.updated_at ? new Date(b.updated_at).getTime() : (b.created_at ? new Date(b.created_at).getTime() : 0))
+        const at = a.last_message_at
+          ? new Date(a.last_message_at).getTime()
+          : a.updated_at
+            ? new Date(a.updated_at).getTime()
+            : a.created_at
+              ? new Date(a.created_at).getTime()
+              : 0
+        const bt = b.last_message_at
+          ? new Date(b.last_message_at).getTime()
+          : b.updated_at
+            ? new Date(b.updated_at).getTime()
+            : b.created_at
+              ? new Date(b.created_at).getTime()
+              : 0
         return bt - at // Most recent first
       })
       // Apply client-side suppression for chats the user has opened
-      const suppressed = sorted.map(c =>
-        (clearedChats.has(c.id) ? { ...c, unread_count: 0 } : c)
-      )
+      const suppressed = sorted.map((c) => (clearedChats.has(c.id) ? { ...c, unread_count: 0 } : c))
       setChats(suppressed)
     } catch (error) {
       console.error('Error loading chats:', error)
@@ -148,18 +160,21 @@ export default function Chats() {
   }
 
   const handleChatSelect = async (chatId: string) => {
+    // Preload messages BEFORE navigation for instant display
+    ChatService.preloadChatMessages(chatId).catch(() => {})
+
     // Optimistically clear unread badge for immediate feedback
-    setChats(prev => prev.map(c => c.id === chatId ? { ...c, unread_count: 0 } : c))
-    setFilteredChats(prev => prev.map(c => c.id === chatId ? { ...c, unread_count: 0 } : c))
-    setClearedChats(prev => {
+    setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, unread_count: 0 } : c)))
+    setFilteredChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, unread_count: 0 } : c)))
+    setClearedChats((prev) => {
       const next = new Set([...Array.from(prev), chatId])
       AsyncStorage.setItem(CLEARED_KEY, JSON.stringify(Array.from(next))).catch(() => {})
       return next
     })
-    
+
     // Navigate immediately to chats detail (not replace, so back button works)
     router.push(`/chat-detail?chatId=${chatId}`)
-    
+
     if (user?.id) {
       // Mark as read in background (non-blocking)
       RealtimeChatService.markMessagesAsRead(chatId, user.id).catch(() => {})
@@ -170,16 +185,17 @@ export default function Chats() {
 
   const formatLastMessageTime = (timestamp: string | null) => {
     if (!timestamp) return ''
-    
+
     const date = new Date(timestamp)
     const now = new Date()
     const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
-    
+
     if (diffInHours < 1) {
       return 'Just now'
     } else if (diffInHours < 24) {
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    } else if (diffInHours < 168) { // 7 days
+    } else if (diffInHours < 168) {
+      // 7 days
       return date.toLocaleDateString([], { weekday: 'short' })
     } else {
       return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
@@ -188,7 +204,7 @@ export default function Chats() {
 
   const getOtherParticipant = (chat: Chat) => {
     if (!user) return null
-    
+
     if (chat.customer_id === user.id) {
       return chat.tasker
     } else {
@@ -200,9 +216,7 @@ export default function Chats() {
     // Use last_message_text if available, otherwise use last_message.message
     const messageText = chat.last_message_text || chat.last_message?.message || ''
     if (messageText && messageText.trim()) {
-      return messageText.length > 50 
-        ? messageText.substring(0, 50) + '...'
-        : messageText
+      return messageText.length > 50 ? messageText.substring(0, 50) + '...' : messageText
     }
     // If there are unread messages but no last_message text, show a generic message
     if ((chat.unread_count || 0) > 0) {
@@ -211,92 +225,105 @@ export default function Chats() {
     return 'Start a conversation'
   }
 
-  const renderChat = ({ item }: { item: Chat }) => {
-    const otherParticipant = getOtherParticipant(item)
-    // Only show unread if it's not in cleared chats and has actual unread count
-    const effectiveUnread = clearedChats.has(item.id) ? 0 : (item.unread_count || 0)
-    const hasUnread = effectiveUnread > 0
-    const lastMessage = getLastMessagePreview(item)
+  // Preload messages for top chats when list loads
+  useEffect(() => {
+    if (chats.length > 0) {
+      // Preload messages for top 3 chats (most likely to be opened)
+      const topChats = chats.slice(0, 3)
+      topChats.forEach((chat) => {
+        ChatService.preloadChatMessages(chat.id).catch(() => {})
+      })
+    }
+  }, [chats.length > 0 ? chats[0]?.id : null]) // Only when first chat changes
 
-    return (
-      <TouchableOpacity
-        style={[styles.chatItem, hasUnread && styles.unreadChatItem]}
-        onPress={() => handleChatSelect(item.id)}
-        onLongPress={() => {
-          Alert.alert(
-            'Delete conversation',
-            'This will delete all messages for this chat. Continue?',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Delete', style: 'destructive', onPress: async () => {
-                  try {
-                    const ok = await ChatService.deleteChatAndMessages(item.id, user?.id || '')
-                    if (ok) {
-                      setChats(prev => prev.filter(c => c.id !== item.id))
-                      setFilteredChats(prev => prev.filter(c => c.id !== item.id))
+  const renderChat = React.useCallback(
+    ({ item }: { item: Chat }) => {
+      const otherParticipant = getOtherParticipant(item)
+      // Only show unread if it's not in cleared chats and has actual unread count
+      const effectiveUnread = clearedChats.has(item.id) ? 0 : item.unread_count || 0
+      const hasUnread = effectiveUnread > 0
+      const lastMessage = getLastMessagePreview(item)
+
+      return (
+        <TouchableOpacity
+          style={[styles.chatItem, hasUnread && styles.unreadChatItem]}
+          onPress={() => handleChatSelect(item.id)}
+          onLongPress={() => {
+            Alert.alert(
+              'Delete conversation',
+              'This will delete all messages for this chat. Continue?',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      const ok = await ChatService.deleteChatAndMessages(item.id, user?.id || '')
+                      if (ok) {
+                        setChats((prev) => prev.filter((c) => c.id !== item.id))
+                        setFilteredChats((prev) => prev.filter((c) => c.id !== item.id))
+                      }
+                    } catch (e) {
+                      console.error('Delete chat failed', e)
                     }
-                  } catch (e) {
-                    console.error('Delete chat failed', e)
-                  }
-                }
-              }
-            ]
-          )
-        }}
-        activeOpacity={0.7}
-      >
-        <View style={styles.avatarContainer}>
-          {otherParticipant?.avatar_url ? (
-            <Image
-              source={{ uri: otherParticipant.avatar_url }}
-              style={styles.avatar}
-            />
-          ) : (
-            <View style={styles.avatarPlaceholder}>
-              <Ionicons name="person" size={24} color={Colors.neutral[400]} />
-            </View>
-          )}
-          {hasUnread && <View style={styles.unreadBadge} />}
-        </View>
-        
-        <View style={styles.chatContent}>
-          <View style={styles.chatHeader}>
-            <Text style={[styles.participantName, hasUnread && styles.unreadText]}>
-              {otherParticipant?.full_name || 'Unknown User'}
-            </Text>
-            <Text style={styles.lastMessageTime}>
-              {formatLastMessageTime(item.last_message_at)}
-            </Text>
+                  },
+                },
+              ],
+            )
+          }}
+          activeOpacity={0.7}
+        >
+          <View style={styles.avatarContainer}>
+            {otherParticipant?.avatar_url ? (
+              <Image
+                source={{ uri: otherParticipant.avatar_url, cache: 'force-cache' }}
+                style={styles.avatar}
+                progressiveRenderingEnabled={true}
+              />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Ionicons name="person" size={24} color={Colors.neutral[400]} />
+              </View>
+            )}
+            {hasUnread && <View style={styles.unreadBadge} />}
           </View>
-          
-          <View style={styles.chatFooter}>
-            <Text 
-              style={[styles.lastMessage, hasUnread && styles.unreadText]} 
-              numberOfLines={1}
-            >
-              {lastMessage}
-            </Text>
-            {hasUnread && (
-              <View style={styles.unreadCount}>
-                <Text style={styles.unreadCountText}>
-                  {effectiveUnread}
+
+          <View style={styles.chatContent}>
+            <View style={styles.chatHeader}>
+              <Text style={[styles.participantName, hasUnread && styles.unreadText]}>
+                {otherParticipant?.full_name || 'Unknown User'}
+              </Text>
+              <Text style={styles.lastMessageTime}>
+                {formatLastMessageTime(item.last_message_at)}
+              </Text>
+            </View>
+
+            <View style={styles.chatFooter}>
+              <Text style={[styles.lastMessage, hasUnread && styles.unreadText]} numberOfLines={1}>
+                {lastMessage}
+              </Text>
+              {hasUnread && (
+                <View style={styles.unreadCount}>
+                  <Text style={styles.unreadCountText}>{effectiveUnread}</Text>
+                </View>
+              )}
+            </View>
+
+            {item.task && (
+              <View style={styles.taskInfo}>
+                <Ionicons name="briefcase" size={12} color={Colors.neutral[500]} />
+                <Text style={styles.taskTitle} numberOfLines={1}>
+                  {item.task.title}
                 </Text>
               </View>
             )}
           </View>
-          
-          {item.task && (
-            <View style={styles.taskInfo}>
-              <Ionicons name="briefcase" size={12} color={Colors.neutral[500]} />
-              <Text style={styles.taskTitle} numberOfLines={1}>
-                {item.task.title}
-              </Text>
-            </View>
-          )}
-        </View>
-      </TouchableOpacity>
-    )
-  }
+        </TouchableOpacity>
+      )
+    },
+    [clearedChats, user?.id],
+  )
 
   if (isLoading) {
     return (
@@ -323,71 +350,79 @@ export default function Chats() {
     <SafeAreaView style={styles.container} edges={[]}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
       <View style={styles.containerContent}>
-      
-      {/* Header */}
-      <View style={[styles.headerWrapper, { paddingTop: 8 + insets.top }]}>
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Messages</Text>
+        {/* Header */}
+        <View style={[styles.headerWrapper, { paddingTop: 8 + insets.top }]}>
+          <View style={styles.header}>
+            <View style={styles.headerContent}>
+              <Text style={styles.headerTitle}>Messages</Text>
+            </View>
+
+            {/* Search Bar */}
+            <View style={styles.searchContainer}>
+              <Ionicons name="search" size={20} color={Colors.neutral[400]} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search conversations..."
+                placeholderTextColor={Colors.neutral[400]}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle" size={20} color={Colors.neutral[400]} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
         </View>
-        
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color={Colors.neutral[400]} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search conversations..."
-            placeholderTextColor={Colors.neutral[400]}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={20} color={Colors.neutral[400]} />
-            </TouchableOpacity>
-          )}
-        </View>
-        </View>
-      </View>
-      
-      {/* Chat List */}
-      {loading ? (
-        <SkeletonList count={5} />
-      ) : filteredChats.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Ionicons name="chatbubbles-outline" size={64} color={Colors.neutral[300]} />
-          <Text style={styles.emptyTitle}>
-            {searchQuery ? 'No matching conversations' : 'No messages yet'}
-          </Text>
-          <Text style={styles.emptySubtitle}>
-            {searchQuery 
-              ? 'Try adjusting your search terms'
-              : 'Start a conversation by accepting a task application'
+
+        {/* Chat List */}
+        {loading ? (
+          <SkeletonList count={5} />
+        ) : filteredChats.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="chatbubbles-outline" size={64} color={Colors.neutral[300]} />
+            <Text style={styles.emptyTitle}>
+              {searchQuery ? 'No matching conversations' : 'No messages yet'}
+            </Text>
+            <Text style={styles.emptySubtitle}>
+              {searchQuery
+                ? 'Try adjusting your search terms'
+                : 'Start a conversation by accepting a task application'}
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={filteredChats}
+            keyExtractor={(item) => item.id}
+            renderItem={renderChat}
+            style={styles.chatsList}
+            contentContainerStyle={{ ...styles.chatsListContent, paddingBottom: 120 }}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={[Colors.primary[500]]}
+                tintColor={Colors.primary[500]}
+              />
             }
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredChats}
-          keyExtractor={(item) => item.id}
-          renderItem={renderChat}
-          style={styles.chatsList}
-          contentContainerStyle={{ ...styles.chatsListContent, paddingBottom: 120 }}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[Colors.primary[500]]}
-              tintColor={Colors.primary[500]}
-            />
-          }
-          showsVerticalScrollIndicator={false}
-          bounces={true}
-          alwaysBounceVertical={true}
-          overScrollMode="always"
-        />
-      )}
-    </View>
+            showsVerticalScrollIndicator={false}
+            bounces={true}
+            alwaysBounceVertical={true}
+            overScrollMode="always"
+            removeClippedSubviews={Platform.OS === 'android'}
+            maxToRenderPerBatch={10}
+            updateCellsBatchingPeriod={50}
+            windowSize={10}
+            initialNumToRender={10}
+            getItemLayout={(data, index) => ({
+              length: 96,
+              offset: 96 * index,
+              index,
+            })}
+          />
+        )}
+      </View>
     </SafeAreaView>
   )
 }

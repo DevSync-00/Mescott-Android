@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Image, StatusBar } from 'react-native'
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
+  Image,
+  StatusBar,
+} from 'react-native'
 import SkeletonLoader, { SkeletonList } from '../components/SkeletonLoader'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -44,7 +54,7 @@ export default function TaskApplications() {
 
   const loadApplications = async () => {
     if (!taskId || typeof taskId !== 'string') return
-    
+
     try {
       setLoading(true)
       const data = await TaskApplicationService.getTaskApplications(taskId)
@@ -68,58 +78,64 @@ export default function TaskApplications() {
           onPress: async () => {
             setProcessingApplication(applicationId)
             try {
-              const success = await TaskApplicationService.acceptApplication(taskId as string, applicationId)
+              const success = await TaskApplicationService.acceptApplication(
+                taskId as string,
+                applicationId,
+              )
               if (success) {
-                Alert.alert('Success', 'Application accepted successfully!')
-                loadApplications()
+                Alert.alert('Success', 'Application accepted successfully!', [
+                  {
+                    text: 'OK',
+                    onPress: () => {
+                      // Navigate back to jobs page so tabs are visible
+                      router.replace('/jobs')
+                    },
+                  },
+                ])
               } else {
                 Alert.alert('Error', 'Failed to accept application')
+                setProcessingApplication(null)
               }
             } catch (error) {
               Alert.alert('Error', 'An error occurred while accepting the application')
-            } finally {
               setProcessingApplication(null)
             }
-          }
-        }
-      ]
+          },
+        },
+      ],
     )
   }
 
   const handleRejectApplication = async (applicationId: string) => {
-    Alert.alert(
-      'Reject Application',
-      'Are you sure you want to reject this application?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reject',
-          style: 'destructive',
-          onPress: async () => {
-            setProcessingApplication(applicationId)
-            try {
-              const success = await TaskApplicationService.rejectApplication(applicationId)
-              if (success) {
-                Alert.alert('Success', 'Application rejected successfully!')
-                loadApplications()
-              } else {
-                Alert.alert('Error', 'Failed to reject application')
-              }
-            } catch (error) {
-              Alert.alert('Error', 'An error occurred while rejecting the application')
-            } finally {
-              setProcessingApplication(null)
+    Alert.alert('Reject Application', 'Are you sure you want to reject this application?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Reject',
+        style: 'destructive',
+        onPress: async () => {
+          setProcessingApplication(applicationId)
+          try {
+            const success = await TaskApplicationService.rejectApplication(applicationId)
+            if (success) {
+              Alert.alert('Success', 'Application rejected successfully!')
+              loadApplications()
+            } else {
+              Alert.alert('Error', 'Failed to reject application')
             }
+          } catch (error) {
+            Alert.alert('Error', 'An error occurred while rejecting the application')
+          } finally {
+            setProcessingApplication(null)
           }
-        }
-      ]
-    )
+        },
+      },
+    ])
   }
 
   const handleViewProfile = (taskerId: string) => {
     router.push({
       pathname: '/tasker-profile',
-      params: { taskerId }
+      params: { taskerId, taskId: taskId, returnRoute: 'task-applications' },
     })
   }
 
@@ -130,21 +146,31 @@ export default function TaskApplications() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return Colors.warning[500]
-      case 'accepted': return Colors.success[500]
-      case 'rejected': return Colors.error[500]
-      case 'withdrawn': return Colors.neutral[500]
-      default: return Colors.neutral[500]
+      case 'pending':
+        return Colors.warning[500]
+      case 'accepted':
+        return Colors.success[500]
+      case 'rejected':
+        return Colors.error[500]
+      case 'withdrawn':
+        return Colors.neutral[500]
+      default:
+        return Colors.neutral[500]
     }
   }
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'pending': return 'Pending'
-      case 'accepted': return 'Accepted'
-      case 'rejected': return 'Rejected'
-      case 'withdrawn': return 'Withdrawn'
-      default: return 'Unknown'
+      case 'pending':
+        return 'Pending'
+      case 'accepted':
+        return 'Accepted'
+      case 'rejected':
+        return 'Rejected'
+      case 'withdrawn':
+        return 'Withdrawn'
+      default:
+        return 'Unknown'
     }
   }
 
@@ -177,12 +203,12 @@ export default function TaskApplications() {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView 
-        style={styles.content} 
+      <ScrollView
+        style={styles.content}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={true} 
-        bounces={false} 
-        alwaysBounceVertical={false} 
+        showsVerticalScrollIndicator={true}
+        bounces={false}
+        alwaysBounceVertical={false}
         overScrollMode="never"
       >
         {applications.length === 0 ? (
@@ -212,14 +238,23 @@ export default function TaskApplications() {
                       )}
                     </View>
                     <View style={styles.taskerDetails}>
-                      <Text style={styles.taskerName}>{application.tasker_name || 'Unknown Tasker'}</Text>
+                      <Text style={styles.taskerName}>
+                        {application.tasker_name || 'Unknown Tasker'}
+                      </Text>
                       <Text style={styles.applicationDate}>
                         Applied {new Date(application.created_at).toLocaleDateString()}
                       </Text>
                     </View>
                   </View>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(application.status) + '20' }]}>
-                    <Text style={[styles.statusText, { color: getStatusColor(application.status) }]}>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      { backgroundColor: getStatusColor(application.status) + '20' },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.statusText, { color: getStatusColor(application.status) }]}
+                    >
                       {getStatusLabel(application.status)}
                     </Text>
                   </View>
@@ -253,7 +288,10 @@ export default function TaskApplications() {
                 {application.status === 'pending' && (
                   <View style={styles.actionButtons}>
                     <TouchableOpacity
-                      style={[styles.rejectButton, processingApplication === application.id && styles.processingButton]}
+                      style={[
+                        styles.rejectButton,
+                        processingApplication === application.id && styles.processingButton,
+                      ]}
                       onPress={() => handleRejectApplication(application.id)}
                       disabled={processingApplication === application.id}
                     >
@@ -267,7 +305,10 @@ export default function TaskApplications() {
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={[styles.acceptButton, processingApplication === application.id && styles.processingButton]}
+                      style={[
+                        styles.acceptButton,
+                        processingApplication === application.id && styles.processingButton,
+                      ]}
                       onPress={() => handleAcceptApplication(application.id)}
                       disabled={processingApplication === application.id}
                     >
@@ -287,7 +328,6 @@ export default function TaskApplications() {
           </View>
         )}
       </ScrollView>
-
     </SafeAreaView>
   )
 }

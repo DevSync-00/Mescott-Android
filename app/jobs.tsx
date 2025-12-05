@@ -13,6 +13,8 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   GestureResponderEvent,
+  Platform,
+  FlatList,
 } from 'react-native'
 import Animated, {
   useSharedValue,
@@ -44,7 +46,25 @@ import { moderateFont } from '../utils/fontScale'
 
 const { width } = Dimensions.get('window')
 
-const categories = ['All', 'General', 'Cleaning', 'Handyman', 'Delivery', 'Photography', 'Technology', 'Gardening', 'Moving', 'Pet Care', 'Tutoring', 'Cooking', 'Painting', 'Plumbing', 'Electrical', 'Carpentry', 'Event Planning']
+const categories = [
+  'All',
+  'General',
+  'Cleaning',
+  'Handyman',
+  'Delivery',
+  'Photography',
+  'Technology',
+  'Gardening',
+  'Moving',
+  'Pet Care',
+  'Tutoring',
+  'Cooking',
+  'Painting',
+  'Plumbing',
+  'Electrical',
+  'Carpentry',
+  'Event Planning',
+]
 
 const budgetRanges = [
   { label: 'jobs.any_budget', min: 0, max: Infinity },
@@ -69,18 +89,18 @@ export default function Jobs() {
   const insets = useSafeAreaInsets()
   const { t } = useLanguage()
   const router = useRouter()
-  
+
   // Animation values for tab indicator
   const tabIndicatorPosition = useSharedValue(0)
   const tabScale = useSharedValue(1)
-  
+
   // Animation value for FAB button
   const fabScale = useSharedValue(1)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategoryAvailable, setSelectedCategoryAvailable] = useState('All')
   const [selectedCategoryMyTasks, setSelectedCategoryMyTasks] = useState('All')
   const [activeTab, setActiveTab] = useState('available')
-  
+
   // Animate tab indicator when activeTab changes
   useEffect(() => {
     tabIndicatorPosition.value = withSpring(activeTab === 'available' ? 0 : 1, {
@@ -92,7 +112,7 @@ export default function Jobs() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [appliedTasks, setAppliedTasks] = useState<Set<string>>(new Set())
-  
+
   // Enhanced filtering states
   const [showFilters, setShowFilters] = useState(false)
   const [selectedBudgetRange, setSelectedBudgetRange] = useState(0)
@@ -133,7 +153,7 @@ export default function Jobs() {
         loadTasks() // This will call checkAppliedTasks internally
         loadPendingPayments()
       }
-    }, [isAuthenticated, user, activeTab])
+    }, [isAuthenticated, user, activeTab]),
   )
 
   // Show loading while auth is being determined
@@ -156,20 +176,19 @@ export default function Jobs() {
     if (!user) {
       return
     }
-    
-    
+
     setLoading(true)
     try {
       let fetchedTasks: Task[] = []
-      
+
       if (activeTab === 'available') {
         fetchedTasks = await TaskService.getAvailableTasks(user.user_id)
       } else {
         fetchedTasks = await TaskService.getMyTasks(user.user_id)
       }
-      
+
       setTasks(fetchedTasks)
-      
+
       // Check which tasks user has already applied to
       if (activeTab === 'available' && (user.role === 'tasker' || user.role === 'both')) {
         await checkAppliedTasks(fetchedTasks)
@@ -186,7 +205,7 @@ export default function Jobs() {
     if (!user) return
 
     const appliedSet = new Set<string>()
-    
+
     // Check each task to see if user has applied
     for (const task of tasks) {
       try {
@@ -198,13 +217,13 @@ export default function Jobs() {
         console.error(`Error checking application for task ${task.id}:`, error)
       }
     }
-    
+
     setAppliedTasks(appliedSet)
   }
 
   const loadPendingPayments = async () => {
     if (!user) return
-    
+
     try {
       const payments = await PaymentService.getPendingPayments(user.user_id)
       setPendingPayments(payments)
@@ -217,8 +236,8 @@ export default function Jobs() {
     if (!user || !task.id) return
 
     // Find the pending payment for this task
-    const pendingPayment = pendingPayments.find(p => p.task_id === task.id)
-    
+    const pendingPayment = pendingPayments.find((p) => p.task_id === task.id)
+
     if (!pendingPayment) {
       Alert.alert('Error', 'No pending payment found for this task')
       return
@@ -229,7 +248,7 @@ export default function Jobs() {
       email: user.profile?.email || 'customer@mescott.com',
       firstName: user.name?.split(' ')[0] || 'Customer',
       lastName: user.name?.split(' ').slice(1).join(' ') || 'User',
-      phone: user.phone || '+251911234567'
+      phone: user.phone || '+251911234567',
     }
 
     console.log('Customer Info for Payment:', customerInfo)
@@ -242,7 +261,7 @@ export default function Jobs() {
   const handlePaymentSuccess = (task: Task) => {
     loadPendingPayments() // Reload pending payments
     loadTasks() // Reload tasks to update status
-    
+
     // Show rating modal for the completed task
     setSelectedTaskForRating(task)
     setShowRatingModal(true)
@@ -256,7 +275,7 @@ export default function Jobs() {
   }
 
   const hasPendingPayment = (task: Task) => {
-    const hasPayment = pendingPayments.some(p => p.task_id === task.id)
+    const hasPayment = pendingPayments.some((p) => p.task_id === task.id)
     return hasPayment
   }
 
@@ -265,7 +284,7 @@ export default function Jobs() {
       setLoading(true)
       setError(null)
       setSearchFilters(filters)
-      
+
       const searchResult = await SearchService.searchTasks(filters)
       setTasks(searchResult.tasks)
     } catch (error) {
@@ -278,7 +297,7 @@ export default function Jobs() {
 
   const handleApplyToTask = async (taskId: string) => {
     if (!user) return
-    
+
     // Check if user is a tasker
     if (user.role !== 'tasker' && user.role !== 'both') {
       Alert.alert(
@@ -286,37 +305,38 @@ export default function Jobs() {
         'You need to become a tasker to apply for tasks. Would you like to apply now?',
         [
           { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Apply Now', 
-            onPress: () => router.push('/tasker-application')
-          }
-        ]
+          {
+            text: 'Apply Now',
+            onPress: () => router.push('/tasker-application'),
+          },
+        ],
       )
       return
     }
-    
+
     // Find the task to get its details
-    const task = tasks.find(t => t.id === taskId)
+    const task = tasks.find((t) => t.id === taskId)
     if (!task) return
-    
+
     // Navigate to application form
     router.push({
       pathname: '/apply-task',
-      params: { 
+      params: {
         taskId: task.id,
         taskTitle: task.title,
         customerName: task.customer_name,
-        budget: task.budget.toString()
-      }
+        budget: task.budget.toString(),
+      },
     })
   }
 
   const handleSearch = async () => {
     if (!user) return
-    
+
     setLoading(true)
     try {
-      const selectedCategory = activeTab === 'available' ? selectedCategoryAvailable : selectedCategoryMyTasks
+      const selectedCategory =
+        activeTab === 'available' ? selectedCategoryAvailable : selectedCategoryMyTasks
       const searchResults = await TaskService.searchTasks(searchQuery, selectedCategory)
       setTasks(searchResults)
     } catch (error) {
@@ -327,69 +347,98 @@ export default function Jobs() {
     }
   }
 
-  const filteredTasks = tasks.filter(task => {
-    const matchesSearch = searchQuery === '' || 
-      task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.description.toLowerCase().includes(searchQuery.toLowerCase())
-    
-    const selectedCategory = activeTab === 'available' ? selectedCategoryAvailable : selectedCategoryMyTasks
-    const matchesCategory = selectedCategory === 'All' || 
-      task.category_name?.toLowerCase() === selectedCategory.toLowerCase()
-    
-    const matchesBudget = selectedBudgetRange === 0 || 
-      (task.budget >= budgetRanges[selectedBudgetRange].min && 
-       task.budget <= budgetRanges[selectedBudgetRange].max)
-    
-    const matchesDate = selectedDate === 'any' || 
-      (selectedDate === 'today' && task.task_date === new Date().toISOString().split('T')[0]) ||
-      (selectedDate === 'tomorrow' && task.task_date === new Date(Date.now() + 86400000).toISOString().split('T')[0]) ||
-      (selectedDate === 'this_week' && task.task_date && new Date(task.task_date) <= new Date(Date.now() + 7 * 86400000))
-    
-    const matchesUrgency = selectedUrgency === 'any' || 
-      task.urgency === selectedUrgency
-    
-    const matchesLocation = selectedLocation === 'any' || 
-      task.city?.toLowerCase().includes(selectedLocation.toLowerCase()) ||
-      task.address?.toLowerCase().includes(selectedLocation.toLowerCase())
-    
-    return matchesSearch && matchesCategory && matchesBudget && matchesDate && matchesUrgency && matchesLocation
-  }).sort((a, b) => {
-    switch (selectedSort) {
-      case 'newest':
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      case 'oldest':
-        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-      case 'price_low':
-        return a.budget - b.budget
-      case 'price_high':
-        return b.budget - a.budget
-      case 'urgency':
-        const urgencyOrder = { urgent: 3, within_week: 2, flexible: 1 }
-        return (urgencyOrder[b.urgency] || 0) - (urgencyOrder[a.urgency] || 0)
-      default:
-        return 0
-    }
-  })
+  const filteredTasks = tasks
+    .filter((task) => {
+      const matchesSearch =
+        searchQuery === '' ||
+        task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        task.description.toLowerCase().includes(searchQuery.toLowerCase())
+
+      const selectedCategory =
+        activeTab === 'available' ? selectedCategoryAvailable : selectedCategoryMyTasks
+      const matchesCategory =
+        selectedCategory === 'All' ||
+        task.category_name?.toLowerCase() === selectedCategory.toLowerCase()
+
+      const matchesBudget =
+        selectedBudgetRange === 0 ||
+        (task.budget >= budgetRanges[selectedBudgetRange].min &&
+          task.budget <= budgetRanges[selectedBudgetRange].max)
+
+      const matchesDate =
+        selectedDate === 'any' ||
+        (selectedDate === 'today' && task.task_date === new Date().toISOString().split('T')[0]) ||
+        (selectedDate === 'tomorrow' &&
+          task.task_date === new Date(Date.now() + 86400000).toISOString().split('T')[0]) ||
+        (selectedDate === 'this_week' &&
+          task.task_date &&
+          new Date(task.task_date) <= new Date(Date.now() + 7 * 86400000))
+
+      const matchesUrgency = selectedUrgency === 'any' || task.urgency === selectedUrgency
+
+      const matchesLocation =
+        selectedLocation === 'any' ||
+        task.city?.toLowerCase().includes(selectedLocation.toLowerCase()) ||
+        task.address?.toLowerCase().includes(selectedLocation.toLowerCase())
+
+      return (
+        matchesSearch &&
+        matchesCategory &&
+        matchesBudget &&
+        matchesDate &&
+        matchesUrgency &&
+        matchesLocation
+      )
+    })
+    .sort((a, b) => {
+      switch (selectedSort) {
+        case 'newest':
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        case 'oldest':
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        case 'price_low':
+          return a.budget - b.budget
+        case 'price_high':
+          return b.budget - a.budget
+        case 'urgency':
+          const urgencyOrder = { urgent: 3, within_week: 2, flexible: 1 }
+          return (urgencyOrder[b.urgency] || 0) - (urgencyOrder[a.urgency] || 0)
+        default:
+          return 0
+      }
+    })
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return Colors.warning[500]
-      case 'assigned': return Colors.primary[500]
-      case 'in_progress': return Colors.primary[500]
-      case 'completed': return Colors.success[500]
-      case 'cancelled': return Colors.error[500]
-      default: return Colors.neutral[500]
+      case 'pending':
+        return Colors.warning[500]
+      case 'assigned':
+        return Colors.primary[500]
+      case 'in_progress':
+        return Colors.primary[500]
+      case 'completed':
+        return Colors.success[500]
+      case 'cancelled':
+        return Colors.error[500]
+      default:
+        return Colors.neutral[500]
     }
   }
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'pending': return 'Pending'
-      case 'assigned': return 'Assigned'
-      case 'in_progress': return 'In Progress'
-      case 'completed': return 'Completed'
-      case 'cancelled': return 'Cancelled'
-      default: return 'Unknown'
+      case 'pending':
+        return 'Pending'
+      case 'assigned':
+        return 'Assigned'
+      case 'in_progress':
+        return 'In Progress'
+      case 'completed':
+        return 'Completed'
+      case 'cancelled':
+        return 'Cancelled'
+      default:
+        return 'Unknown'
     }
   }
 
@@ -397,12 +446,12 @@ export default function Jobs() {
     const date = new Date(timestamp)
     const now = new Date()
     const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
-    
+
     if (diffInHours < 1) {
       return 'Just now'
     } else if (diffInHours < 24) {
       return `${Math.floor(diffInHours)}h ago`
-      } else {
+    } else {
       return `${Math.floor(diffInHours / 24)}d ago`
     }
   }
@@ -418,7 +467,7 @@ export default function Jobs() {
   }
 
   const toggleFavorite = (taskId: string) => {
-    setFavoriteTasks(prev => {
+    setFavoriteTasks((prev) => {
       const next = new Set(prev)
       if (next.has(taskId)) {
         next.delete(taskId)
@@ -438,58 +487,56 @@ export default function Jobs() {
     setViewMode(mode)
   }
 
-    const scrollViewRef = useRef<ScrollView>(null)
+  const scrollViewRef = useRef<ScrollView>(null)
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const offsetY = event.nativeEvent.contentOffset.y
-      // Prevent any top bounce - header should stay fixed
-      if (offsetY < 0 && scrollViewRef.current) {
-        scrollViewRef.current.scrollTo({ y: 0, animated: false })
-      }
+    const offsetY = event.nativeEvent.contentOffset.y
+    // Prevent any top bounce - header should stay fixed
+    if (offsetY < 0 && scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({ y: 0, animated: false })
     }
+  }
 
   const fabBottomOffset = 0 + insets.bottom
   const listBottomPadding = fabBottomOffset + 0
 
-    // Animated styles for tab indicator
-    const tabIndicatorAnimatedStyle = useAnimatedStyle(() => {
-      const tabWidth = (width - 32 - 8) / 2 // container width minus padding and gap
-      return {
-        transform: [
-          {
-            translateX: interpolate(
-              tabIndicatorPosition.value,
-              [0, 1],
-              [4, tabWidth + 4] // 4px padding + tab width
-            ),
-          },
-        ],
-      }
-    })
+  // Animated styles for tab indicator
+  const tabIndicatorAnimatedStyle = useAnimatedStyle(() => {
+    const tabWidth = (width - 32 - 8) / 2 // container width minus padding and gap
+    return {
+      transform: [
+        {
+          translateX: interpolate(
+            tabIndicatorPosition.value,
+            [0, 1],
+            [4, tabWidth + 4], // 4px padding + tab width
+          ),
+        },
+      ],
+    }
+  })
 
-    // Animated style for tab scale effect
-    const tabScaleAnimatedStyle = useAnimatedStyle(() => {
-      return {
-        transform: [{ scale: tabScale.value }],
-      }
-    })
+  // Animated style for tab scale effect
+  const tabScaleAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: tabScale.value }],
+    }
+  })
 
-    // Animated style for FAB button
-    const fabAnimatedStyle = useAnimatedStyle(() => {
-      return {
-        transform: [{ scale: fabScale.value }],
-      }
-    })
+  // Animated style for FAB button
+  const fabAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: fabScale.value }],
+    }
+  })
 
-    return (
-      <SafeAreaView style={styles.container} edges={[]}>
-        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
-        <View style={styles.containerContent}>
+  return (
+    <SafeAreaView style={styles.container} edges={[]}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
+      <View style={styles.containerContent}>
         {/* Fixed Header (does not scroll) */}
         <View style={styles.headerWrapper}>
-        <JobsHeader
-            title={activeTab === 'available' ? 'Available' : t('jobs.my_tasks')}
-          />
+          <JobsHeader title={activeTab === 'available' ? 'Available' : t('jobs.my_tasks')} />
         </View>
 
         {/* Fixed Controls: Tabs + Category chips */}
@@ -530,24 +577,28 @@ export default function Jobs() {
               </Animated.View>
             </TouchableOpacity>
           </View>
-          
+
           {/* Divider under tab bar */}
           <View style={styles.tabDivider} />
 
           {/* Category Chips (fixed; for both Available and My Tasks) */}
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.headerChipsScroll}
-              bounces={false}
-              alwaysBounceVertical={false}
-              overScrollMode="never"
-            >
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.headerChipsScroll}
+            bounces={false}
+            alwaysBounceVertical={false}
+            overScrollMode="never"
+          >
             {categories.map((category) => {
-              const selectedCategory = activeTab === 'available' ? selectedCategoryAvailable : selectedCategoryMyTasks
+              const selectedCategory =
+                activeTab === 'available' ? selectedCategoryAvailable : selectedCategoryMyTasks
               const isActive = selectedCategory === category
-              const setSelectedCategory = activeTab === 'available' ? setSelectedCategoryAvailable : setSelectedCategoryMyTasks
-              
+              const setSelectedCategory =
+                activeTab === 'available'
+                  ? setSelectedCategoryAvailable
+                  : setSelectedCategoryMyTasks
+
               return (
                 <TouchableOpacity
                   key={category}
@@ -560,379 +611,405 @@ export default function Jobs() {
                 </TouchableOpacity>
               )
             })}
-            </ScrollView>
+          </ScrollView>
         </View>
 
-        {/* Scrollable content below header */}
-        <ScrollView
-          ref={scrollViewRef}
-          style={styles.content}
-          contentContainerStyle={{ paddingBottom: listBottomPadding }}
-          bounces={true}
-          alwaysBounceVertical={true}
-          showsVerticalScrollIndicator={false}
-          overScrollMode="always"
-          scrollEventThrottle={16}
-          onScroll={handleScroll}
-        >
-        {/* Tabs moved to fixed header */}
+        {/* Content below header */}
+        <View style={styles.content}>
+          {/* Tabs moved to fixed header */}
 
-        {/* Search and advanced filters removed for this version */}
+          {/* Search and advanced filters removed for this version */}
 
-        {/* Tasker Registration Prompt */}
-        {user && user.role !== 'tasker' && user.role !== 'both' && user.tasker_application_status !== 'pending' && activeTab === 'available' && (
-          <View style={styles.taskerPrompt}>
-            <View style={styles.taskerPromptContent}>
-              <Ionicons name="briefcase" size={18} color={Colors.primary[500]} />
-              <View style={styles.taskerPromptText}>
-                <Text style={styles.taskerPromptTitle}>Want to apply for tasks?</Text>
-                <Text style={styles.taskerPromptSubtitle}>Become a tasker to start earning money</Text>
-              </View>
-              <TouchableOpacity 
-                style={styles.taskerPromptButton}
-                onPress={() => router.push('/tasker-application')}
-              >
-                <Text style={styles.taskerPromptButtonText}>Apply Now</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-      {/* Category chips moved to fixed header */}
-
-      <View style={styles.viewToggleRow}>
-        <Text style={styles.viewToggleLabel}>Layout</Text>
-        <View style={styles.viewToggleButtons}>
-          {(['detailed', 'compact'] as const).map(mode => (
-            <TouchableOpacity
-              key={mode}
-              style={[
-                styles.viewToggleButton,
-                viewMode === mode && styles.viewToggleButtonActive,
-              ]}
-              onPress={() => handleViewModeChange(mode)}
-            >
-              <Ionicons
-                name={mode === 'detailed' ? 'albums-outline' : 'list-outline'}
-                size={16}
-                color={viewMode === mode ? '#fff' : Colors.neutral[600]}
-              />
-              <Text
-                style={[
-                  styles.viewToggleButtonText,
-                  viewMode === mode && styles.viewToggleButtonTextActive,
-                ]}
-              >
-                {mode === 'detailed' ? 'Detailed' : 'Compact'}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      {/* Tasks List */}
-      <ScrollView 
-        style={styles.tasksList} 
-        showsVerticalScrollIndicator={true}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: listBottomPadding }]}
-        bounces={false}
-        alwaysBounceVertical={false}
-        overScrollMode="never"
-        scrollEventThrottle={16}
-      >
-        {loading ? (
-          <SkeletonList count={5} />
-        ) : error ? (
-          <LoadingErrorState
-            loading={false}
-            error={error}
-            empty={false}
-            onRetry={loadTasks}
-          />
-        ) : filteredTasks.length === 0 ? (
-          <LoadingErrorState
-            loading={false}
-            error={null}
-            empty={true}
-            emptyMessage="No tasks found. Try adjusting your search criteria."
-            emptyIcon="briefcase-outline"
-            onRetry={loadTasks}
-          />
-        ) : (
-          <>
-            {filteredTasks.map((task) => {
-              const isFavorite = favoriteTasks.has(task.id)
-              return (
-            <TouchableOpacity 
-              key={task.id} 
-              style={[
-                styles.taskCard,
-                viewMode === 'compact' && styles.taskCardCompact,
-              ]}
-              onPress={() => { router.push({ pathname: '/task-detail', params: { taskId: task.id } }) }}
-            >
-              {/* Urgency Bar */}
-              {task.urgency && (
-                <View style={[
-                  styles.urgencyBar,
-                  task.urgency === 'urgent' && styles.urgencyBarUrgent,
-                  task.urgency === 'within_week' && styles.urgencyBarWithinWeek,
-                  task.urgency === 'flexible' && styles.urgencyBarFlexible,
-                ]} />
-              )}
-              
-              {/* Task Image */}
-        {viewMode === 'detailed' && task.photos && task.photos.length > 0 && (
-          <View style={styles.taskImageContainer}>
-            <Image
-              source={{ uri: task.photos[0] }}
-              style={styles.taskImage}
-              resizeMode="cover"
+          {/* Tasks List */}
+          {loading ? (
+            <SkeletonList count={5} />
+          ) : error ? (
+            <LoadingErrorState loading={false} error={error} empty={false} onRetry={loadTasks} />
+          ) : filteredTasks.length === 0 ? (
+            <LoadingErrorState
+              loading={false}
+              error={null}
+              empty={true}
+              emptyMessage="No tasks found. Try adjusting your search criteria."
+              emptyIcon="briefcase-outline"
+              onRetry={loadTasks}
             />
-            {/* Image overlay with count badge */}
-              {task.photos.length > 1 && (
-              <View style={styles.imageOverlay}>
-                <View style={styles.imageCountBadge}>
-                  <Text style={styles.imageCountText}>+{task.photos.length - 1}</Text>
-                </View>
-                </View>
-              )}
-          </View>
-        )}
-
-              {/* Task Header */}
-              <View style={styles.taskHeader}>
-                <View style={styles.taskTitleRow}>
-                  <Text style={styles.taskTitle} numberOfLines={1} ellipsizeMode="tail">
-                    {task.title}
-                  </Text>
-                </View>
-                <View style={styles.headerActions}>
-                  <View style={styles.priceContainer}>
-                    <Text style={styles.taskPrice}>{task.budget} ETB</Text>
+          ) : (
+            <FlatList
+              data={filteredTasks}
+              keyExtractor={(item) => item.id}
+              ListHeaderComponent={
+                <>
+                  {/* Tasker Registration Prompt */}
+                  {user &&
+                    user.role !== 'tasker' &&
+                    user.role !== 'both' &&
+                    user.tasker_application_status !== 'pending' &&
+                    activeTab === 'available' && (
+                      <View style={styles.taskerPrompt}>
+                        <View style={styles.taskerPromptContent}>
+                          <Ionicons name="briefcase" size={18} color={Colors.primary[500]} />
+                          <View style={styles.taskerPromptText}>
+                            <Text style={styles.taskerPromptTitle}>Want to apply for tasks?</Text>
+                            <Text style={styles.taskerPromptSubtitle}>
+                              Become a tasker to start earning money
+                            </Text>
+                          </View>
+                          <TouchableOpacity
+                            style={styles.taskerPromptButton}
+                            onPress={() => router.push('/tasker-application')}
+                          >
+                            <Text style={styles.taskerPromptButtonText}>Apply Now</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
+                  {/* View Toggle */}
+                  <View style={styles.viewToggleRow}>
+                    <Text style={styles.viewToggleLabel}>Layout</Text>
+                    <View style={styles.viewToggleButtons}>
+                      {(['detailed', 'compact'] as const).map((mode) => (
+                        <TouchableOpacity
+                          key={mode}
+                          style={[
+                            styles.viewToggleButton,
+                            viewMode === mode && styles.viewToggleButtonActive,
+                          ]}
+                          onPress={() => handleViewModeChange(mode)}
+                        >
+                          <Ionicons
+                            name={mode === 'detailed' ? 'albums-outline' : 'list-outline'}
+                            size={16}
+                            color={viewMode === mode ? '#fff' : Colors.neutral[600]}
+                          />
+                          <Text
+                            style={[
+                              styles.viewToggleButtonText,
+                              viewMode === mode && styles.viewToggleButtonTextActive,
+                            ]}
+                          >
+                            {mode === 'detailed' ? 'Detailed' : 'Compact'}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
                   </View>
+                </>
+              }
+              renderItem={({ item: task }) => {
+                const isFavorite = favoriteTasks.has(task.id)
+                return (
                   <TouchableOpacity
-                    style={styles.favoriteButton}
-                    onPress={handleFavoritePress(task.id)}
+                    key={task.id}
+                    style={[styles.taskCard, viewMode === 'compact' && styles.taskCardCompact]}
+                    onPress={() => {
+                      router.push({ pathname: '/task-detail', params: { taskId: task.id } })
+                    }}
                   >
-                    <Ionicons
-                      name={isFavorite ? 'heart' : 'heart-outline'}
-                      size={18}
-                      color={isFavorite ? Colors.error[400] : Colors.neutral[400]}
-                    />
-                  </TouchableOpacity>
-                </View>
-              </View>
-              
-              {(task.category_name || task.urgency) && (
-                <View style={styles.taskBadgesRow}>
-                  {task.category_name && (
-                    <View style={styles.badge}>
-                      <Ionicons name="pricetag-outline" size={12} color={Colors.primary[500]} />
-                      <Text style={styles.badgeText}>{task.category_name}</Text>
+                    {/* Urgency Bar */}
+                    {task.urgency && (
+                      <View
+                        style={[
+                          styles.urgencyBar,
+                          task.urgency === 'urgent' && styles.urgencyBarUrgent,
+                          task.urgency === 'within_week' && styles.urgencyBarWithinWeek,
+                          task.urgency === 'flexible' && styles.urgencyBarFlexible,
+                        ]}
+                      />
+                    )}
+
+                    {/* Task Image */}
+                    {viewMode === 'detailed' && task.photos && task.photos.length > 0 && (
+                      <View style={styles.taskImageContainer}>
+                        <Image
+                          source={{ uri: task.photos[0], cache: 'force-cache' }}
+                          style={styles.taskImage}
+                          resizeMode="cover"
+                          progressiveRenderingEnabled={true}
+                        />
+                        {/* Image overlay with count badge */}
+                        {task.photos.length > 1 && (
+                          <View style={styles.imageOverlay}>
+                            <View style={styles.imageCountBadge}>
+                              <Text style={styles.imageCountText}>+{task.photos.length - 1}</Text>
+                            </View>
+                          </View>
+                        )}
+                      </View>
+                    )}
+
+                    {/* Task Header */}
+                    <View style={styles.taskHeader}>
+                      <View style={styles.taskTitleRow}>
+                        <Text style={styles.taskTitle} numberOfLines={1} ellipsizeMode="tail">
+                          {task.title}
+                        </Text>
+                      </View>
+                      <View style={styles.headerActions}>
+                        <View style={styles.priceContainer}>
+                          <Text style={styles.taskPrice}>{task.budget} ETB</Text>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.favoriteButton}
+                          onPress={handleFavoritePress(task.id)}
+                        >
+                          <Ionicons
+                            name={isFavorite ? 'heart' : 'heart-outline'}
+                            size={18}
+                            color={isFavorite ? Colors.error[400] : Colors.neutral[400]}
+                          />
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                  )}
-                  {task.urgency && (
-                    <View style={[styles.badge, styles.badgeUrgent]}>
-                      <Ionicons name="flash" size={12} color={Colors.error[500]} />
-                      <Text style={[styles.badgeText, styles.badgeTextUrgent]}>
-                        {formatUrgency(task.urgency)}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              )}
-              
-              {/* Task Description */}
-              {viewMode === 'detailed' && (
-                <View style={styles.descriptionContainer}>
-                  <Text style={styles.taskDescription} numberOfLines={3} ellipsizeMode="tail">
-                    {task.description}
-                  </Text>
-                </View>
-              )}
-              
-              {/* Task Meta */}
-              <View style={[styles.taskMeta, viewMode === 'compact' && styles.taskMetaCompact]}>
-                <View style={styles.metaItem}>
-                  <Ionicons name="location-outline" size={16} color={Colors.neutral[500]} />
-                  <Text style={styles.metaText} numberOfLines={1} ellipsizeMode="tail">
-                    {task.address}
-                  </Text>
-                </View>
-                {task.task_date && (
-                  <View style={styles.metaItem}>
-                    <Ionicons name="calendar-outline" size={16} color={Colors.primary[500]} />
-                    <Text style={styles.metaText}>
-                      {new Date(task.task_date).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric'
-                      })}
-                    </Text>
-                  </View>
-                )}
-                {task.task_time && (
-                  <View style={styles.metaItem}>
-                    <Ionicons name="time-outline" size={16} color={Colors.primary[500]} />
-                    <Text style={styles.metaText}>
-                      {(() => {
-                        const [hours, minutes] = task.task_time.split(':').map(Number)
-                        const period = hours >= 12 ? 'PM' : 'AM'
-                        const displayHours = hours % 12 || 12
-                        return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`
-                      })()}
-                    </Text>
-                  </View>
-                )}
-                {task.flexible_date && (
-                  <View style={styles.metaItem}>
-                    <Ionicons name="refresh-outline" size={16} color={Colors.neutral[500]} />
-                    <Text style={styles.metaText}>Flexible</Text>
-                  </View>
-                )}
-            </View>
-            
-              {/* Task Footer */}
-              <View style={styles.taskFooter}>
-                <View style={styles.footerTopRow}>
-                  <View style={styles.taskTags}>
-                    <View style={styles.categoryTag}>
-                      <Text style={styles.categoryTagText}>{task.category_name}</Text>
-                    </View>
-                    {activeTab === 'my' && task.status !== 'assigned' && (
-                      <View style={[styles.statusTag, { backgroundColor: getStatusColor(task.status) + '15' }]}>
-                        <Text style={[styles.statusTagText, { color: getStatusColor(task.status) }]}>
-                          {getStatusLabel(task.status)}
+
+                    {(task.category_name || task.urgency) && (
+                      <View style={styles.taskBadgesRow}>
+                        {task.category_name && (
+                          <View style={styles.badge}>
+                            <Ionicons
+                              name="pricetag-outline"
+                              size={12}
+                              color={Colors.primary[500]}
+                            />
+                            <Text style={styles.badgeText}>{task.category_name}</Text>
+                          </View>
+                        )}
+                        {task.urgency && (
+                          <View style={[styles.badge, styles.badgeUrgent]}>
+                            <Ionicons name="flash" size={12} color={Colors.error[500]} />
+                            <Text style={[styles.badgeText, styles.badgeTextUrgent]}>
+                              {formatUrgency(task.urgency)}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+
+                    {/* Task Description */}
+                    {viewMode === 'detailed' && (
+                      <View style={styles.descriptionContainer}>
+                        <Text style={styles.taskDescription} numberOfLines={3} ellipsizeMode="tail">
+                          {task.description}
                         </Text>
                       </View>
                     )}
-                  </View>
-                  
-                  {/* Action Button - Different for available vs my tasks */}
-                  {activeTab === 'available' ? (
-                    <TouchableOpacity 
-                      style={[
-                        styles.actionButton,
-                        appliedTasks.has(task.id) && styles.appliedButton
-                      ]}
-                      onPress={(e) => {
-                        e.stopPropagation()
-                        if (appliedTasks.has(task.id)) {
-                          Alert.alert('Already Applied', 'You have already applied to this task.')
-                        } else {
-                          handleApplyToTask(task.id)
-                        }
-                      }}
+
+                    {/* Task Meta */}
+                    <View
+                      style={[styles.taskMeta, viewMode === 'compact' && styles.taskMetaCompact]}
                     >
-                      <Text style={[
-                        styles.actionButtonText,
-                        appliedTasks.has(task.id) && styles.appliedButtonText
-                      ]}>
-                        {appliedTasks.has(task.id) ? 'Already Applied' : 'Apply'}
-                      </Text>
-                    </TouchableOpacity>
-                  ) : (
-                    // My Tasks - Show different actions based on task status
-                    <>
-                      {task.status === 'completed' ? (
-                        hasPendingPayment(task) ? (
-                          <TouchableOpacity 
-                            style={[styles.actionButton, styles.payButton]}
+                      <View style={styles.metaItem}>
+                        <Ionicons name="location-outline" size={16} color={Colors.neutral[500]} />
+                        <Text style={styles.metaText} numberOfLines={1} ellipsizeMode="tail">
+                          {task.address}
+                        </Text>
+                      </View>
+                      {task.task_date && (
+                        <View style={styles.metaItem}>
+                          <Ionicons name="calendar-outline" size={16} color={Colors.primary[500]} />
+                          <Text style={styles.metaText}>
+                            {new Date(task.task_date).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                            })}
+                          </Text>
+                        </View>
+                      )}
+                      {task.task_time && (
+                        <View style={styles.metaItem}>
+                          <Ionicons name="time-outline" size={16} color={Colors.primary[500]} />
+                          <Text style={styles.metaText}>
+                            {(() => {
+                              const [hours, minutes] = task.task_time.split(':').map(Number)
+                              const period = hours >= 12 ? 'PM' : 'AM'
+                              const displayHours = hours % 12 || 12
+                              return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`
+                            })()}
+                          </Text>
+                        </View>
+                      )}
+                      {task.flexible_date && (
+                        <View style={styles.metaItem}>
+                          <Ionicons name="refresh-outline" size={16} color={Colors.neutral[500]} />
+                          <Text style={styles.metaText}>Flexible</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Task Footer */}
+                    <View style={styles.taskFooter}>
+                      <View style={styles.footerTopRow}>
+                        <View style={styles.taskTags}>
+                          <View style={styles.categoryTag}>
+                            <Text style={styles.categoryTagText}>{task.category_name}</Text>
+                          </View>
+                          {activeTab === 'my' && task.status !== 'assigned' && (
+                            <View
+                              style={[
+                                styles.statusTag,
+                                { backgroundColor: getStatusColor(task.status) + '15' },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.statusTagText,
+                                  { color: getStatusColor(task.status) },
+                                ]}
+                              >
+                                {getStatusLabel(task.status)}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+
+                        {/* Action Button - Different for available vs my tasks */}
+                        {activeTab === 'available' ? (
+                          <TouchableOpacity
+                            style={[
+                              styles.actionButton,
+                              appliedTasks.has(task.id) && styles.appliedButton,
+                            ]}
                             onPress={(e) => {
                               e.stopPropagation()
-                              handlePayNow(task)
+                              if (appliedTasks.has(task.id)) {
+                                Alert.alert(
+                                  'Already Applied',
+                                  'You have already applied to this task.',
+                                )
+                              } else {
+                                handleApplyToTask(task.id)
+                              }
                             }}
                           >
-                            <Ionicons name="card" size={16} color="#fff" />
-                            <Text style={styles.actionButtonText}>Pay Now</Text>
-                          </TouchableOpacity>
-                        ) : task.payment_status === 'completed' ? (
-                          <TouchableOpacity 
-                            style={[styles.actionButton, styles.rateButton]}
-                            onPress={(e) => {
-                              e.stopPropagation()
-                              setSelectedTaskForRating(task)
-                              setShowRatingModal(true)
-                            }}
-                          >
-                            <Ionicons name="star" size={16} color="#fff" />
-                            <Text style={styles.actionButtonText}>Rate & Review</Text>
+                            <Text
+                              style={[
+                                styles.actionButtonText,
+                                appliedTasks.has(task.id) && styles.appliedButtonText,
+                              ]}
+                            >
+                              {appliedTasks.has(task.id) ? 'Already Applied' : 'Apply'}
+                            </Text>
                           </TouchableOpacity>
                         ) : (
-                          <View style={styles.completedBadge}>
-                            <Ionicons name="checkmark-circle" size={16} color={Colors.success[500]} />
-                            <Text style={styles.completedText}>Completed & Paid</Text>
-                          </View>
-                        )
-                      ) : task.tasker_id ? (
-                        <TouchableOpacity 
-                          style={[styles.actionButton, styles.messageButton]}
-                          onPress={async (e) => {
-                            e.stopPropagation()
-                            if (!user?.id || !task.tasker_id) {
-                              Alert.alert('Error', 'Unable to start chat. Missing user or tasker information.')
-                              return
-                            }
-                            
-                            try {
-                              // Get or create chat for this task
-                              const chat = await ChatService.getOrCreateChat(
-                                task.id, 
-                                user.id, // This is the profile ID
-                                task.tasker_id // This is also a profile ID
+                          // My Tasks - Show different actions based on task status
+                          <>
+                            {task.status === 'completed' ? (
+                              hasPendingPayment(task) ? (
+                                <TouchableOpacity
+                                  style={[styles.actionButton, styles.payButton]}
+                                  onPress={(e) => {
+                                    e.stopPropagation()
+                                    handlePayNow(task)
+                                  }}
+                                >
+                                  <Ionicons name="card" size={16} color="#fff" />
+                                  <Text style={styles.actionButtonText}>Pay Now</Text>
+                                </TouchableOpacity>
+                              ) : task.payment_status === 'completed' ? (
+                                <TouchableOpacity
+                                  style={[styles.actionButton, styles.rateButton]}
+                                  onPress={(e) => {
+                                    e.stopPropagation()
+                                    setSelectedTaskForRating(task)
+                                    setShowRatingModal(true)
+                                  }}
+                                >
+                                  <Ionicons name="star" size={16} color="#fff" />
+                                  <Text style={styles.actionButtonText}>Rate & Review</Text>
+                                </TouchableOpacity>
+                              ) : (
+                                <View style={styles.completedBadge}>
+                                  <Ionicons
+                                    name="checkmark-circle"
+                                    size={16}
+                                    color={Colors.success[500]}
+                                  />
+                                  <Text style={styles.completedText}>Completed & Paid</Text>
+                                </View>
                               )
-                              
-                              if (chat) {
-                                router.push({
-                                  pathname: '/chat-detail',
-                                  params: { 
-                                    chatId: chat.id,
-                                    taskId: task.id,
-                                    taskTitle: task.title,
-                                    otherUserName: task.tasker_name || 'Tasker'
+                            ) : task.tasker_id ? (
+                              <TouchableOpacity
+                                style={[styles.actionButton, styles.messageButton]}
+                                onPress={async (e) => {
+                                  e.stopPropagation()
+                                  if (!user?.id || !task.tasker_id) {
+                                    Alert.alert(
+                                      'Error',
+                                      'Unable to start chat. Missing user or tasker information.',
+                                    )
+                                    return
                                   }
-                                })
-                              } else {
-                                Alert.alert('Error', 'Unable to start chat. Please try again.')
-                              }
-                            } catch (error) {
-                              console.error('Error creating chat:', error)
-                              Alert.alert('Error', 'Unable to start chat. Please try again.')
-                            }
-                          }}
-                        >
-                          <Ionicons name="chatbubble" size={16} color="#fff" />
-                          <Text style={styles.actionButtonText}>Message</Text>
-                        </TouchableOpacity>
-                      ) : (
-                        <TouchableOpacity 
-                          style={styles.actionButton}
-                          onPress={(e) => {
-                            e.stopPropagation()
-                            router.push({
-                              pathname: '/task-applications',
-                              params: { taskId: task.id }
-                            })
-                          }}
-                        >
-                          <Text style={styles.actionButtonText}>View Applications</Text>
-                        </TouchableOpacity>
-                      )}
-                    </>
-                  )}
-                </View>
-        </View>
-            </TouchableOpacity>
-            )
-            })}
-          </>
-        )}
-      </ScrollView>
-        </ScrollView>
 
-        {/* Advanced Search Modal */}
-        <AdvancedSearch
+                                  try {
+                                    // Get or create chat for this task
+                                    const chat = await ChatService.getOrCreateChat(
+                                      task.id,
+                                      user.id, // This is the profile ID
+                                      task.tasker_id, // This is also a profile ID
+                                    )
+
+                                    if (chat) {
+                                      router.push({
+                                        pathname: '/chat-detail',
+                                        params: {
+                                          chatId: chat.id,
+                                          taskId: task.id,
+                                          taskTitle: task.title,
+                                          otherUserName: task.tasker_name || 'Tasker',
+                                        },
+                                      })
+                                    } else {
+                                      Alert.alert(
+                                        'Error',
+                                        'Unable to start chat. Please try again.',
+                                      )
+                                    }
+                                  } catch (error) {
+                                    console.error('Error creating chat:', error)
+                                    Alert.alert('Error', 'Unable to start chat. Please try again.')
+                                  }
+                                }}
+                              >
+                                <Ionicons name="chatbubble" size={16} color="#fff" />
+                                <Text style={styles.actionButtonText}>Message</Text>
+                              </TouchableOpacity>
+                            ) : (
+                              <TouchableOpacity
+                                style={styles.actionButton}
+                                onPress={(e) => {
+                                  e.stopPropagation()
+                                  router.push({
+                                    pathname: '/task-applications',
+                                    params: { taskId: task.id },
+                                  })
+                                }}
+                              >
+                                <Text style={styles.actionButtonText}>View Applications</Text>
+                              </TouchableOpacity>
+                            )}
+                          </>
+                        )}
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                )
+              }}
+              style={styles.tasksList}
+              contentContainerStyle={[styles.scrollContent, { paddingBottom: listBottomPadding }]}
+              showsVerticalScrollIndicator={false}
+              removeClippedSubviews={Platform.OS === 'android'}
+              maxToRenderPerBatch={5}
+              updateCellsBatchingPeriod={100}
+              windowSize={7}
+              initialNumToRender={8}
+              keyboardShouldPersistTaps="handled"
+            />
+          )}
+        </View>
+      </View>
+
+      {/* Advanced Search Modal */}
+      <AdvancedSearch
         visible={showAdvancedSearch}
         onClose={() => setShowAdvancedSearch(false)}
         onSearch={handleAdvancedSearch}
@@ -948,7 +1025,7 @@ export default function Jobs() {
         }}
         payment={selectedPayment}
         onPaymentSuccess={(payment) => {
-          const task = payment?.task_id ? tasks.find(t => t.id === payment.task_id) : null
+          const task = payment?.task_id ? tasks.find((t) => t.id === payment.task_id) : null
           if (task) {
             handlePaymentSuccess(task)
           }
@@ -957,7 +1034,7 @@ export default function Jobs() {
           email: user?.profile?.email || 'customer@mescott.com',
           firstName: user?.name?.split(' ')[0] || 'Customer',
           lastName: user?.name?.split(' ').slice(1).join(' ') || 'User',
-          phone: user?.phone || '+251911234567'
+          phone: user?.phone || '+251911234567',
         }}
       />
 
@@ -981,7 +1058,7 @@ export default function Jobs() {
       )} */}
 
       {/* Task Detail navigates to full page now; sheet removed */}
-      
+
       {/* Floating Create Task Button */}
       <Animated.View
         style={[
@@ -1009,9 +1086,8 @@ export default function Jobs() {
           <Ionicons name="add" size={28} color="#fff" />
         </TouchableOpacity>
       </Animated.View>
-      </View>
-      </SafeAreaView>
-    )
+    </SafeAreaView>
+  )
 }
 
 const styles = StyleSheet.create({

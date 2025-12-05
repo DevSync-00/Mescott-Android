@@ -22,7 +22,7 @@ function CategorySearchSheet({ visible, onClose, onSelectCategory }: CategorySea
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return CATEGORIES
-    return CATEGORIES.filter(c => c.name.toLowerCase().includes(q))
+    return CATEGORIES.filter((c) => c.name.toLowerCase().includes(q))
   }, [query])
 
   return (
@@ -37,6 +37,9 @@ function CategorySearchSheet({ visible, onClose, onSelectCategory }: CategorySea
       <View style={styles.container}>
         {/* Fixed Header */}
         <View style={styles.header}>
+          <View style={styles.headerActions}>
+            <View style={styles.headerActionPlaceholder} />
+          </View>
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>Search Services</Text>
           </View>
@@ -73,7 +76,11 @@ function CategorySearchSheet({ visible, onClose, onSelectCategory }: CategorySea
               onPress={() => onSelectCategory(item.name)}
             >
               <View style={[styles.avatar, { backgroundColor: item.color + '20' }]}>
-                <Ionicons name={(item.icon as any) || 'pricetag'} size={18} color={Colors.primary[500]} />
+                <Ionicons
+                  name={(item.icon as any) || 'pricetag'}
+                  size={18}
+                  color={Colors.primary[500]}
+                />
               </View>
               <Text style={styles.itemText}>{item.name}</Text>
               <Ionicons name="chevron-forward" size={18} color={Colors.neutral[400]} />
@@ -105,6 +112,9 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'absolute',
+    left: 0,
+    right: 0,
   },
   headerTitle: {
     fontSize: 20,
@@ -114,8 +124,9 @@ const styles = StyleSheet.create({
   },
   headerActions: {
     width: 44,
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 1,
   },
   headerActionPlaceholder: {
     width: 36,
@@ -188,5 +199,3 @@ const styles = StyleSheet.create({
 })
 
 export default React.memo(CategorySearchSheet)
-
-

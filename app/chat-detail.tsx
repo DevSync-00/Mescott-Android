@@ -69,7 +69,7 @@ const useGradualAnimation = () => {
         height.value = Math.max(event.height, 0)
       },
     },
-    []
+    [],
   )
   return { height }
 }
@@ -109,16 +109,16 @@ export default function ChatDetail() {
 
   const flatListRef = useRef<FlatList>(null)
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  
+
   // Keyboard animation hook
   const { height } = useGradualAnimation()
-  
+
   // Animated style for input container - moves up with keyboard, overlays messages
   const inputContainerAnimated = useAnimatedStyle(() => {
     const keyboardHeight = Math.max(height.value, 0)
     return {
       transform: [{ translateY: -keyboardHeight }],
-      paddingBottom: keyboardHeight > 0 ? 5 : Math.max(insets.bottom, 10),
+      paddingBottom: keyboardHeight > 0 ? 5 : Math.max(insets.bottom, 8),
     }
   }, [insets.bottom])
 
@@ -134,7 +134,10 @@ export default function ChatDetail() {
       if (!timestampCache.current.has(b.created_at)) {
         timestampCache.current.set(b.created_at, new Date(b.created_at).getTime())
       }
-      return (timestampCache.current.get(a.created_at) || 0) - (timestampCache.current.get(b.created_at) || 0)
+      return (
+        (timestampCache.current.get(a.created_at) || 0) -
+        (timestampCache.current.get(b.created_at) || 0)
+      )
     })
   }, [messages])
 
@@ -146,17 +149,20 @@ export default function ChatDetail() {
 
   useEffect(() => {
     if (chatId && user?.id) {
-      // Load cached messages synchronously if available
+      // Load cached messages synchronously if available - INSTANT display
       const cached = ChatService['messageCache'].get(chatId)
       if (cached && cached.length > 0) {
         setMessages(cached)
         setLoading(false)
+        setInitialLoad(false)
       } else {
         setLoading(true)
       }
-      
-      // Load fresh data immediately (no delay)
-      loadChatData()
+
+      // Use InteractionManager to load fresh data after UI is ready
+      InteractionManager.runAfterInteractions(() => {
+        loadChatData()
+      })
     }
   }, [chatId, user?.id])
 
@@ -182,7 +188,7 @@ export default function ChatDetail() {
       if (chatId && user?.id) {
         ChatService.markMessagesAsRead(chatId, user.id).catch(() => {})
       }
-    }, [chatId, user?.id])
+    }, [chatId, user?.id]),
   )
 
   // Scroll to end when keyboard appears and increase bottom padding so overlapped messages stay scrollable
@@ -244,7 +250,8 @@ export default function ChatDetail() {
         }
       }
 
-      const otherParticipantId = user.id === chatData.customer_id ? chatData.tasker_id : chatData.customer_id
+      const otherParticipantId =
+        user.id === chatData.customer_id ? chatData.tasker_id : chatData.customer_id
       if (otherParticipantId) {
         const { data: profile } = await supabase
           .from('profiles')
@@ -268,20 +275,34 @@ export default function ChatDetail() {
     if (!user?.id) return
     try {
       const targetChatId = chatId || null
-      
-      // Load chat data and messages in parallel - no waiting for cached check
-      const [chatDataResult, messagesResult] = await Promise.all([
-        targetChatId 
+
+      // Get cached messages immediately if available (for instant display)
+      const messagesResult = targetChatId
+        ? await ChatService.getChatMessagesFast(targetChatId, 30)
+        : null
+      // Use cached messages immediately if we don't have messages yet
+      if (messagesResult?.cached && messagesResult.cached.length > 0) {
+        if (messages.length === 0) {
+          setMessages(messagesResult.cached)
+          setLoading(false)
+        }
+      }
+
+      // Load chat data and fresh messages in parallel
+      const [chatDataResult, freshMessages] = await Promise.all([
+        targetChatId
           ? ChatService.getChatById(targetChatId)
-          : (taskId ? ChatService.getOrCreateChat(taskId, user.id, 'temp-tasker-id') : null),
-        targetChatId ? ChatService.getChatMessagesFast(targetChatId) : null
+          : taskId
+            ? ChatService.getOrCreateChat(taskId, user.id, 'temp-tasker-id')
+            : null,
+        messagesResult?.fresh || Promise.resolve([]),
       ])
 
       if (!chatDataResult) throw new Error('Chat not found')
-      
+
       // Batch all state updates together
       setChat(chatDataResult)
-      
+
       // Extract participant info from chat data immediately (no extra query)
       if (chatDataResult.customer && chatDataResult.tasker) {
         const isCustomer = user.id === chatDataResult.customer_id
@@ -294,19 +315,15 @@ export default function ChatDetail() {
         }
       }
 
-      // Update messages if we got fresh ones
-      if (messagesResult?.fresh) {
-        messagesResult.fresh.then((freshMessages) => {
-          if (freshMessages && freshMessages.length > 0) {
-            setMessages(freshMessages)
-          }
-        })
+      // Update messages with fresh data (only if different from cached)
+      if (freshMessages && freshMessages.length > 0) {
+        setMessages(freshMessages)
       }
 
       // Set up realtime subscription and mark as read (non-blocking background tasks)
       Promise.all([
         subscribeToRealtimeChat().catch(() => {}),
-        ChatService.markMessagesAsRead(chatDataResult.id, user.id).catch(() => {})
+        ChatService.markMessagesAsRead(chatDataResult.id, user.id).catch(() => {}),
       ])
 
       setInitialLoad(false)
@@ -325,8 +342,8 @@ export default function ChatDetail() {
     try {
       await ChatService.subscribeToChat(chat.id, {
         onMessage: (message) => {
-          setMessages(prev => {
-            const exists = prev.some(m => m.id === message.id)
+          setMessages((prev) => {
+            const exists = prev.some((m) => m.id === message.id)
             if (exists) return prev
             const newMsg: Message = {
               id: message.id,
@@ -335,9 +352,11 @@ export default function ChatDetail() {
               created_at: message.created_at,
               sender_name: message.sender?.full_name || 'Unknown',
               message_type: message.message_type || 'text',
-              status: message.sender_id === user?.id ? 'delivered' : 'read'
+              status: message.sender_id === user?.id ? 'delivered' : 'read',
             }
-            return [...prev, newMsg].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+            return [...prev, newMsg].sort(
+              (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+            )
           })
           if (message.sender_id !== user?.id) {
             ChatService.markMessagesAsRead(chat.id, user!.id)
@@ -361,11 +380,11 @@ export default function ChatDetail() {
       message: text,
       sender_id: user.id,
       created_at: new Date().toISOString(),
-      status: 'sending'
+      status: 'sending',
     }
 
     // Add message - sorting will be handled by sortedMessages memo
-    setMessages(prev => [...prev, tempMsg])
+    setMessages((prev) => [...prev, tempMsg])
 
     try {
       setSending(true)
@@ -379,30 +398,30 @@ export default function ChatDetail() {
       }
 
       if (success) {
-        setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'sent' } : m))
+        setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, status: 'sent' } : m)))
         // Reload messages in background without blocking UI
         const targetChatId = chat?.id || chatId
         if (targetChatId) {
-          ChatService.getChatMessagesFast(targetChatId).then(({ fresh }) => {
-            fresh.then((msgs) => {
-              if (msgs && msgs.length > 0) {
-                // Sort messages (timestamp cache will optimize future sorts)
-                const sorted = [...msgs].sort((a: any, b: any) => 
-                  new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-                )
-                setMessages(sorted)
-                // Scroll immediately after update
-                flatListRef.current?.scrollToEnd({ animated: false })
-              }
-            })
+          const { fresh } = await ChatService.getChatMessagesFast(targetChatId)
+          fresh.then((msgs) => {
+            if (msgs && msgs.length > 0) {
+              // Sort messages (timestamp cache will optimize future sorts)
+              const sorted = [...msgs].sort(
+                (a: any, b: any) =>
+                  new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+              )
+              setMessages(sorted)
+              // Scroll immediately after update
+              flatListRef.current?.scrollToEnd({ animated: false })
+            }
           })
         }
       } else {
-        setMessages(prev => prev.filter(m => m.id !== tempId))
+        setMessages((prev) => prev.filter((m) => m.id !== tempId))
         Alert.alert('Error', 'Message failed to send')
       }
     } catch (error) {
-      setMessages(prev => prev.filter(m => m.id !== tempId))
+      setMessages((prev) => prev.filter((m) => m.id !== tempId))
       Alert.alert('Error', 'Failed to send message')
     } finally {
       setSending(false)
@@ -410,13 +429,18 @@ export default function ChatDetail() {
   }
 
   const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+    return new Date(dateString).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    })
   }
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     const today = new Date()
-    const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1)
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
     if (date.toDateString() === today.toDateString()) return 'Today'
     if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -424,51 +448,90 @@ export default function ChatDetail() {
 
   const isMyMessage = (msg: Message) => msg.sender_id === user?.id
 
-  const MessageItem = memo(({ message, isMine, showDate, showAvatar, isGroupStart, isGroupEnd }: any) => {
-    const handleImagePress = () => {
-      if (message.message_type === 'image') {
-        setSelectedImageUri(message.message)
-        setImageModalVisible(true)
-      }
-    }
+  const MessageItem = memo(
+    ({ message, isMine, showDate, showAvatar, isGroupStart, isGroupEnd }: any) => {
+      const handleImagePress = useCallback(() => {
+        if (message.message_type === 'image') {
+          setSelectedImageUri(message.message)
+          setImageModalVisible(true)
+        }
+      }, [message.message_type, message.message])
 
-    return (
-      <View style={styles.messageWrapper}>
-        {showDate && (
-          <View style={styles.dateSeparator}>
-            <Text style={styles.dateSeparatorText}>{formatDate(message.created_at)}</Text>
-          </View>
-        )}
-        <View style={[styles.messageRow, isMine ? styles.myMessageRow : styles.otherMessageRow]}>
-          <TouchableWithoutFeedback onLongPress={() => {}}>
-            <View style={[
-              styles.messageBubble,
-              isMine ? styles.myMessageBubble : styles.otherMessageBubble,
-              isGroupEnd && (isMine ? styles.myBubbleTail : styles.otherBubbleTail),
-            ]}>
-              {message.message_type === 'image' ? (
-                <TouchableOpacity activeOpacity={0.9} onPress={handleImagePress}>
-                  <Image source={{ uri: message.message }} style={styles.messageImage} resizeMode="cover" />
-                </TouchableOpacity>
-              ) : (
-                <Text style={[styles.messageText, isMine ? styles.myMessageText : styles.otherMessageText]}>
-                  {message.message}
-                </Text>
-              )}
-              <View style={styles.messageFooter}>
-                <Text style={[styles.messageTime, isMine ? { color: '#666' } : { color: Colors.neutral[500] }]}>
-                  {formatTime(message.created_at)}
-                </Text>
-                {isMine && message.status === 'sending' && <ActivityIndicator size={12} color="#999" style={{ marginLeft: 6 }} />}
-                {isMine && message.status === 'sent' && <Ionicons name="checkmark" size={16} color="#999" style={{ marginLeft: 6 }} />}
-                {isMine && message.status === 'read' && <Ionicons name="checkmark-done" size={16} color={Colors.primary[500]} style={{ marginLeft: 6 }} />}
-              </View>
+      return (
+        <View style={styles.messageWrapper}>
+          {showDate && (
+            <View style={styles.dateSeparator}>
+              <Text style={styles.dateSeparatorText}>{formatDate(message.created_at)}</Text>
             </View>
-          </TouchableWithoutFeedback>
+          )}
+          <View style={[styles.messageRow, isMine ? styles.myMessageRow : styles.otherMessageRow]}>
+            <TouchableWithoutFeedback onLongPress={() => {}}>
+              <View
+                style={[
+                  styles.messageBubble,
+                  isMine ? styles.myMessageBubble : styles.otherMessageBubble,
+                  isGroupEnd && (isMine ? styles.myBubbleTail : styles.otherBubbleTail),
+                ]}
+              >
+                {message.message_type === 'image' ? (
+                  <TouchableOpacity activeOpacity={0.9} onPress={handleImagePress}>
+                    <Image
+                      source={{ uri: message.message, cache: 'force-cache' }}
+                      style={styles.messageImage}
+                      resizeMode="cover"
+                      progressiveRenderingEnabled={true}
+                    />
+                  </TouchableOpacity>
+                ) : (
+                  <Text
+                    style={[
+                      styles.messageText,
+                      isMine ? styles.myMessageText : styles.otherMessageText,
+                    ]}
+                  >
+                    {message.message}
+                  </Text>
+                )}
+                <View style={styles.messageFooter}>
+                  <Text
+                    style={[
+                      styles.messageTime,
+                      isMine ? { color: '#666' } : { color: Colors.neutral[500] },
+                    ]}
+                  >
+                    {formatTime(message.created_at)}
+                  </Text>
+                  {isMine && message.status === 'sending' && (
+                    <ActivityIndicator size={12} color="#999" style={{ marginLeft: 6 }} />
+                  )}
+                  {isMine && message.status === 'sent' && (
+                    <Ionicons name="checkmark" size={16} color="#999" style={{ marginLeft: 6 }} />
+                  )}
+                  {isMine && message.status === 'read' && (
+                    <Ionicons
+                      name="checkmark-done"
+                      size={16}
+                      color={Colors.primary[500]}
+                      style={{ marginLeft: 6 }}
+                    />
+                  )}
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
         </View>
-      </View>
-    )
-  })
+      )
+    },
+    (prevProps, nextProps) => {
+      // Custom comparison for better performance
+      return (
+        prevProps.message.id === nextProps.message.id &&
+        prevProps.message.status === nextProps.message.status &&
+        prevProps.isMine === nextProps.isMine &&
+        prevProps.showDate === nextProps.showDate
+      )
+    },
+  )
 
   // Memoize date formatting to avoid repeated calculations
   const dateCache = useRef<Map<string, string>>(new Map())
@@ -479,28 +542,31 @@ export default function ChatDetail() {
     return dateCache.current.get(dateString)!
   }, [])
 
-  const renderMessage = useCallback(({ item, index }: { item: Message; index: number }) => {
-    const prev = sortedMessages[index - 1]
-    const next = sortedMessages[index + 1]
-    const isMine = isMyMessage(item)
-    const prevDate = prev ? getCachedDate(prev.created_at) : null
-    const itemDate = getCachedDate(item.created_at)
-    const showDate = !prev || itemDate !== prevDate
-    const showAvatar = !isMine && (!next || next.sender_id !== item.sender_id)
-    const isGroupStart = !prev || prev.sender_id !== item.sender_id
-    const isGroupEnd = !next || next.sender_id !== item.sender_id
+  const renderMessage = useCallback(
+    ({ item, index }: { item: Message; index: number }) => {
+      const prev = sortedMessages[index - 1]
+      const next = sortedMessages[index + 1]
+      const isMine = isMyMessage(item)
+      const prevDate = prev ? getCachedDate(prev.created_at) : null
+      const itemDate = getCachedDate(item.created_at)
+      const showDate = !prev || itemDate !== prevDate
+      const showAvatar = !isMine && (!next || next.sender_id !== item.sender_id)
+      const isGroupStart = !prev || prev.sender_id !== item.sender_id
+      const isGroupEnd = !next || next.sender_id !== item.sender_id
 
-    return (
-      <MessageItem
-        message={item}
-        isMine={isMine}
-        showDate={showDate}
-        showAvatar={showAvatar}
-        isGroupStart={isGroupStart}
-        isGroupEnd={isGroupEnd}
-      />
-    )
-  }, [sortedMessages, getCachedDate])
+      return (
+        <MessageItem
+          message={item}
+          isMine={isMine}
+          showDate={showDate}
+          showAvatar={showAvatar}
+          isGroupStart={isGroupStart}
+          isGroupEnd={isGroupEnd}
+        />
+      )
+    },
+    [sortedMessages, getCachedDate],
+  )
 
   const keyExtractor = useCallback((item: Message) => item.id, [])
 
@@ -548,61 +614,74 @@ export default function ChatDetail() {
           </View>
         ) : (
           <FlatList
-          ref={flatListRef}
-          data={sortedMessages}
-          renderItem={renderMessage}
-          keyExtractor={keyExtractor}
-          contentContainerStyle={[
-            styles.messagesList,
-            { paddingBottom: keyboardInset + Math.max(insets.bottom, 10) },
-          ]}
-          showsVerticalScrollIndicator={false}
-          removeClippedSubviews={true}
-          maxToRenderPerBatch={3}
-          updateCellsBatchingPeriod={150}
-          windowSize={3}
-          initialNumToRender={8}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="none"
-          nestedScrollEnabled={true}
-          scrollEventThrottle={50}
-          onContentSizeChange={() => {
-            // Only scroll if we have messages and not during initial load
-            if (sortedMessages.length > 0 && !initialLoad) {
-              // Use immediate scroll for better performance
-              flatListRef.current?.scrollToEnd({ animated: false })
+            ref={flatListRef}
+            data={sortedMessages}
+            renderItem={renderMessage}
+            keyExtractor={keyExtractor}
+            contentContainerStyle={[
+              styles.messagesList,
+              {
+                paddingBottom: keyboardInset > 0 ? keyboardInset + Math.max(insets.bottom, 10) : 10,
+              },
+            ]}
+            showsVerticalScrollIndicator={false}
+            removeClippedSubviews={Platform.OS === 'android'}
+            maxToRenderPerBatch={10}
+            updateCellsBatchingPeriod={50}
+            windowSize={10}
+            initialNumToRender={15}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="none"
+            nestedScrollEnabled={true}
+            scrollEventThrottle={16}
+            maintainVisibleContentPosition={{
+              minIndexForVisible: 0,
+              autoscrollToTopThreshold: 10,
+            }}
+            onContentSizeChange={() => {
+              // Only scroll if we have messages and not during initial load
+              if (sortedMessages.length > 0 && !initialLoad) {
+                // Use immediate scroll for better performance
+                flatListRef.current?.scrollToEnd({ animated: false })
+              }
+            }}
+            onLayout={(e) => {
+              // Only scroll on initial layout when content is loaded
+              if (
+                sortedMessages.length > 0 &&
+                e.nativeEvent.layout.height > 0 &&
+                !loading &&
+                !initialLoad
+              ) {
+                flatListRef.current?.scrollToEnd({ animated: false })
+              }
+            }}
+            ListEmptyComponent={
+              // Only show empty state if we're not loading and truly have no messages
+              !loading && sortedMessages.length === 0 && !initialLoad ? (
+                <View style={styles.emptyState}>
+                  <Ionicons
+                    name="chatbubble-ellipses-outline"
+                    size={64}
+                    color={Colors.primary[400]}
+                  />
+                  <Text style={styles.emptyTitle}>Say hi to {participantFirstName}</Text>
+                  <Text style={styles.emptySubtitle}>Start the conversation!</Text>
+                </View>
+              ) : null
             }
-          }}
-          onLayout={(e) => {
-            // Only scroll on initial layout when content is loaded
-            if (sortedMessages.length > 0 && e.nativeEvent.layout.height > 0 && !loading && !initialLoad) {
-              flatListRef.current?.scrollToEnd({ animated: false })
-            }
-          }}
-          ListEmptyComponent={
-            // Only show empty state if we're not loading and truly have no messages
-            !loading && sortedMessages.length === 0 && !initialLoad ? (
-              <View style={styles.emptyState}>
-                <Ionicons name="chatbubble-ellipses-outline" size={64} color={Colors.primary[400]} />
-                <Text style={styles.emptyTitle}>Say hi to {participantFirstName}</Text>
-                <Text style={styles.emptySubtitle}>Start the conversation!</Text>
-              </View>
-            ) : null
-          }
-        />
+          />
         )}
 
         {/* Input - Animated to stay above keyboard */}
-        <Animated.View
-          style={[
-            styles.inputContainer,
-            inputContainerAnimated,
-          ]}
-        >
+        <Animated.View style={[styles.inputContainer, inputContainerAnimated]}>
           <View style={styles.inputRow}>
             <View style={styles.inputWrapper}>
               <TextInput
-                style={[styles.textInput, { height: Math.min(MAX_INPUT_HEIGHT, Math.max(MIN_INPUT_HEIGHT, inputHeight)) }]}
+                style={[
+                  styles.textInput,
+                  { height: Math.min(MAX_INPUT_HEIGHT, Math.max(MIN_INPUT_HEIGHT, inputHeight)) },
+                ]}
                 value={newMessage}
                 onChangeText={setNewMessage}
                 placeholder="Type a message..."
@@ -633,16 +712,30 @@ export default function ChatDetail() {
             <Ionicons name="close" size={28} color="#fff" />
           </TouchableOpacity>
           {selectedImageUri && (
-            <Image source={{ uri: selectedImageUri }} style={styles.fullImage} resizeMode="contain" />
+            <Image
+              source={{ uri: selectedImageUri }}
+              style={styles.fullImage}
+              resizeMode="contain"
+            />
           )}
         </View>
       </Modal>
 
       {/* Options Modal */}
       <Modal visible={optionsVisible} transparent animationType="fade">
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setOptionsVisible(false)}>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setOptionsVisible(false)}
+        >
           <View style={styles.optionsSheet}>
-            <TouchableOpacity style={styles.optionItem} onPress={() => { setOptionsVisible(false); Alert.alert('Delete chat', 'Coming soon') }}>
+            <TouchableOpacity
+              style={styles.optionItem}
+              onPress={() => {
+                setOptionsVisible(false)
+                Alert.alert('Delete chat', 'Coming soon')
+              }}
+            >
               <Text style={styles.deleteText}>Delete chat</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.optionItem} onPress={() => setOptionsVisible(false)}>
@@ -657,7 +750,12 @@ export default function ChatDetail() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background?.primary || '#f5f5f5' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background?.primary || '#fff' },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.background?.primary || '#fff',
+  },
   loadingHeader: {
     paddingHorizontal: 16,
     paddingTop: 12,
@@ -704,7 +802,14 @@ const styles = StyleSheet.create({
 
   messageWrapper: { marginVertical: 2 },
   dateSeparator: { alignItems: 'center', marginVertical: 16 },
-  dateSeparatorText: { backgroundColor: 'rgba(0,0,0,0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, fontSize: 12, color: '#666' },
+  dateSeparatorText: {
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    fontSize: 12,
+    color: '#666',
+  },
   messageRow: {
     flexDirection: 'row',
     marginVertical: 4,
@@ -740,7 +845,12 @@ const styles = StyleSheet.create({
   messageText: { fontSize: 15.5, lineHeight: 21, color: '#000' },
   myMessageText: { color: '#000' },
   otherMessageText: { color: '#000' },
-  messageFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: 4 },
+  messageFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 4,
+  },
   messageTime: { fontSize: 11, color: '#666' },
   messageImage: { width: 220, height: 180, borderRadius: 12 },
 
@@ -780,11 +890,24 @@ const styles = StyleSheet.create({
   sendButtonDisabled: { backgroundColor: '#ccc' },
 
   imageModal: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
-  closeModal: { position: 'absolute', top: 50, left: 20, zIndex: 1, backgroundColor: 'rgba(0,0,0,0.5)', padding: 10, borderRadius: 30 },
+  closeModal: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    zIndex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    padding: 10,
+    borderRadius: 30,
+  },
   fullImage: { width: '100%', height: '100%' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  optionsSheet: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16 },
+  optionsSheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 16,
+  },
   optionItem: { paddingVertical: 16 },
   deleteText: { color: '#ff3b30', fontSize: 17, fontWeight: '600', textAlign: 'center' },
   cancelText: { color: '#333', fontSize: 17, textAlign: 'center' },

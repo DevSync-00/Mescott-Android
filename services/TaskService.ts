@@ -1,4 +1,7 @@
 import { supabase } from '../lib/supabase'
+import { getCache, setCache } from '../lib/cache'
+import { getIsOnline } from '../lib/connectivity'
+import { useAppStore } from '../state/store'
 import { handleError } from '../utils/errorHandler'
 import { UnifiedNotificationService } from './UnifiedNotificationService'
 
@@ -78,14 +81,14 @@ export interface TaskApplication {
 export class TaskService {
   // Helper method to get profile names by IDs
   private static async getProfileNames(profileIds: string[]): Promise<Map<string, string>> {
-    if (profileIds.length === 0) return new Map();
-    
+    if (profileIds.length === 0) return new Map()
+
     const { data: profiles } = await supabase
       .from('profiles')
       .select('id, full_name')
-      .in('id', profileIds);
-    
-    return new Map(profiles?.map(p => [p.id, p.full_name]) || []);
+      .in('id', profileIds)
+
+    return new Map(profiles?.map((p) => [p.id, p.full_name]) || [])
   }
 
   // Helper function to get category name by ID
@@ -103,6 +106,10 @@ export class TaskService {
     }
   }
 
+  private static readonly AVAILABLE_TASKS_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+  private static readonly RECENT_TASKS_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+  private static readonly TASK_DETAIL_CACHE_TTL = 10 * 60 * 1000 // 10 minutes
+
   // Helper function to get category names for multiple tasks
   private static async getCategoryNames(categoryIds: string[]): Promise<Map<string, string>> {
     try {
@@ -110,9 +117,9 @@ export class TaskService {
         .from('task_categories')
         .select('id, name')
         .in('id', categoryIds)
-      
+
       const categoryMap = new Map<string, string>()
-      categories?.forEach(category => {
+      categories?.forEach((category) => {
         categoryMap.set(category.id, category.name)
       })
       return categoryMap
@@ -125,8 +132,14 @@ export class TaskService {
   // Get all available tasks (open status, not assigned to current user)
   static async getAvailableTasks(userId: string): Promise<Task[]> {
     try {
+      const cacheKey = `tasks:available:${userId}`
+      const cached = await getCache<Task[]>(cacheKey)
+      if (cached?.length) {
+        return cached
+      }
+
       console.log('🚀 NEW CODE RUNNING - Getting available tasks for user:', userId)
-      
+
       // First get the profile ID for this user to exclude their own tasks
       const { data: userProfile, error: profileError } = await supabase
         .from('profiles')
@@ -149,21 +162,21 @@ export class TaskService {
         if (error) throw error
 
         // Get customer names and category names separately to avoid foreign key issues
-        const customerIds = [...new Set(data.map(task => task.customer_id))];
-        const categoryIds = [...new Set(data.map(task => task.category_id))];
-        const customerMap = await this.getProfileNames(customerIds);
-        const categoryMap = await this.getCategoryNames(categoryIds);
+        const customerIds = [...new Set(data.map((task) => task.customer_id))]
+        const categoryIds = [...new Set(data.map((task) => task.category_id))]
+        const customerMap = await this.getProfileNames(customerIds)
+        const categoryMap = await this.getCategoryNames(categoryIds)
 
-        return data.map(task => ({
+        return data.map((task) => ({
           ...task,
           customer_name: customerMap.get(task.customer_id) || 'Unknown',
           category_name: categoryMap.get(task.category_id) || 'Other',
-          applications_count: 0
+          applications_count: 0,
         }))
       }
-      
+
       console.log('Excluding tasks created by user_id:', userProfile.user_id)
-      
+
       // Use direct query instead of fetching all tasks
       const { data: tasks, error: tasksError } = await supabase
         .from('tasks')
@@ -186,24 +199,26 @@ export class TaskService {
       }
 
       // Get customer names and category names separately to avoid foreign key issues
-      const customerIds = [...new Set(tasks.map(task => task.customer_id))];
-      const categoryIds = [...new Set(tasks.map(task => task.category_id))];
-      const customerMap = await this.getProfileNames(customerIds);
-      const categoryMap = await this.getCategoryNames(categoryIds);
+      const customerIds = [...new Set(tasks.map((task) => task.customer_id))]
+      const categoryIds = [...new Set(tasks.map((task) => task.category_id))]
+      const customerMap = await this.getProfileNames(customerIds)
+      const categoryMap = await this.getCategoryNames(categoryIds)
 
-      const mappedTasks = tasks.map(task => ({
+      const mappedTasks = tasks.map((task) => ({
         ...task,
         customer_name: customerMap.get(task.customer_id) || 'Unknown',
         category_name: categoryMap.get(task.category_id) || 'Other',
-        applications_count: 0
+        applications_count: 0,
       }))
 
       console.log('Returning available tasks:', mappedTasks.length)
+      setCache(cacheKey, mappedTasks, this.AVAILABLE_TASKS_CACHE_TTL).catch(() => {})
       return mappedTasks
     } catch (error) {
       const appError = handleError(error, 'getAvailableTasks')
       console.error('Error getting available tasks:', appError)
-      return []
+      const cached = await getCache<Task[]>(`tasks:available:${userId}`)
+      return cached || []
     }
   }
 
@@ -211,7 +226,7 @@ export class TaskService {
   static async getMyTasks(userId: string): Promise<Task[]> {
     try {
       console.log('🚀 OPTIMIZED CODE RUNNING - Getting my tasks for user:', userId)
-      
+
       // First get the profile ID for this user
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
@@ -227,7 +242,11 @@ export class TaskService {
       }
 
       console.log('Getting my tasks for user_id:', profile.user_id)
-      console.log('Profile details:', { id: profile.id, user_id: profile.user_id, full_name: profile.full_name })
+      console.log('Profile details:', {
+        id: profile.id,
+        user_id: profile.user_id,
+        full_name: profile.full_name,
+      })
 
       // Use direct query instead of fetching all tasks
       const { data: tasks, error: tasksError } = await supabase
@@ -250,16 +269,16 @@ export class TaskService {
       }
 
       // Get tasker names and category names separately if any tasks have taskers
-      const taskerIds = tasks.filter(task => task.tasker_id).map(task => task.tasker_id);
-      const categoryIds = [...new Set(tasks.map(task => task.category_id))];
-      const taskerMap = await this.getProfileNames(taskerIds);
-      const categoryMap = await this.getCategoryNames(categoryIds);
+      const taskerIds = tasks.filter((task) => task.tasker_id).map((task) => task.tasker_id)
+      const categoryIds = [...new Set(tasks.map((task) => task.category_id))]
+      const taskerMap = await this.getProfileNames(taskerIds)
+      const categoryMap = await this.getCategoryNames(categoryIds)
 
-      const mappedTasks = tasks.map(task => ({
+      const mappedTasks = tasks.map((task) => ({
         ...task,
         tasker_name: task.tasker_id ? taskerMap.get(task.tasker_id) || 'Unknown' : '',
         category_name: categoryMap.get(task.category_id) || 'Other',
-        applications_count: 0 // Will be calculated separately
+        applications_count: 0, // Will be calculated separately
       }))
 
       console.log('Returning my tasks:', mappedTasks.length)
@@ -283,16 +302,16 @@ export class TaskService {
       if (error) throw error
 
       // Get customer names and category names separately
-      const customerIds = [...new Set(data.map(task => task.customer_id))];
-      const categoryIds = [...new Set(data.map(task => task.category_id))];
-      const customerMap = await this.getProfileNames(customerIds);
-      const categoryMap = await this.getCategoryNames(categoryIds);
+      const customerIds = [...new Set(data.map((task) => task.customer_id))]
+      const categoryIds = [...new Set(data.map((task) => task.category_id))]
+      const customerMap = await this.getProfileNames(customerIds)
+      const categoryMap = await this.getCategoryNames(categoryIds)
 
-      return data.map(task => ({
+      return data.map((task) => ({
         ...task,
         customer_name: customerMap.get(task.customer_id) || 'Unknown',
         category_name: categoryMap.get(task.category_id) || 'Other',
-        applications_count: 0 // Will be calculated separately
+        applications_count: 0, // Will be calculated separately
       }))
     } catch (error) {
       console.error('Error getting assigned tasks:', error)
@@ -301,18 +320,20 @@ export class TaskService {
   }
 
   // Create a new task
-  static async createTask(taskData: Omit<Task, 'id' | 'created_at' | 'updated_at' | 'applications_count'>): Promise<Task | null> {
+  static async createTask(
+    taskData: Omit<Task, 'id' | 'created_at' | 'updated_at' | 'applications_count'>,
+  ): Promise<Task | null> {
     try {
-      const { data, error } = await supabase
-        .from('tasks')
-        .insert([taskData])
-        .select('*')
-        .single()
+      const { data, error } = await supabase.from('tasks').insert([taskData]).select('*').single()
 
       if (error) throw error
 
       // Get customer name separately
-      const customerResult = await supabase.from('profiles').select('full_name').eq('id', data.customer_id).maybeSingle()
+      const customerResult = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', data.customer_id)
+        .maybeSingle()
       const customerName = customerResult.data?.full_name || 'Unknown'
 
       // Send notifications to relevant taskers
@@ -325,12 +346,12 @@ export class TaskService {
           .eq('is_active', true)
 
         if (taskers && taskers.length > 0) {
-          const taskerIds = taskers.map(t => t.id)
+          const taskerIds = taskers.map((t) => t.id)
           await UnifiedNotificationService.notifyNewTaskPosted(
             data.id,
             data.title,
             customerName,
-            taskerIds
+            taskerIds,
           )
           console.log('🚀 TASK SERVICE - Notifications sent to taskers for new task:', data.id)
         }
@@ -346,7 +367,7 @@ export class TaskService {
         ...data,
         customer_name: customerName,
         category_name: categoryName,
-        applications_count: 0
+        applications_count: 0,
       }
     } catch (error) {
       console.error('Error creating task:', error)
@@ -355,7 +376,40 @@ export class TaskService {
   }
 
   // Apply to a task
-  static async applyToTask(taskId: string, taskerId: string, proposedPrice: number, message: string, availabilityDate: string, userId: string): Promise<boolean> {
+  static async applyToTask(
+    taskId: string,
+    taskerId: string,
+    proposedPrice: number,
+    message: string,
+    availabilityDate: string,
+    userId: string,
+  ): Promise<boolean> {
+    const online = getIsOnline()
+    if (!online) {
+      useAppStore.getState().enqueueOfflineAction({
+        type: 'task:apply',
+        payload: { taskId, taskerId, proposedPrice, message, availabilityDate, userId },
+      })
+      return true
+    }
+    return this.applyToTaskOnline(
+      taskId,
+      taskerId,
+      proposedPrice,
+      message,
+      availabilityDate,
+      userId,
+    )
+  }
+
+  private static async applyToTaskOnline(
+    taskId: string,
+    taskerId: string,
+    proposedPrice: number,
+    message: string,
+    availabilityDate: string,
+    userId: string,
+  ): Promise<boolean> {
     try {
       // Check if already applied
       const { data: existingApplication } = await supabase
@@ -372,16 +426,18 @@ export class TaskService {
       // Create application
       const { data: applicationData, error } = await supabase
         .from('task_applications')
-        .insert([{
-          task_id: taskId,
-          tasker_id: taskerId,
-          user_id: userId, // Add user_id field
-          proposed_price: proposedPrice,
-          estimated_time: 1, // Default to 1 hour
-          message,
-          availability_date: availabilityDate,
-          status: 'pending'
-        }])
+        .insert([
+          {
+            task_id: taskId,
+            tasker_id: taskerId,
+            user_id: userId, // Add user_id field
+            proposed_price: proposedPrice,
+            estimated_time: 1, // Default to 1 hour
+            message,
+            availability_date: availabilityDate,
+            status: 'pending',
+          },
+        ])
         .select('id')
         .single()
 
@@ -409,7 +465,7 @@ export class TaskService {
             taskData.title,
             taskData.customer_id,
             taskerData.full_name,
-            applicationData.id
+            applicationData.id,
           )
           console.log('🚀 TASK SERVICE - Application notification sent for task:', taskId)
         }
@@ -425,6 +481,25 @@ export class TaskService {
     }
   }
 
+  // Process queued offline task application
+  static async processQueuedTaskApplication(payload: {
+    taskId: string
+    taskerId: string
+    proposedPrice: number
+    message: string
+    availabilityDate: string
+    userId: string
+  }): Promise<boolean> {
+    return this.applyToTaskOnline(
+      payload.taskId,
+      payload.taskerId,
+      payload.proposedPrice,
+      payload.message,
+      payload.availabilityDate,
+      payload.userId,
+    )
+  }
+
   // Get task applications
   static async getTaskApplications(taskId: string): Promise<TaskApplication[]> {
     try {
@@ -437,13 +512,13 @@ export class TaskService {
       if (error) throw error
 
       // Get tasker names separately
-      const taskerIds = data.map(app => app.tasker_id);
-      const taskerMap = await this.getProfileNames(taskerIds);
+      const taskerIds = data.map((app) => app.tasker_id)
+      const taskerMap = await this.getProfileNames(taskerIds)
 
-      return data.map(app => ({
+      return data.map((app) => ({
         ...app,
         tasker_name: taskerMap.get(app.tasker_id) || 'Unknown',
-        tasker_rating: 0 // Will be calculated separately if needed
+        tasker_rating: 0, // Will be calculated separately if needed
       }))
     } catch (error) {
       console.error('Error getting task applications:', error)
@@ -456,19 +531,21 @@ export class TaskService {
     try {
       const { data, error } = await supabase
         .from('task_applications')
-        .select(`
+        .select(
+          `
           *,
           task:tasks!task_id(title, status, budget)
-        `)
+        `,
+        )
         .eq('tasker_id', userId)
         .order('created_at', { ascending: false })
 
       if (error) throw error
 
-      return data.map(app => ({
+      return data.map((app) => ({
         ...app,
         tasker_name: '', // Not needed for my applications
-        tasker_rating: 0
+        tasker_rating: 0,
       }))
     } catch (error) {
       console.error('Error getting my applications:', error)
@@ -494,16 +571,16 @@ export class TaskService {
       if (error) throw error
 
       // Get customer names and category names separately
-      const customerIds = [...new Set(data.map(task => task.customer_id))];
-      const categoryIds = [...new Set(data.map(task => task.category_id))];
-      const customerMap = await this.getProfileNames(customerIds);
-      const categoryMap = await this.getCategoryNames(categoryIds);
+      const customerIds = [...new Set(data.map((task) => task.customer_id))]
+      const categoryIds = [...new Set(data.map((task) => task.category_id))]
+      const customerMap = await this.getProfileNames(customerIds)
+      const categoryMap = await this.getCategoryNames(categoryIds)
 
-      return data.map(task => ({
+      return data.map((task) => ({
         ...task,
         customer_name: customerMap.get(task.customer_id) || 'Unknown',
         category_name: categoryMap.get(task.category_id) || 'Other',
-        applications_count: 0
+        applications_count: 0,
       }))
     } catch (error) {
       console.error('Error searching tasks:', error)
@@ -523,7 +600,7 @@ export class TaskService {
         { id: '5', name: 'Delivery', slug: 'delivery' },
         { id: '6', name: 'Pet Care', slug: 'pet-care' },
         { id: '7', name: 'Tutoring', slug: 'tutoring' },
-        { id: '8', name: 'Other', slug: 'other' }
+        { id: '8', name: 'Other', slug: 'other' },
       ]
     } catch (error) {
       console.error('Error getting task categories:', error)
@@ -545,17 +622,19 @@ export class TaskService {
       if (error) throw error
 
       // Get customer names and category names separately
-      const customerIds = [...new Set(data.map(task => task.customer_id))];
-      const categoryIds = [...new Set(data.map(task => task.category_id))];
-      const customerMap = await this.getProfileNames(customerIds);
-      const categoryMap = await this.getCategoryNames(categoryIds);
+      const customerIds = [...new Set(data.map((task) => task.customer_id))]
+      const categoryIds = [...new Set(data.map((task) => task.category_id))]
+      const customerMap = await this.getProfileNames(customerIds)
+      const categoryMap = await this.getCategoryNames(categoryIds)
 
-      return data?.map(task => ({
-        ...task,
-        customer_name: customerMap.get(task.customer_id) || 'Unknown',
-        customer_avatar: '', // Will be added later if needed
-        category_name: categoryMap.get(task.category_id) || 'Other',
-      })) || []
+      return (
+        data?.map((task) => ({
+          ...task,
+          customer_name: customerMap.get(task.customer_id) || 'Unknown',
+          customer_avatar: '', // Will be added later if needed
+          category_name: categoryMap.get(task.category_id) || 'Other',
+        })) || []
+      )
     } catch (error) {
       console.error('Error getting featured tasks:', error)
       return []
@@ -565,6 +644,10 @@ export class TaskService {
   // Get recent tasks
   static async getRecentTasks(): Promise<Task[]> {
     try {
+      const cacheKey = 'tasks:recent'
+      const cached = await getCache<Task[]>(cacheKey)
+      if (cached?.length) return cached
+
       const { data, error } = await supabase
         .from('tasks')
         .select('*')
@@ -575,31 +658,35 @@ export class TaskService {
       if (error) throw error
 
       // Get customer names and category names separately
-      const customerIds = [...new Set(data.map(task => task.customer_id))];
-      const categoryIds = [...new Set(data.map(task => task.category_id))];
-      const customerMap = await this.getProfileNames(customerIds);
-      const categoryMap = await this.getCategoryNames(categoryIds);
+      const customerIds = [...new Set(data.map((task) => task.customer_id))]
+      const categoryIds = [...new Set(data.map((task) => task.category_id))]
+      const customerMap = await this.getProfileNames(customerIds)
+      const categoryMap = await this.getCategoryNames(categoryIds)
 
-      return data?.map(task => ({
-        ...task,
-        customer_name: customerMap.get(task.customer_id) || 'Unknown',
-        customer_avatar: '', // Will be added later if needed
-        category_name: categoryMap.get(task.category_id) || 'Other',
-      })) || []
+      const mapped =
+        data?.map((task) => ({
+          ...task,
+          customer_name: customerMap.get(task.customer_id) || 'Unknown',
+          customer_avatar: '', // Will be added later if needed
+          category_name: categoryMap.get(task.category_id) || 'Other',
+        })) || []
+      setCache(cacheKey, mapped, this.RECENT_TASKS_CACHE_TTL).catch(() => {})
+      return mapped
     } catch (error) {
       console.error('Error getting recent tasks:', error)
-      return []
+      const cached = await getCache<Task[]>('tasks:recent')
+      return cached || []
     }
   }
 
   // Get a single task by ID with all details (OPTIMIZED VERSION - parallel fetching)
   static async getTaskById(taskId: string): Promise<Task | null> {
     try {
-        const { data, error } = await supabase
-          .from('tasks')
-          .select('*')
-          .eq('id', taskId)
-          .single()
+      const cacheKey = `task:detail:${taskId}`
+      const cached = await getCache<Task>(cacheKey)
+      if (cached) return cached
+
+      const { data, error } = await supabase.from('tasks').select('*').eq('id', taskId).single()
 
       if (error) throw error
       if (!data) {
@@ -608,11 +695,7 @@ export class TaskService {
 
       // Fetch customer name, tasker name, and category name in parallel for faster loading
       const customerPromise = Promise.resolve(
-        supabase
-          .from('profiles')
-          .select('full_name')
-          .eq('id', data.customer_id)
-          .maybeSingle()
+        supabase.from('profiles').select('full_name').eq('id', data.customer_id).maybeSingle(),
       )
 
       const categoryPromise = data.category_id
@@ -621,32 +704,35 @@ export class TaskService {
               .from('task_categories')
               .select('name')
               .eq('id', data.category_id)
-              .maybeSingle()
+              .maybeSingle(),
           )
         : Promise.resolve({ data: null })
 
       const taskerPromise = data.tasker_id
         ? Promise.resolve(
-            supabase
-              .from('profiles')
-              .select('full_name')
-              .eq('id', data.tasker_id)
-              .maybeSingle()
+            supabase.from('profiles').select('full_name').eq('id', data.tasker_id).maybeSingle(),
           )
         : Promise.resolve({ data: null })
 
-      const [customer, category, tasker] = await Promise.all([customerPromise, categoryPromise, taskerPromise])
+      const [customer, category, tasker] = await Promise.all([
+        customerPromise,
+        categoryPromise,
+        taskerPromise,
+      ])
 
-      return {
+      const taskWithMeta = {
         ...data,
         customer_name: customer?.data?.full_name || '',
         tasker_name: tasker?.data?.full_name || '',
         category_name: category?.data?.name || 'Other',
-        applications_count: 0 // Will be calculated separately if needed
+        applications_count: 0, // Will be calculated separately if needed
       }
+      setCache(cacheKey, taskWithMeta, this.TASK_DETAIL_CACHE_TTL).catch(() => {})
+      return taskWithMeta
     } catch (error) {
       console.error('Error getting task by ID:', error)
-      return null
+      const cached = await getCache<Task>(`task:detail:${taskId}`)
+      return cached || null
     }
   }
 
@@ -656,7 +742,8 @@ export class TaskService {
       // Get application details with task info
       const { data: application, error: appError } = await supabase
         .from('task_applications')
-        .select(`
+        .select(
+          `
           tasker_id, 
           proposed_price,
           tasks!inner(
@@ -665,7 +752,8 @@ export class TaskService {
             customer_id,
             status
           )
-        `)
+        `,
+        )
         .eq('id', applicationId)
         .single()
 
@@ -678,7 +766,7 @@ export class TaskService {
           status: 'assigned',
           tasker_id: application.tasker_id,
           final_price: application.proposed_price,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', taskId)
 
@@ -687,9 +775,9 @@ export class TaskService {
       // Update application status
       const { error: appUpdateError } = await supabase
         .from('task_applications')
-        .update({ 
+        .update({
           status: 'accepted',
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', applicationId)
 
@@ -703,7 +791,11 @@ export class TaskService {
   }
 
   // Update task status with proper workflow validation
-  static async updateTaskStatus(taskId: string, status: Task['status'], updatedBy: string): Promise<boolean> {
+  static async updateTaskStatus(
+    taskId: string,
+    status: Task['status'],
+    updatedBy: string,
+  ): Promise<boolean> {
     try {
       // Get current task details
       const { data: currentTask, error: fetchError } = await supabase
@@ -718,12 +810,12 @@ export class TaskService {
 
       // Validate status transition
       const validTransitions: Record<string, string[]> = {
-        'draft': ['open', 'cancelled'],
-        'open': ['assigned', 'cancelled'],
-        'assigned': ['in_progress', 'cancelled'],
-        'in_progress': ['completed', 'cancelled'],
-        'completed': [], // Terminal state
-        'cancelled': [] // Terminal state
+        draft: ['open', 'cancelled'],
+        open: ['assigned', 'cancelled'],
+        assigned: ['in_progress', 'cancelled'],
+        in_progress: ['completed', 'cancelled'],
+        completed: [], // Terminal state
+        cancelled: [], // Terminal state
       }
 
       const currentStatus = currentTask.status as Task['status']
@@ -747,7 +839,7 @@ export class TaskService {
 
       const updateData: any = {
         status,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       }
 
       // Set specific timestamps based on status
@@ -765,10 +857,7 @@ export class TaskService {
         updateData.cancelled_at = new Date().toISOString()
       }
 
-      const { error } = await supabase
-        .from('tasks')
-        .update(updateData)
-        .eq('id', taskId)
+      const { error } = await supabase.from('tasks').update(updateData).eq('id', taskId)
 
       if (error) throw error
       return true
@@ -782,7 +871,7 @@ export class TaskService {
   static async completeTask(taskId: string, completedBy: string, notes?: string): Promise<boolean> {
     try {
       console.log('🚀 FAST TASK COMPLETION - Starting for task:', taskId)
-      
+
       // Get task details in a single query
       const { data: task, error: taskError } = await supabase
         .from('tasks')
@@ -805,12 +894,12 @@ export class TaskService {
 
       // Update task status FIRST and return immediately
       const { error: updateError } = await supabase
-          .from('tasks')
-          .update({
-            status: 'completed',
-            completed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
+        .from('tasks')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', taskId)
 
       if (updateError) {
@@ -822,12 +911,11 @@ export class TaskService {
 
       // Run background operations without blocking the UI
       // These will complete asynchronously without waiting
-      this.completeTaskBackgroundOperations(taskId, task, completedBy).catch(error => {
+      this.completeTaskBackgroundOperations(taskId, task, completedBy).catch((error) => {
         console.error('❌ Background operations error (non-critical):', error)
       })
 
       return true
-
     } catch (error) {
       console.error('❌ Error completing task:', error)
       return false
@@ -838,7 +926,7 @@ export class TaskService {
   private static async completeTaskBackgroundOperations(
     taskId: string,
     task: any,
-    completedBy: string
+    completedBy: string,
   ): Promise<void> {
     try {
       console.log('🔄 Running background operations for task:', taskId)
@@ -852,7 +940,7 @@ export class TaskService {
         this.createPaymentForCompletedTask(task),
 
         // 3. Send completion notifications
-        this.sendCompletionNotifications(task, completedBy)
+        this.sendCompletionNotifications(task, completedBy),
       ])
 
       console.log('✅ Background operations completed for task:', taskId)
@@ -866,7 +954,7 @@ export class TaskService {
   private static async deleteChatForCompletedTask(taskId: string): Promise<void> {
     try {
       console.log('🗑️ Deleting chat for completed task:', taskId)
-      
+
       // Find chat for this task
       const { data: chat, error: findError } = await supabase
         .from('chats')
@@ -886,14 +974,8 @@ export class TaskService {
 
       // Delete messages and chat in parallel
       const [messagesResult, chatResult] = await Promise.allSettled([
-        supabase
-          .from('messages_new')
-          .delete()
-          .eq('chat_id', chat.id),
-        supabase
-          .from('chats')
-          .delete()
-          .eq('id', chat.id)
+        supabase.from('messages_new').delete().eq('chat_id', chat.id),
+        supabase.from('chats').delete().eq('id', chat.id),
       ])
 
       if (messagesResult.status === 'rejected') {
@@ -906,7 +988,6 @@ export class TaskService {
       if (messagesResult.status === 'fulfilled' && chatResult.status === 'fulfilled') {
         console.log('✅ Chat and messages deleted successfully for task:', taskId)
       }
-
     } catch (error) {
       console.error('Error in deleteChatForCompletedTask:', error)
     }
@@ -930,16 +1011,15 @@ export class TaskService {
 
       // Import PaymentService dynamically to avoid circular dependencies
       const { PaymentService } = await import('./PaymentService')
-      
+
       await PaymentService.createTaskPayment(
         task.id,
         task.customer_id,
         paymentAmount,
-        `Payment for completed task: ${task.title}`
+        `Payment for completed task: ${task.title}`,
       )
 
       console.log('✅ Payment requirement created successfully')
-
     } catch (error) {
       console.error('Error creating payment for completed task:', error)
     }
@@ -960,7 +1040,7 @@ export class TaskService {
           'Task Completed',
           `Task "${task.title}" has been completed by the tasker.`,
           'task',
-          { task_id: task.id, action: 'task_completed' }
+          { task_id: task.id, action: 'task_completed' },
         )
       }
 
@@ -971,12 +1051,11 @@ export class TaskService {
           'Task Completed',
           `You have successfully completed task "${task.title}".`,
           'task',
-          { task_id: task.id, action: 'task_completed' }
+          { task_id: task.id, action: 'task_completed' },
         )
       }
 
       console.log('✅ Completion notifications sent successfully')
-
     } catch (error) {
       console.error('Error sending completion notifications:', error)
     }
@@ -1003,7 +1082,7 @@ export class TaskService {
           status: 'cancelled',
           cancelled_at: new Date().toISOString(),
           cancellation_reason: reason,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', taskId)
 
@@ -1020,7 +1099,7 @@ export class TaskService {
   static async handleExpiredTasks(): Promise<{ expired: number; updated: number }> {
     try {
       const now = new Date().toISOString()
-      
+
       // Find expired tasks that are still open
       const { data: expiredTasks, error: fetchError } = await supabase
         .from('tasks')
@@ -1041,9 +1120,12 @@ export class TaskService {
           status: 'cancelled',
           cancelled_at: now,
           cancellation_reason: 'Task expired',
-          updated_at: now
+          updated_at: now,
         })
-        .in('id', expiredTasks.map(task => task.id))
+        .in(
+          'id',
+          expiredTasks.map((task) => task.id),
+        )
 
       if (updateError) throw updateError
 
@@ -1059,7 +1141,7 @@ export class TaskService {
     try {
       const futureDate = new Date()
       futureDate.setDate(futureDate.getDate() + days)
-      
+
       const { data, error } = await supabase
         .from('tasks')
         .select('*')
@@ -1071,16 +1153,16 @@ export class TaskService {
       if (error) throw error
 
       // Get customer names and category names
-      const customerIds = [...new Set(data.map(task => task.customer_id))];
-      const categoryIds = [...new Set(data.map(task => task.category_id))];
-      const customerMap = await this.getProfileNames(customerIds);
-      const categoryMap = await this.getCategoryNames(categoryIds);
+      const customerIds = [...new Set(data.map((task) => task.customer_id))]
+      const categoryIds = [...new Set(data.map((task) => task.category_id))]
+      const customerMap = await this.getProfileNames(customerIds)
+      const categoryMap = await this.getCategoryNames(categoryIds)
 
-      return data.map(task => ({
+      return data.map((task) => ({
         ...task,
         customer_name: customerMap.get(task.customer_id) || 'Unknown',
         category_name: categoryMap.get(task.category_id) || 'Other',
-        applications_count: 0
+        applications_count: 0,
       }))
     } catch (error) {
       console.error('Error getting tasks expiring soon:', error)
@@ -1089,7 +1171,11 @@ export class TaskService {
   }
 
   // Bulk operations
-  static async bulkUpdateTaskStatus(taskIds: string[], status: Task['status'], updatedBy: string): Promise<{ success: number; failed: number; errors: string[] }> {
+  static async bulkUpdateTaskStatus(
+    taskIds: string[],
+    status: Task['status'],
+    updatedBy: string,
+  ): Promise<{ success: number; failed: number; errors: string[] }> {
     const results = { success: 0, failed: 0, errors: [] as string[] }
 
     for (const taskId of taskIds) {
@@ -1111,7 +1197,10 @@ export class TaskService {
   }
 
   // Bulk delete tasks (only for draft or cancelled tasks)
-  static async bulkDeleteTasks(taskIds: string[], userId: string): Promise<{ success: number; failed: number; errors: string[] }> {
+  static async bulkDeleteTasks(
+    taskIds: string[],
+    userId: string,
+  ): Promise<{ success: number; failed: number; errors: string[] }> {
     const results = { success: 0, failed: 0, errors: [] as string[] }
 
     try {
@@ -1123,20 +1212,25 @@ export class TaskService {
 
       if (fetchError) throw fetchError
 
-      const deletableTasks = tasks.filter(task => 
-        task.customer_id === userId && 
-        (task.status === 'draft' || task.status === 'cancelled')
+      const deletableTasks = tasks.filter(
+        (task) =>
+          task.customer_id === userId && (task.status === 'draft' || task.status === 'cancelled'),
       )
 
       if (deletableTasks.length !== taskIds.length) {
-        results.errors.push('Some tasks cannot be deleted (not owned by user or not in deletable status)')
+        results.errors.push(
+          'Some tasks cannot be deleted (not owned by user or not in deletable status)',
+        )
       }
 
       if (deletableTasks.length > 0) {
         const { error: deleteError } = await supabase
           .from('tasks')
           .delete()
-          .in('id', deletableTasks.map(task => task.id))
+          .in(
+            'id',
+            deletableTasks.map((task) => task.id),
+          )
 
         if (deleteError) throw deleteError
 
@@ -1145,7 +1239,6 @@ export class TaskService {
       } else {
         results.failed = taskIds.length
       }
-
     } catch (error) {
       results.failed = taskIds.length
       results.errors.push(`Bulk delete error: ${error}`)
@@ -1155,7 +1248,11 @@ export class TaskService {
   }
 
   // Update a task (only by owner)
-  static async updateTask(taskId: string, userId: string, updates: Partial<Task>): Promise<Task | null> {
+  static async updateTask(
+    taskId: string,
+    userId: string,
+    updates: Partial<Task>,
+  ): Promise<Task | null> {
     try {
       // First, verify the task exists and belongs to the user
       const { data: existingTask, error: fetchError } = await supabase
@@ -1183,7 +1280,7 @@ export class TaskService {
         .from('tasks')
         .update({
           ...updates,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', taskId)
         .select()
@@ -1222,10 +1319,7 @@ export class TaskService {
       }
 
       // Delete the task
-      const { error } = await supabase
-        .from('tasks')
-        .delete()
-        .eq('id', taskId)
+      const { error } = await supabase.from('tasks').delete().eq('id', taskId)
 
       if (error) throw error
       return true
@@ -1261,7 +1355,7 @@ export class TaskService {
           completedTasks: 0,
           cancelledTasks: 0,
           totalEarnings: 0,
-          averageRating: 0
+          averageRating: 0,
         }
       }
 
@@ -1281,25 +1375,25 @@ export class TaskService {
 
       const stats = {
         totalTasks: allTasks.length,
-        openTasks: allTasks.filter(t => t.status === 'open').length,
-        assignedTasks: allTasks.filter(t => t.status === 'assigned').length,
-        completedTasks: allTasks.filter(t => t.status === 'completed').length,
-        cancelledTasks: allTasks.filter(t => t.status === 'cancelled').length,
+        openTasks: allTasks.filter((t) => t.status === 'open').length,
+        assignedTasks: allTasks.filter((t) => t.status === 'assigned').length,
+        completedTasks: allTasks.filter((t) => t.status === 'completed').length,
+        cancelledTasks: allTasks.filter((t) => t.status === 'cancelled').length,
         totalEarnings: allTasks
-          .filter(t => t.status === 'completed' && t.final_price)
+          .filter((t) => t.status === 'completed' && t.final_price)
           .reduce((sum, t) => sum + (t.final_price || 0), 0),
-        averageRating: 0
+        averageRating: 0,
       }
 
       // Calculate average rating
       const ratings = allTasks
-        .map(t => {
+        .map((t) => {
           const customerTask = t as any
           const taskerTask = t as any
           return customerTask.customer_rating || taskerTask.tasker_rating || 0
         })
-        .filter(r => r && r > 0)
-      
+        .filter((r) => r && r > 0)
+
       if (ratings.length > 0) {
         stats.averageRating = ratings.reduce((sum, r) => sum + r, 0) / ratings.length
       }
@@ -1314,7 +1408,7 @@ export class TaskService {
         completedTasks: 0,
         cancelledTasks: 0,
         totalEarnings: 0,
-        averageRating: 0
+        averageRating: 0,
       }
     }
   }
