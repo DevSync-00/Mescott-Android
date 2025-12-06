@@ -48,7 +48,7 @@ export default function TaskDetail() {
         loadTaskDetails()
         loadPendingPayments()
       }
-    }, [isAuthenticated, taskId]),
+    }, [isAuthenticated, taskId, loadTaskDetails, loadPendingPayments]),
   )
 
   useEffect(() => {

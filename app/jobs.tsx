@@ -124,6 +124,32 @@ export default function Jobs() {
     }
   }, [isAuthenticated, isLoading, router])
 
+  const checkAppliedTasks = useCallback(
+    async (tasks: Task[]) => {
+      if (!user) return
+
+      const appliedSet = new Set<string>()
+
+      // Check each task to see if user has applied
+      for (const task of tasks) {
+        try {
+          const hasApplied = await TaskApplicationService.hasUserAppliedToTask(
+            user.user_id,
+            task.id,
+          )
+          if (hasApplied) {
+            appliedSet.add(task.id)
+          }
+        } catch (error) {
+          console.error(`Error checking application for task ${task.id}:`, error)
+        }
+      }
+
+      setAppliedTasks(appliedSet)
+    },
+    [user],
+  )
+
   const loadTasks = useCallback(async () => {
     if (!user) {
       return
@@ -151,7 +177,7 @@ export default function Jobs() {
     } finally {
       setLoading(false)
     }
-  }, [user, activeTab])
+  }, [user, activeTab, checkAppliedTasks])
 
   const loadPendingPayments = useCallback(async () => {
     if (!user) return
@@ -163,26 +189,6 @@ export default function Jobs() {
       console.error('Error loading pending payments:', error)
     }
   }, [user])
-
-  const checkAppliedTasks = async (tasks: Task[]) => {
-    if (!user) return
-
-    const appliedSet = new Set<string>()
-
-    // Check each task to see if user has applied
-    for (const task of tasks) {
-      try {
-        const hasApplied = await TaskApplicationService.hasUserAppliedToTask(user.user_id, task.id)
-        if (hasApplied) {
-          appliedSet.add(task.id)
-        }
-      } catch (error) {
-        console.error(`Error checking application for task ${task.id}:`, error)
-      }
-    }
-
-    setAppliedTasks(appliedSet)
-  }
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -198,7 +204,7 @@ export default function Jobs() {
         loadTasks() // This will call checkAppliedTasks internally
         loadPendingPayments()
       }
-    }, [isAuthenticated, user, activeTab, loadTasks, loadPendingPayments]),
+    }, [isAuthenticated, user, loadTasks, loadPendingPayments]),
   )
 
   const fabBottomOffset = 0 + insets.bottom

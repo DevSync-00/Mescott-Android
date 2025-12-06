@@ -47,7 +47,8 @@ export default function PaymentSuccessScreen() {
       Alert.alert('Error', 'Invalid payment reference')
       router.replace('/')
     }
-  }, [tx_ref, verifyPayment, router])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tx_ref, verifyPayment])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ET', {

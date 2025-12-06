@@ -177,7 +177,8 @@ export default function Chats() {
       setFilteredChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, unread_count: 0 } : c)))
       setClearedChats((prev) => {
         const next = new Set([...Array.from(prev), chatId])
-        AsyncStorage.setItem(CLEARED_KEY, JSON.stringify(Array.from(next))).catch(() => {})
+        const clearedKey = user ? `cleared_unread_${user.id}` : 'cleared_unread'
+        AsyncStorage.setItem(clearedKey, JSON.stringify(Array.from(next))).catch(() => {})
         return next
       })
 

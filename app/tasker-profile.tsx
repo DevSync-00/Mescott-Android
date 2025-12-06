@@ -34,12 +34,6 @@ export default function TaskerProfile() {
     'overview',
   )
 
-  useEffect(() => {
-    if (taskerId) {
-      loadPortfolio()
-    }
-  }, [taskerId])
-
   const loadPortfolio = useCallback(async () => {
     try {
       setLoading(true)

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import {
   View,
   Text,
@@ -41,7 +41,7 @@ export default function Index() {
   // const [taskDetailVisible, setTaskDetailVisible] = useState(false)
   // const [selectedTaskIdForDetail, setSelectedTaskIdForDetail] = useState<string | null>(null)
 
-  const loadTasks = async () => {
+  const loadTasks = useCallback(async () => {
     if (!user) return
 
     try {
@@ -71,12 +71,13 @@ export default function Index() {
     } finally {
       setLoadingTasks(false)
     }
-  }
+  }, [user])
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.replace('/auth')
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, isAuthenticated])
 
   useEffect(() => {
