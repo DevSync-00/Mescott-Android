@@ -4,7 +4,7 @@
     "slug": "mescott",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/adaptive-icon.png",
     "scheme": "mescott",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -44,9 +44,14 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash.png",
-          "backgroundColor": "#ffffff",
-          "resizeMode": "contain"
+          "image": "./assets/images/splash-icon-light.png",
+          "imageWidth": 200,
+          "backgroundColor": "#7B42F6",
+          "resizeMode": "contain",
+          "dark":{
+            "image":"./assets/images/splash-icon-dark.png",
+            "backgroundColor": "#000000"
+          }
         }
       ],
       [
@@ -59,7 +64,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/icon.png",
+          "icon": "./assets/images/adaptive-icon.png",
           "color": "#7B42F6",
           "defaultChannel": "default"
         }
