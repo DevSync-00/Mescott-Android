@@ -1,4 +1,8 @@
 #!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
+# Husky v10+ compatible: avoid deprecated _/husky.sh bootstrap
+set -e
+
+# Run from repo root so tools resolve paths consistently
+cd -- "$(dirname "$0")/.." || exit 1
 
 npx lint-staged
