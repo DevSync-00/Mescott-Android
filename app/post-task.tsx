@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  Alert,
   KeyboardAvoidingView,
   Keyboard,
   TouchableWithoutFeedback,
@@ -18,11 +17,13 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
+import { useToast } from '../contexts/ToastContext'
 import { TaskService } from '../services/TaskService'
 import { SimpleNotificationService } from '../services/SimpleNotificationService'
 import { supabase } from '../lib/supabase'
 import { Colors } from '../constants/Colors'
 import MultiImageUpload from '../components/MultiImageUpload'
+import { showSuccessAlert } from '../utils/alertHelper'
 
 const categories = [
   'General',
@@ -70,6 +71,7 @@ const getCategoryColor = (category: string) => {
 
 export default function PostTask() {
   const { user, isAuthenticated, isLoading } = useAuth()
+  const { showError } = useToast()
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { category, taskId, editMode } = useLocalSearchParams()
@@ -303,37 +305,41 @@ export default function PostTask() {
         // createdTask exists in create branch only; skip in edit
       }
 
-      Alert.alert('Success', isEdit ? 'Task updated successfully!' : 'Task posted successfully!', [
-        {
-          text: 'OK',
-          onPress: () => {
-            // Reset form
-            setTitle('')
-            setDescription('')
-            setPrice('')
-            setLocation('')
-            setSelectedCategory('')
-            setTaskImages([])
-            setTaskDate(new Date())
-            const defaultTime = new Date()
-            defaultTime.setHours(0, 0, 0, 0) // Set to 12:00 AM
-            setTaskTime(defaultTime)
+      showSuccessAlert(
+        'Success',
+        isEdit ? 'Task updated successfully!' : 'Task posted successfully!',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              // Reset form
+              setTitle('')
+              setDescription('')
+              setPrice('')
+              setLocation('')
+              setSelectedCategory('')
+              setTaskImages([])
+              setTaskDate(new Date())
+              const defaultTime = new Date()
+              defaultTime.setHours(0, 0, 0, 0) // Set to 12:00 AM
+              setTaskTime(defaultTime)
 
-            // Redirect appropriately
-            if (isEdit && typeof taskId === 'string') {
-              router.push({
-                pathname: '/task-detail',
-                params: { taskId: taskId as string, refresh: String(Date.now()) },
-              })
-            } else {
-              router.push('/jobs')
-            }
+              // Redirect appropriately
+              if (isEdit && typeof taskId === 'string') {
+                router.push({
+                  pathname: '/task-detail',
+                  params: { taskId: taskId as string, refresh: String(Date.now()) },
+                })
+              } else {
+                router.push('/jobs')
+              }
+            },
           },
-        },
-      ])
+        ]
+      )
     } catch (error) {
       console.error('Error posting task:', error)
-      Alert.alert('Error', 'Failed to post task. Please try again.')
+      showError('Failed to post task. Please try again.')
     } finally {
       setLoading(false)
     }

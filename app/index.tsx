@@ -7,11 +7,11 @@ import {
   ScrollView,
   Dimensions,
   TextInput,
-  Image,
   NativeScrollEvent,
   NativeSyntheticEvent,
   StatusBar,
 } from 'react-native'
+import { Image } from 'expo-image'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { router } from 'expo-router'
@@ -23,6 +23,7 @@ import { SkeletonList } from '../components/SkeletonLoader'
 import NotificationsSheet from '../components/NotificationsSheet'
 import CategorySearchSheet from '../components/CategorySearchSheet'
 import { CATEGORIES } from '../constants/Categories'
+import TextureBackground from '../components/TextureBackground'
 // import TaskDetailSheet from '../components/TaskDetailSheet'
 
 // Splash screen is handled in _layout.tsx
@@ -115,17 +116,24 @@ export default function Index() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={[]}>
-      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
-      <View style={styles.containerContent}>
+    <TextureBackground>
+      <SafeAreaView style={styles.container} edges={[]}>
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
+        <View style={styles.containerContent}>
         {/* Fixed Header */}
         <View style={[styles.headerWrapper, { paddingTop: 8 + insets.top }]}>
           <View style={styles.header}>
             <View style={styles.headerTop}>
               <View style={styles.greetingContainer}>
-                <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">
-                  MESCOTT
-                </Text>
+                <View style={styles.brandContainer}>
+                  <Text style={styles.brandText}>MESCO</Text>
+                  <Image
+                    source={require('../assets/images/splash-icon-dark.png')}
+                    style={styles.brandIcon}
+                    contentFit="contain"
+                    cachePolicy="memory-disk"
+                  />
+                </View>
               </View>
               <View style={styles.headerButtons}>
                 <TouchableOpacity
@@ -380,23 +388,24 @@ export default function Index() {
           }}
         />
         {/* Task Detail navigates to full page now; sheet removed */}
-      </View>
-    </SafeAreaView>
+        </View>
+      </SafeAreaView>
+    </TextureBackground>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: 'transparent',
   },
   containerContent: {
     flex: 1,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: 'transparent',
   },
   content: {
     flex: 1,
-    backgroundColor: Colors.background.secondary,
+    backgroundColor: 'transparent',
   },
   scrollView: {
     flex: 1,
@@ -435,6 +444,24 @@ const styles = StyleSheet.create({
     color: Colors.primary[500],
     marginTop: 4,
     letterSpacing: 0.5,
+  },
+  brandContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  brandText: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: Colors.primary[500],
+    marginTop: 4,
+    letterSpacing: 0.5,
+  },
+  brandIcon: {
+    width: 44,
+    height: 44,
+    marginLeft: -2,
+    marginTop: -2,
   },
   notificationButton: {
     width: 44,

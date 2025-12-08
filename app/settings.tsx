@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Alert,
   StatusBar,
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -13,6 +12,8 @@ import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { Colors } from '../constants/Colors'
+import { showConfirmation, showInfoAlert } from '../utils/alertHelper'
+import TextureBackground from '../components/TextureBackground'
 
 export default function Settings() {
   const { logout } = useAuth()
@@ -20,39 +21,41 @@ export default function Settings() {
   const insets = useSafeAreaInsets()
 
   const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Logout',
-        style: 'destructive',
-        onPress: async () => {
-          await logout()
-          router.replace('/auth')
-        },
+    showConfirmation(
+      'Logout',
+      'Are you sure you want to logout?',
+      async () => {
+        await logout()
+        router.replace('/auth')
       },
-    ])
+      undefined,
+      'Logout',
+      'Cancel',
+      'warning'
+    )
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={[]}>
-      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
+    <TextureBackground>
+      <SafeAreaView style={styles.container} edges={[]}>
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
 
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: 8 + insets.top }]}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.push('/profile')}>
-          <Ionicons name="arrow-back" size={24} color={Colors.neutral[700]} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Settings</Text>
-        <View style={styles.placeholder} />
-      </View>
+        {/* Header */}
+        <View style={[styles.header, { paddingTop: 8 + insets.top }]}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.push('/profile')}>
+            <Ionicons name="arrow-back" size={24} color={Colors.neutral[700]} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Settings</Text>
+          <View style={styles.placeholder} />
+        </View>
 
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={{ paddingBottom: 100 }}
-        showsVerticalScrollIndicator={false}
-        bounces={true}
-        alwaysBounceVertical={true}
-      >
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={{ paddingBottom: 100 }}
+          showsVerticalScrollIndicator={false}
+          bounces={true}
+          alwaysBounceVertical={true}
+        >
         {/* Account Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
@@ -131,7 +134,7 @@ export default function Settings() {
           <TouchableOpacity
             style={styles.settingItem}
             onPress={() =>
-              Alert.alert('Help & Support', 'For support, please contact us at support@mescott.com')
+              showInfoAlert('Help & Support', 'For support, please contact us at support@mescott.com')
             }
           >
             <View style={styles.settingLeft}>
@@ -149,9 +152,9 @@ export default function Settings() {
           <TouchableOpacity
             style={styles.settingItem}
             onPress={() =>
-              Alert.alert(
+              showInfoAlert(
                 'About Mescott',
-                'Version 1.0.0\n\nYour trusted marketplace for local services in Ethiopia.',
+                'Version 1.0.0\n\nYour trusted marketplace for local services in Ethiopia.'
               )
             }
           >
@@ -173,8 +176,9 @@ export default function Settings() {
           <Ionicons name="log-out-outline" size={20} color={Colors.error[500]} />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
+    </TextureBackground>
   )
 }
 

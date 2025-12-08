@@ -1,9 +1,11 @@
 import React, { useState } from 'react'
-import { View, Text, TouchableOpacity, Image, ScrollView, StyleSheet, Alert } from 'react-native'
+import { View, Text, TouchableOpacity, Image, ScrollView, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
+import { useToast } from '../contexts/ToastContext'
 import { ImageService } from '../services/ImageService'
 import { Colors } from '../constants/Colors'
+import { showConfirmation, showInfoAlert, showWarningAlert } from '../utils/alertHelper'
 
 interface MultiImageUploadProps {
   onImagesChange: (images: string[]) => void
@@ -20,13 +22,14 @@ export default function MultiImageUpload({
   placeholder = 'Add images',
   showPreview = true,
 }: MultiImageUploadProps) {
+  const { showError } = useToast()
   const [uploading, setUploading] = useState(false)
 
   const handleAddImages = async () => {
     try {
       const remainingSlots = maxImages - currentImages.length
       if (remainingSlots <= 0) {
-        Alert.alert('Limit Reached', `You can only upload up to ${maxImages} images.`)
+        showInfoAlert('Limit Reached', `You can only upload up to ${maxImages} images.`)
         return
       }
 
@@ -35,7 +38,7 @@ export default function MultiImageUpload({
       // Request permissions
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Please grant camera roll permissions to upload images')
+        showInfoAlert('Permission Required', 'Please grant camera roll permissions to upload images')
         return
       }
 
@@ -66,32 +69,33 @@ export default function MultiImageUpload({
         // Show error if some uploads failed
         const failedUploads = uploadResults.filter((result) => !result.success)
         if (failedUploads.length > 0) {
-          Alert.alert(
+          showWarningAlert(
             'Upload Warning',
-            `${failedUploads.length} image(s) failed to upload. Please try again.`,
+            `${failedUploads.length} image(s) failed to upload. Please try again.`
           )
         }
       }
     } catch (error) {
       console.error('Error adding images:', error)
-      Alert.alert('Error', 'Failed to add images. Please try again.')
+      showError('Failed to add images. Please try again.')
     } finally {
       setUploading(false)
     }
   }
 
   const removeImage = (index: number) => {
-    Alert.alert('Remove Image', 'Are you sure you want to remove this image?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: () => {
-          const newImages = currentImages.filter((_, i) => i !== index)
-          onImagesChange(newImages)
-        },
+    showConfirmation(
+      'Remove Image',
+      'Are you sure you want to remove this image?',
+      () => {
+        const newImages = currentImages.filter((_, i) => i !== index)
+        onImagesChange(newImages)
       },
-    ])
+      undefined,
+      'Remove',
+      'Cancel',
+      'warning'
+    )
   }
 
   const canAddMore = currentImages.length < maxImages

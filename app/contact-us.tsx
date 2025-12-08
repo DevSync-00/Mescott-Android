@@ -6,13 +6,14 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  Alert,
   Linking,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
+import { useToast } from '../contexts/ToastContext'
 import { Colors } from '../constants/Colors'
+import { showInfoAlert, showSuccessAlert } from '../utils/alertHelper'
 
 interface ContactMethod {
   id: string
@@ -100,20 +101,19 @@ export default function ContactUs() {
           break
       }
     } catch {
-      Alert.alert('Error', 'Could not open the selected contact method')
+      showError('Could not open the selected contact method')
     }
   }
 
   const handleSendMessage = () => {
     if (!message.trim()) {
-      Alert.alert('Error', 'Please enter your message')
+      showError('Please enter your message')
       return
     }
 
-    Alert.alert(
+    showSuccessAlert(
       'Message Sent',
-      "Your message has been sent to our support team. We'll get back to you within 24 hours.",
-      [{ text: 'OK' }],
+      "Your message has been sent to our support team. We'll get back to you within 24 hours."
     )
 
     setMessage('')
@@ -121,18 +121,16 @@ export default function ContactUs() {
   }
 
   const handleReportBug = () => {
-    Alert.alert(
+    showInfoAlert(
       'Report Bug',
-      'Bug reporting feature will be available soon. For now, please contact us through the methods below.',
-      [{ text: 'OK' }],
+      'Bug reporting feature will be available soon. For now, please contact us through the methods below.'
     )
   }
 
   const handleRequestFeature = () => {
-    Alert.alert(
+    showInfoAlert(
       'Request Feature',
-      'Feature request functionality will be available soon. For now, please contact us through the methods below.',
-      [{ text: 'OK' }],
+      'Feature request functionality will be available soon. For now, please contact us through the methods below.'
     )
   }
 

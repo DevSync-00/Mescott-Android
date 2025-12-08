@@ -4,13 +4,13 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   ActivityIndicator,
   Modal,
   ScrollView,
   TextInput,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useToast } from '../contexts/ToastContext'
 import { LocationService, LocationData } from '../services/LocationService'
 import { Colors } from '../constants/Colors'
 
@@ -29,6 +29,7 @@ export default function LocationPicker({
   showCurrentLocation = true,
   showAddressInput = true,
 }: LocationPickerProps) {
+  const { showError } = useToast()
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [addressInput, setAddressInput] = useState('')
@@ -74,7 +75,7 @@ export default function LocationPicker({
       }
     } catch (error) {
       console.error('Error getting current location:', error)
-      Alert.alert('Error', 'Failed to get current location')
+      showError('Failed to get current location')
     } finally {
       setLoading(false)
     }
@@ -82,7 +83,7 @@ export default function LocationPicker({
 
   const searchAddress = async () => {
     if (!addressInput.trim()) {
-      Alert.alert('Error', 'Please enter an address')
+      showError('Please enter an address')
       return
     }
 
@@ -95,11 +96,11 @@ export default function LocationPicker({
         setShowModal(false)
         setAddressInput('')
       } else {
-        Alert.alert('Error', 'Address not found. Please try a different address.')
+        showError('Address not found. Please try a different address.')
       }
     } catch (error) {
       console.error('Error searching address:', error)
-      Alert.alert('Error', 'Failed to search address')
+      showError('Failed to search address')
     } finally {
       setLoading(false)
     }

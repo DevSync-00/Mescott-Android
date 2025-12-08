@@ -6,11 +6,11 @@ import {
   FlatList,
   TextInput,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
+import { useToast } from '../contexts/ToastContext'
 import { RealtimeChatService, RealtimeMessage } from '../services/RealtimeChatService'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { Colors } from '../constants/Colors'
@@ -22,6 +22,7 @@ interface ChatComponentProps {
 
 export default function ChatComponent({ chatId, onClose }: ChatComponentProps) {
   const { user } = useAuth()
+  const { showError } = useToast()
   const [messages, setMessages] = useState<RealtimeMessage[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [loading, setLoading] = useState(true)
@@ -57,7 +58,7 @@ export default function ChatComponent({ chatId, onClose }: ChatComponentProps) {
       }
     } catch (error) {
       console.error('Error loading chat data:', error)
-      Alert.alert('Error', 'Failed to load chat')
+      showError('Failed to load chat')
     } finally {
       setLoading(false)
     }
@@ -85,11 +86,11 @@ export default function ChatComponent({ chatId, onClose }: ChatComponentProps) {
       if (success) {
         setNewMessage('')
       } else {
-        Alert.alert('Error', 'Failed to send message')
+        showError('Failed to send message')
       }
     } catch (error) {
       console.error('Error sending message:', error)
-      Alert.alert('Error', 'Failed to send message')
+      showError('Failed to send message')
     } finally {
       setSending(false)
     }

@@ -1,11 +1,15 @@
-import React, { useEffect, useRef } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native'
+import React, { useEffect, useRef, useCallback } from 'react'
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useRouter } from 'expo-router'
+import { useToast } from '../contexts/ToastContext'
 import { Colors } from '../constants/Colors'
 import { useNotifications } from '../contexts/NotificationContext'
 import { useAuth } from '../contexts/SimpleAuthContext'
+import { Notification } from '../services/UnifiedNotificationService'
 import { SkeletonList } from './SkeletonLoader'
 import BottomSheet, { BottomSheetRef } from './BottomSheet'
+import { showConfirmation } from '../utils/alertHelper'
 
 interface NotificationsSheetProps {
   visible: boolean
@@ -14,6 +18,8 @@ interface NotificationsSheetProps {
 
 function NotificationsSheet({ visible, onClose }: NotificationsSheetProps) {
   const { isAuthenticated, isLoading } = useAuth()
+  const { showSuccess } = useToast()
+  const router = useRouter()
   const bottomSheetRef = useRef<BottomSheetRef>(null)
   const {
     notifications,
@@ -28,46 +34,112 @@ function NotificationsSheet({ visible, onClose }: NotificationsSheetProps) {
 
   useEffect(() => {
     if (visible) {
+      // Refresh notifications when sheet opens, but don't block UI
       refreshNotifications()
     }
   }, [visible, refreshNotifications])
 
+  const handleNotificationPress = useCallback(async (notification: Notification) => {
+    // Mark as read first
+    if (!notification.is_read) {
+      await markAsRead(notification.id)
+    }
+
+    // Close the sheet before navigating
+    onClose()
+
+    const data = notification.data || {}
+    
+    // Navigate based on notification type and data
+    switch (notification.type) {
+      case 'message':
+        // Navigate to chat detail
+        if (data.chat_id) {
+          router.push({
+            pathname: '/chat-detail',
+            params: { chatId: data.chat_id }
+          })
+        } else {
+          // Fallback to chats list
+          router.push('/chats')
+        }
+        break
+
+      case 'task':
+      case 'application':
+        // Navigate to task detail
+        if (data.task_id) {
+          router.push({
+            pathname: '/task-detail',
+            params: { taskId: data.task_id }
+          })
+        } else {
+          // Fallback to jobs page
+          router.push('/jobs')
+        }
+        break
+
+      case 'payment':
+        // Navigate to wallet/payment page
+        router.push('/wallet')
+        break
+
+      case 'booking':
+        // Navigate to bookings page
+        router.push('/bookings')
+        break
+
+      default:
+        // For system notifications, do nothing
+        break
+    }
+  }, [markAsRead, router, onClose])
+
   const handleDelete = React.useCallback(
     async (notificationId: string) => {
-      Alert.alert('Delete Notification', 'Are you sure you want to delete this notification?', [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => deleteNotification(notificationId),
+      showConfirmation(
+        'Delete Notification',
+        'Are you sure you want to delete this notification?',
+        () => {
+          deleteNotification(notificationId)
+          showSuccess('Notification deleted')
         },
-      ])
+        undefined,
+        'Delete',
+        'Cancel',
+        'warning'
+      )
     },
-    [deleteNotification],
+    [deleteNotification, showSuccess],
   )
 
   const handleMarkAllAsRead = () => {
-    Alert.alert('Mark All as Read', 'Are you sure you want to mark all notifications as read?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Mark All',
-        onPress: markAllAsRead,
+    showConfirmation(
+      'Mark All as Read',
+      'Are you sure you want to mark all notifications as read?',
+      () => {
+        markAllAsRead()
+        showSuccess('All notifications marked as read')
       },
-    ])
+      undefined,
+      'Mark All',
+      'Cancel',
+      'info'
+    )
   }
 
   const handleClearAll = () => {
-    Alert.alert(
+    showConfirmation(
       'Clear All Notifications',
       'Are you sure you want to clear all notifications? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear All',
-          style: 'destructive',
-          onPress: clearAllNotifications,
-        },
-      ],
+      () => {
+        clearAllNotifications()
+        showSuccess('All notifications cleared')
+      },
+      undefined,
+      'Clear All',
+      'Cancel',
+      'warning'
     )
   }
 
@@ -139,11 +211,8 @@ function NotificationsSheet({ visible, onClose }: NotificationsSheetProps) {
               styles.notificationCard,
               notification.is_read ? styles.readCard : styles.unreadCard,
             ]}
-            onPress={async () => {
-              if (!notification.is_read) {
-                await markAsRead(notification.id)
-              }
-            }}
+            onPress={() => handleNotificationPress(notification)}
+            activeOpacity={0.7}
           >
             <View style={styles.notificationContent}>
               <View style={styles.notificationHeader}>
@@ -186,7 +255,7 @@ function NotificationsSheet({ visible, onClose }: NotificationsSheetProps) {
     getNotificationIcon,
     getNotificationColor,
     formatTime,
-    markAsRead,
+    handleNotificationPress,
     handleDelete,
   ])
 

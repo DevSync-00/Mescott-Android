@@ -7,12 +7,13 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
-  Alert,
   ActivityIndicator,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useToast } from '../contexts/ToastContext'
 import { ContentModerationService } from '../services/ContentModerationService'
 import { Colors } from '../constants/Colors'
+import { showSuccessAlert } from '../utils/alertHelper'
 
 interface ReportModalProps {
   visible: boolean
@@ -83,18 +84,19 @@ function ReportModal({
   reportedTaskId,
   reportedContent,
 }: ReportModalProps) {
+  const { showError } = useToast()
   const [selectedType, setSelectedType] = useState<string | null>(null)
   const [description, setDescription] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   const handleSubmit = async () => {
     if (!selectedType) {
-      Alert.alert('Error', 'Please select a report type')
+      showError('Please select a report type')
       return
     }
 
     if (description.trim().length < 10) {
-      Alert.alert('Error', 'Please provide a detailed description (at least 10 characters)')
+      showError('Please provide a detailed description (at least 10 characters)')
       return
     }
 
@@ -112,17 +114,22 @@ function ReportModal({
       })
 
       if (report) {
-        Alert.alert(
+        showSuccessAlert(
           'Report Submitted',
           'Thank you for your report. We will review it and take appropriate action.',
-          [{ text: 'OK', onPress: handleClose }],
+          [
+            {
+              text: 'OK',
+              onPress: handleClose,
+            },
+          ]
         )
       } else {
-        Alert.alert('Error', 'Failed to submit report. Please try again.')
+        showError('Failed to submit report. Please try again.')
       }
     } catch (error) {
       console.error('Error submitting report:', error)
-      Alert.alert('Error', 'Failed to submit report. Please try again.')
+      showError('Failed to submit report. Please try again.')
     } finally {
       setSubmitting(false)
     }

@@ -1,12 +1,14 @@
 import React, { useState, useCallback, useEffect } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import { useLocalSearchParams, router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
+import { useToast } from '../contexts/ToastContext'
 import { PaymentService } from '../services/PaymentService'
 import { Colors } from '../constants/Colors'
 import SkeletonLoader from '../components/SkeletonLoader'
 
 export default function PaymentSuccessScreen() {
+  const { showError } = useToast()
   const { tx_ref } = useLocalSearchParams<{ tx_ref: string }>()
   const [loading, setLoading] = useState(true)
   const [paymentStatus, setPaymentStatus] = useState<{
@@ -30,11 +32,11 @@ export default function PaymentSuccessScreen() {
           await PaymentService.processChapaPayment(tx_ref)
         }
       } else {
-        Alert.alert('Error', 'Unable to verify payment status')
+        showError('Unable to verify payment status')
       }
     } catch (error) {
       console.error('Error verifying payment:', error)
-      Alert.alert('Error', 'Failed to verify payment')
+      showError('Failed to verify payment')
     } finally {
       setLoading(false)
     }
@@ -44,7 +46,7 @@ export default function PaymentSuccessScreen() {
     if (tx_ref) {
       verifyPayment()
     } else {
-      Alert.alert('Error', 'Invalid payment reference')
+      showError('Invalid payment reference')
       router.replace('/')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

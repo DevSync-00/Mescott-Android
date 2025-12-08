@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Alert,
   Image,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -15,12 +14,15 @@ import { StatusBar } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
+import { useToast } from '../contexts/ToastContext'
 import { Colors } from '../constants/Colors'
 import { supabase } from '../lib/supabase'
 import { SkeletonCard } from '../components/SkeletonLoader'
+import { showConfirmation, showInfoAlert, showErrorAlert, showSuccessAlert } from '../utils/alertHelper'
 
 export default function Profile() {
   const { user, logout, switchMode, isAuthenticated, isLoading, refreshUserProfile } = useAuth()
+  const { showSuccess, showError } = useToast()
   const insets = useSafeAreaInsets()
   const router = useRouter()
   const [stats, setStats] = useState({
@@ -186,20 +188,21 @@ export default function Profile() {
   }
 
   const handleLogout = async () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Logout',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await logout()
-          } catch {
-            Alert.alert('Error', 'Failed to logout. Please try again.')
-          }
-        },
+    showConfirmation(
+      'Logout',
+      'Are you sure you want to logout?',
+      async () => {
+        try {
+          await logout()
+        } catch {
+          showError('Failed to logout. Please try again.')
+        }
       },
-    ])
+      undefined,
+      'Logout',
+      'Cancel',
+      'warning'
+    )
   }
 
   const handleSwitchMode = async () => {
@@ -211,22 +214,20 @@ export default function Profile() {
         const currentMode = user.current_mode
         const newMode = currentMode === 'customer' ? 'tasker' : 'customer'
         await switchMode()
-        Alert.alert('Success', `Switched to ${newMode} mode!`)
+        showSuccess(`Switched to ${newMode} mode!`)
       } catch {
-        Alert.alert('Error', 'Failed to switch mode. Please try again.')
+        showError('Failed to switch mode. Please try again.')
       }
     } else {
       // User needs to become a tasker first
-      Alert.alert(
+      showConfirmation(
         'Become a Tasker',
         'To switch to tasker mode, you need to complete the tasker application process. Would you like to apply now?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Apply Now',
-            onPress: () => router.push('/tasker-application'),
-          },
-        ],
+        () => router.push('/tasker-application'),
+        undefined,
+        'Apply Now',
+        'Cancel',
+        'info'
       )
     }
   }
@@ -235,30 +236,27 @@ export default function Profile() {
     if (!user) return
 
     if (user.role === 'tasker' || user.role === 'both') {
-      Alert.alert('Already a Tasker', 'You are already registered as a tasker!')
+      showInfoAlert('Already a Tasker', 'You are already registered as a tasker!')
       return
     }
 
     if (user.tasker_application_status === 'pending') {
-      Alert.alert(
+      showInfoAlert(
         'Application Pending',
-        "Your tasker application is currently under review. You will be notified once it's approved.",
-        [{ text: 'OK' }],
+        "Your tasker application is currently under review. You will be notified once it's approved."
       )
       return
     }
 
     if (user.tasker_application_status === 'rejected') {
-      Alert.alert(
+      showConfirmation(
         'Reapply for Tasker',
         'Your previous application was rejected. Would you like to submit a new application?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Reapply',
-            onPress: () => router.push('/tasker-application'),
-          },
-        ],
+        () => router.push('/tasker-application'),
+        undefined,
+        'Reapply',
+        'Cancel',
+        'warning'
       )
       return
     }
@@ -281,10 +279,10 @@ export default function Profile() {
         router.push('/settings')
         break
       case 'help':
-        Alert.alert('Help & Support', 'For support, please contact us at support@mescott.com')
+        showInfoAlert('Help & Support', 'For support, please contact us at support@mescott.com')
         break
       case 'about':
-        Alert.alert('About Mescott', 'Version 1.0.0\nYour trusted marketplace for local services')
+        showInfoAlert('About Mescott', 'Version 1.0.0\n\nYour trusted marketplace for local services')
         break
       default:
         break
@@ -357,7 +355,8 @@ export default function Profile() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={[]}>
+    <TextureBackground>
+      <SafeAreaView style={styles.container} edges={[]}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
       <View style={styles.containerContent}>
         {/* Fixed Header */}
@@ -562,13 +561,14 @@ export default function Profile() {
         </ScrollView>
       </View>
     </SafeAreaView>
+    </TextureBackground>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: 'transparent',
   },
   containerContent: {
     flex: 1,

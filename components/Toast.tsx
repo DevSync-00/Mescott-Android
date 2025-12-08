@@ -92,7 +92,7 @@ export default function Toast({
       case 'info':
       default:
         return {
-          backgroundColor: Colors.primary[500],
+          backgroundColor: '#371F80', // Match app's purple theme
           borderLeftColor: Colors.primary[600],
         }
     }
@@ -147,25 +147,26 @@ export default function Toast({
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    top: 50,
+    top: 60,
     left: 16,
     right: 16,
     zIndex: 1000,
   },
   toast: {
-    borderRadius: 8,
+    borderRadius: 16,
     borderLeftWidth: 4,
-    elevation: 4,
+    elevation: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    overflow: 'hidden',
   },
   content: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    paddingRight: 40,
+    paddingRight: 48,
   },
   icon: {
     marginRight: 12,
@@ -173,27 +174,28 @@ const styles = StyleSheet.create({
   message: {
     flex: 1,
     color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
-    lineHeight: 20,
+    fontSize: 15,
+    fontWeight: '600',
+    lineHeight: 22,
   },
   actionButton: {
     marginLeft: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderRadius: 8,
   },
   actionText: {
     color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
   },
   closeButton: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    top: 12,
+    right: 12,
     padding: 4,
-    borderRadius: 4,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
 })

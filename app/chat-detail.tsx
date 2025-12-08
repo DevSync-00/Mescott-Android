@@ -7,27 +7,29 @@ import {
   TouchableWithoutFeedback,
   TextInput,
   ActivityIndicator,
-  Alert,
   Dimensions,
   StatusBar,
-  Image,
   FlatList,
   Modal,
   Platform,
   Keyboard,
   InteractionManager,
 } from 'react-native'
+import { Image } from 'expo-image'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated'
 import { useKeyboardHandler } from 'react-native-keyboard-controller'
 import { useAuth } from '../contexts/SimpleAuthContext'
+import { useToast } from '../contexts/ToastContext'
 import { ChatService, Chat } from '../services/ChatService'
 import { supabase } from '../lib/supabase'
 import { Colors } from '../constants/Colors'
 import { SkeletonList } from '../components/SkeletonLoader'
 import { LinearGradient } from 'expo-linear-gradient'
+import { showInfoAlert } from '../utils/alertHelper'
+import TextureBackground from '../components/TextureBackground'
 
 const { width: screenWidth } = Dimensions.get('window')
 const MIN_INPUT_HEIGHT = 44
@@ -70,6 +72,7 @@ const useGradualAnimation = () => {
 
 export default function ChatDetail() {
   const { user, isAuthenticated, loading: isLoading } = useAuth()
+  const { showError } = useToast()
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { chatId, taskId, otherUserName } = useLocalSearchParams<{
@@ -285,7 +288,7 @@ export default function ChatDetail() {
     } catch (error) {
       console.error('Error loading chat:', error)
       if (initialLoad) {
-        Alert.alert('Error', 'Failed to load chat')
+        showError('Failed to load chat')
       }
       setLoading(false)
     }
@@ -372,11 +375,11 @@ export default function ChatDetail() {
         }
       } else {
         setMessages((prev) => prev.filter((m) => m.id !== tempId))
-        Alert.alert('Error', 'Message failed to send')
+        showError('Message failed to send')
       }
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== tempId))
-      Alert.alert('Error', 'Failed to send message')
+      showError('Failed to send message')
     } finally {
       setSending(false)
     }
@@ -430,10 +433,11 @@ export default function ChatDetail() {
                 {message.message_type === 'image' ? (
                   <TouchableOpacity activeOpacity={0.9} onPress={handleImagePress}>
                     <Image
-                      source={{ uri: message.message, cache: 'force-cache' }}
+                      source={{ uri: message.message }}
                       style={styles.messageImage}
-                      resizeMode="cover"
-                      progressiveRenderingEnabled={true}
+                      contentFit="cover"
+                      cachePolicy="memory-disk"
+                      transition={200}
                     />
                   </TouchableOpacity>
                 ) : (
@@ -450,7 +454,7 @@ export default function ChatDetail() {
                   <Text
                     style={[
                       styles.messageTime,
-                      isMine ? { color: '#666' } : { color: Colors.neutral[500] },
+                      isMine ? { color: 'rgba(255,255,255,0.8)' } : { color: Colors.neutral[500] },
                     ]}
                   >
                     {formatTime(message.created_at)}
@@ -529,8 +533,9 @@ export default function ChatDetail() {
   const showLoading = isLoading || (loading && messages.length === 0)
 
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right']}>
-      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+    <TextureBackground>
+      <SafeAreaView style={styles.container} edges={['left', 'right']}>
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
       {/* Fixed Header */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
@@ -546,7 +551,12 @@ export default function ChatDetail() {
         </TouchableOpacity>
         <TouchableOpacity style={styles.userInfo}>
           {participantAvatarUrl ? (
-            <Image source={{ uri: participantAvatarUrl }} style={styles.avatarImage} />
+            <Image 
+              source={{ uri: participantAvatarUrl }} 
+              style={styles.avatarImage}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+            />
           ) : (
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>{participantName[0]?.toUpperCase()}</Text>
@@ -670,7 +680,8 @@ export default function ChatDetail() {
             <Image
               source={{ uri: selectedImageUri }}
               style={styles.fullImage}
-              resizeMode="contain"
+              contentFit="contain"
+              cachePolicy="memory-disk"
             />
           )}
         </View>
@@ -688,7 +699,7 @@ export default function ChatDetail() {
               style={styles.optionItem}
               onPress={() => {
                 setOptionsVisible(false)
-                Alert.alert('Delete chat', 'Coming soon')
+                showInfoAlert('Delete chat', 'Coming soon')
               }}
             >
               <Text style={styles.deleteText}>Delete chat</Text>
@@ -700,11 +711,12 @@ export default function ChatDetail() {
         </TouchableOpacity>
       </Modal>
     </SafeAreaView>
+    </TextureBackground>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background?.primary || '#f5f5f5' },
+  container: { flex: 1, backgroundColor: 'transparent' },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -785,21 +797,32 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   myMessageBubble: {
-    backgroundColor: '#d1f7c4',
+    backgroundColor: Colors.primary[500],
     borderBottomRightRadius: 6,
   },
   otherMessageBubble: {
     backgroundColor: '#ffffff',
     borderBottomLeftRadius: 6,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#d4d4d4',
+    borderColor: Colors.neutral[200],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   myBubbleTail: { borderBottomRightRadius: 18 },
   otherBubbleTail: { borderBottomLeftRadius: 18 },
 
-  messageText: { fontSize: 15.5, lineHeight: 21, color: '#000' },
-  myMessageText: { color: '#000' },
-  otherMessageText: { color: '#000' },
+  messageText: { fontSize: 15.5, lineHeight: 21 },
+  myMessageText: { 
+    color: '#ffffff',
+    fontWeight: '400',
+  },
+  otherMessageText: { 
+    color: Colors.neutral[900],
+    fontWeight: '400',
+  },
   messageFooter: {
     flexDirection: 'row',
     alignItems: 'center',

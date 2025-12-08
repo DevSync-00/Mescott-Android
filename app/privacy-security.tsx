@@ -6,16 +6,17 @@ import {
   TouchableOpacity,
   ScrollView,
   Switch,
-  Alert,
   StatusBar,
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
+import { useToast } from '../contexts/ToastContext'
 import { Colors } from '../constants/Colors'
 import { SettingsService } from '../services/SettingsService'
 
 export default function PrivacySecurity() {
+  const { showError } = useToast()
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const [settings] = useState({
@@ -52,11 +53,11 @@ export default function PrivacySecurity() {
       if (success) {
         setSettings((prev) => ({ ...prev, [key]: value }))
       } else {
-        Alert.alert('Error', 'Failed to update setting')
+        showError('Failed to update setting')
       }
     } catch (error) {
       console.error('Error updating setting:', error)
-      Alert.alert('Error', 'Failed to update setting')
+      showError('Failed to update setting')
     }
   }
 

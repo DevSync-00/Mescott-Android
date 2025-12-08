@@ -89,8 +89,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
       UnifiedNotificationService.addSubscription(subscription)
 
-      // Load initial notifications
-      await refreshNotifications()
+      // Load initial notifications (with cache for instant display)
+      await refreshNotifications(true)
       console.log('✅ NOTIFICATION CONTEXT - Notifications initialized successfully')
 
       // Cleanup subscription on unmount
@@ -112,24 +112,44 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
   }
 
-  const refreshNotifications = useCallback(async () => {
+  const refreshNotifications = useCallback(async (showLoading: boolean = true) => {
     if (!user?.user_id) return
 
-    setLoading(true)
+    if (showLoading) {
+      setLoading(true)
+    }
+
     try {
-      console.log('🚀 NOTIFICATION CONTEXT - Refreshing notifications for user:', user.user_id)
+      // Load cached data first for instant display, then refresh in background
       const [notificationsData, unreadCountData] = await Promise.all([
-        UnifiedNotificationService.getNotifications(user.user_id),
-        UnifiedNotificationService.getUnreadCount(user.user_id)
+        UnifiedNotificationService.getNotifications(user.user_id, 30, true),
+        UnifiedNotificationService.getUnreadCount(user.user_id, true)
       ])
 
-      console.log('📱 NOTIFICATION CONTEXT - Loaded notifications:', notificationsData.length, 'Unread:', unreadCountData)
+      // Update state immediately with cached/fresh data
       setNotifications(notificationsData)
       setUnreadCount(unreadCountData)
+
+      // If we got cached data, refresh in background without blocking UI
+      if (showLoading) {
+        setLoading(false)
+        
+        // Background refresh for fresh data
+        Promise.all([
+          UnifiedNotificationService.getNotifications(user.user_id, 30, false),
+          UnifiedNotificationService.getUnreadCount(user.user_id, false)
+        ]).then(([freshNotifications, freshUnreadCount]) => {
+          setNotifications(freshNotifications)
+          setUnreadCount(freshUnreadCount)
+        }).catch(() => {
+          // Silent fail - keep cached data
+        })
+      }
     } catch (error) {
       console.error('Error refreshing notifications:', error)
-    } finally {
-      setLoading(false)
+      if (showLoading) {
+        setLoading(false)
+      }
     }
   }, [user?.user_id])
 

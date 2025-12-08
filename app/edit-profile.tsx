@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  Alert,
   ActivityIndicator,
   StatusBar,
   Image,
@@ -15,11 +14,13 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
+import { useToast } from '../contexts/ToastContext'
 import { ProfileService } from '../services/ProfileService'
 import * as ImagePicker from 'expo-image-picker'
 import { ImageService } from '../services/ImageService'
 import { Colors } from '../constants/Colors'
 import SkeletonLoader from '../components/SkeletonLoader'
+import { showConfirmation, showInfoAlert, showSuccessAlert } from '../utils/alertHelper'
 
 export default function EditProfile() {
   const { user, refreshUserProfile } = useAuth()
@@ -56,7 +57,7 @@ export default function EditProfile() {
       // Request permissions
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Please grant camera roll permissions to upload images')
+        showInfoAlert('Permission Required', 'Please grant camera roll permissions to upload images')
         return
       }
 
@@ -77,33 +78,34 @@ export default function EditProfile() {
         if (uploadResult.success && uploadResult.url) {
           setFormData((prev) => ({ ...prev, avatarUrl: uploadResult.url! }))
         } else {
-          Alert.alert('Upload Failed', uploadResult.error || 'Failed to upload image')
+          showError(uploadResult.error || 'Failed to upload image')
         }
       }
     } catch (error) {
       console.error('Error selecting image:', error)
-      Alert.alert('Error', 'Failed to select image. Please try again.')
+      showError('Failed to select image. Please try again.')
     } finally {
       setUploadingAvatar(false)
     }
   }
 
   const handleRemoveAvatar = () => {
-    Alert.alert('Remove Photo', 'Are you sure you want to remove your profile picture?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: () => setFormData((prev) => ({ ...prev, avatarUrl: '' })),
-      },
-    ])
+    showConfirmation(
+      'Remove Photo',
+      'Are you sure you want to remove your profile picture?',
+      () => setFormData((prev) => ({ ...prev, avatarUrl: '' })),
+      undefined,
+      'Remove',
+      'Cancel',
+      'warning'
+    )
   }
 
   const handleSave = async () => {
     if (!user) return
 
     if (!formData.fullName.trim()) {
-      Alert.alert('Error', 'Please enter your full name')
+      showError('Please enter your full name')
       return
     }
 
@@ -123,12 +125,19 @@ export default function EditProfile() {
       // Refresh user profile in auth context so changes appear everywhere
       await refreshUserProfile()
 
-      Alert.alert('Success', 'Profile updated successfully!', [
-        { text: 'OK', onPress: () => router.push('/profile') },
-      ])
+      showSuccessAlert(
+        'Success',
+        'Profile updated successfully!',
+        [
+          {
+            text: 'OK',
+            onPress: () => router.push('/profile'),
+          },
+        ]
+      )
     } catch (error) {
       console.error('Error updating profile:', error)
-      Alert.alert('Error', 'Failed to update profile. Please try again.')
+      showError('Failed to update profile. Please try again.')
     } finally {
       setSaving(false)
     }

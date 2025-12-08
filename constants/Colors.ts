@@ -122,12 +122,13 @@ export const Colors = {
     cancelled: '#EF4444',
   },
   
-  // Background Colors
+  // Background Colors - with subtle texture finish
   background: {
-    primary: '#FFFFFF', // Main white background
+    primary: '#FAFAFA', // Main background with subtle texture
     secondary: '#FFFFFF', // White for cards and sections
-    tertiary: '#F8F9FA', // Light gray for subtle backgrounds
+    tertiary: '#F5F5F5', // Light gray for subtle backgrounds with texture
     overlay: 'rgba(0, 0, 0, 0.6)',
+    texture: '#FAFAFA', // Texture base color
   },
   
   // Text Colors

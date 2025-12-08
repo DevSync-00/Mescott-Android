@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Alert,
   RefreshControl,
   StatusBar,
 } from 'react-native'
@@ -13,14 +12,17 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
+import { useToast } from '../contexts/ToastContext'
 import { PaymentMethodService, PaymentMethod } from '../services/PaymentMethodService'
 import { WalletService, Wallet as WalletType, WalletStats } from '../services/WalletService'
 import WithdrawalModal from '../components/WithdrawalModal'
 import { Colors } from '../constants/Colors'
 import { SkeletonList } from '../components/SkeletonLoader'
+import { showSuccessAlert, showInfoAlert } from '../utils/alertHelper'
 
 export default function WalletScreen() {
   const { user, isAuthenticated, isLoading } = useAuth()
+  const { showError } = useToast()
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const [loading, setLoading] = useState(false)
@@ -58,7 +60,7 @@ export default function WalletScreen() {
       setPaymentMethods(methods)
     } catch (error) {
       console.error('Error loading wallet data:', error)
-      Alert.alert('Error', 'Failed to load wallet data. Please try again.')
+      showError('Failed to load wallet data. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -86,10 +88,10 @@ export default function WalletScreen() {
           is_default: method.id === methodId,
         })),
       )
-      Alert.alert('Success', 'Default payment method updated')
+      showSuccessAlert('Success', 'Default payment method updated')
     } catch (error) {
       console.error('Error setting default payment method:', error)
-      Alert.alert('Error', 'Failed to set default payment method')
+      showError('Failed to set default payment method')
     }
   }
 
@@ -217,7 +219,7 @@ export default function WalletScreen() {
           <TouchableOpacity
             style={[styles.actionButton, styles.historyButton]}
             onPress={() =>
-              Alert.alert('Withdrawal History', 'Withdrawal history feature coming soon!')
+              showInfoAlert('Withdrawal History', 'Withdrawal history feature coming soon!')
             }
           >
             <Ionicons name="time" size={20} color={Colors.primary[500]} />

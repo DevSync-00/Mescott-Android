@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { PushNotificationService } from './PushNotificationService'
 import { SimpleNotificationService } from './SimpleNotificationService'
+import { getCache, setCache, clearCache } from '../lib/cache'
 
 export interface Notification {
   id: string
@@ -168,26 +169,76 @@ export class UnifiedNotificationService {
     }
   }
 
-  // Get all notifications for user
-  static async getNotifications(userId: string, limit: number = 50): Promise<Notification[]> {
+  // Get all notifications for user (with caching for faster loading)
+  static async getNotifications(userId: string, limit: number = 30, useCache: boolean = true): Promise<Notification[]> {
+    const cacheKey = `notifications:${userId}`
+    
+    // Try to load from cache first for instant display
+    if (useCache) {
+      const cached = await getCache<Notification[]>(cacheKey)
+      if (cached && cached.length > 0) {
+        // Return cached data immediately, then refresh in background
+        this.getNotifications(userId, limit, false).catch(() => {
+          // Silent fail for background refresh
+        })
+        return cached
+      }
+    }
+
     try {
+      // Optimized query - only select necessary fields
       const { data, error } = await supabase
         .from('notifications')
-        .select('*')
+        .select('id, user_id, title, message, type, data, is_read, created_at, updated_at')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(limit)
 
       if (error) throw error
-      return data || []
+      
+      const notifications = (data || []).map(notification => ({
+        id: notification.id,
+        user_id: notification.user_id,
+        title: notification.title,
+        message: notification.message,
+        type: notification.type,
+        data: notification.data || {},
+        is_read: notification.is_read,
+        created_at: notification.created_at,
+        updated_at: notification.updated_at
+      }))
+
+      // Cache the results for 2 minutes
+      if (useCache && notifications.length > 0) {
+        await setCache(cacheKey, notifications, 2 * 60 * 1000) // 2 minutes TTL
+      }
+
+      return notifications
     } catch (error) {
       console.error('Error getting notifications:', error)
+      // Return cached data if available on error
+      if (useCache) {
+        const cached = await getCache<Notification[]>(cacheKey)
+        if (cached) return cached
+      }
       return []
     }
   }
 
-  // Get unread count
-  static async getUnreadCount(userId: string): Promise<number> {
+  // Get unread count (with caching)
+  static async getUnreadCount(userId: string, useCache: boolean = true): Promise<number> {
+    const cacheKey = `unread_count:${userId}`
+    
+    // Try cache first
+    if (useCache) {
+      const cached = await getCache<number>(cacheKey)
+      if (cached !== null && cached !== undefined) {
+        // Refresh in background
+        this.getUnreadCount(userId, false).catch(() => {})
+        return cached
+      }
+    }
+
     try {
       const { count, error } = await supabase
         .from('notifications')
@@ -196,9 +247,21 @@ export class UnifiedNotificationService {
         .eq('is_read', false)
 
       if (error) throw error
-      return count || 0
+      const unreadCount = count || 0
+      
+      // Cache for 1 minute
+      if (useCache) {
+        await setCache(cacheKey, unreadCount, 60 * 1000) // 1 minute TTL
+      }
+      
+      return unreadCount
     } catch (error) {
       console.error('Error getting unread count:', error)
+      // Return cached count if available
+      if (useCache) {
+        const cached = await getCache<number>(cacheKey)
+        if (cached !== null && cached !== undefined) return cached
+      }
       return 0
     }
   }
@@ -215,6 +278,13 @@ export class UnifiedNotificationService {
         .eq('id', notificationId)
 
       if (error) throw error
+      
+      // Invalidate cache to force refresh
+      if (this.currentUserId) {
+        await clearCache(`notifications:${this.currentUserId}`)
+        await clearCache(`unread_count:${this.currentUserId}`)
+      }
+      
       return true
     } catch (error) {
       console.error('Error marking notification as read:', error)
@@ -235,6 +305,11 @@ export class UnifiedNotificationService {
         .eq('is_read', false)
 
       if (error) throw error
+      
+      // Invalidate cache
+      await clearCache(`notifications:${userId}`)
+      await clearCache(`unread_count:${userId}`)
+      
       return true
     } catch (error) {
       console.error('Error marking all notifications as read:', error)

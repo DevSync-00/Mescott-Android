@@ -7,7 +7,6 @@ import {
   ScrollView,
   SafeAreaView,
   TextInput,
-  Alert,
   KeyboardAvoidingView,
   Keyboard,
   TouchableWithoutFeedback,
@@ -15,13 +14,16 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
+import { useToast } from '../contexts/ToastContext'
 import { RatingService } from '../services/RatingService'
 import RatingStars from '../components/RatingStars'
 import EnhancedRatingStars from '../components/EnhancedRatingStars'
 import { Colors } from '../constants/Colors'
+import { showSuccessAlert } from '../utils/alertHelper'
 
 export default function ReviewScreen() {
   const { user, isAuthenticated, isLoading } = useAuth()
+  const { showError } = useToast()
   const router = useRouter()
   const { taskId, revieweeId, revieweeName, taskTitle } = useLocalSearchParams()
   const [rating, setRating] = useState(0)
@@ -53,17 +55,17 @@ export default function ReviewScreen() {
 
   const handleSubmitReview = async () => {
     if (!user || !taskId || !revieweeId) {
-      Alert.alert('Error', 'Missing required information')
+      showError('Missing required information')
       return
     }
 
     if (rating === 0) {
-      Alert.alert('Error', 'Please select a rating')
+      showError('Please select a rating')
       return
     }
 
     if (!comment.trim()) {
-      Alert.alert('Error', 'Please write a comment')
+      showError('Please write a comment')
       return
     }
 
@@ -81,15 +83,19 @@ export default function ReviewScreen() {
 
       await RatingService.createReview(reviewData)
 
-      Alert.alert('Success', 'Review submitted successfully!', [
-        {
-          text: 'OK',
-          onPress: () => router.push('/jobs'),
-        },
-      ])
+      showSuccessAlert(
+        'Success',
+        'Review submitted successfully!',
+        [
+          {
+            text: 'OK',
+            onPress: () => router.push('/jobs'),
+          },
+        ]
+      )
     } catch (error) {
       console.error('Error submitting review:', error)
-      Alert.alert('Error', 'Failed to submit review. Please try again.')
+      showError('Failed to submit review. Please try again.')
     } finally {
       setLoading(false)
     }

@@ -6,12 +6,13 @@ import {
   Modal,
   TouchableOpacity,
   ScrollView,
-  Alert,
   ActivityIndicator,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useToast } from '../contexts/ToastContext'
 import { PaymentService, Payment, PaymentMethod } from '../services/PaymentService'
 import { Colors } from '../constants/Colors'
+import { showInfoAlert, showSuccessAlert } from '../utils/alertHelper'
 
 interface PaymentModalProps {
   visible: boolean
@@ -26,6 +27,7 @@ export default function PaymentModal({
   payment,
   onPaymentSuccess,
 }: PaymentModalProps) {
+  const { showError } = useToast()
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -54,7 +56,7 @@ export default function PaymentModal({
       }
     } catch (error) {
       console.error('Error loading payment methods:', error)
-      Alert.alert('Error', 'Failed to load payment methods')
+      showError('Failed to load payment methods')
     } finally {
       setLoading(false)
     }
@@ -62,7 +64,7 @@ export default function PaymentModal({
 
   const handlePayment = async () => {
     if (!payment || !selectedMethod) {
-      Alert.alert('Error', 'Please select a payment method')
+      showError('Please select a payment method')
       return
     }
 
@@ -71,7 +73,7 @@ export default function PaymentModal({
       const success = await PaymentService.processPayment(payment.id, selectedMethod)
 
       if (success) {
-        Alert.alert(
+        showSuccessAlert(
           'Payment Processing',
           "Your payment is being processed. You will receive a confirmation once it's completed.",
           [
@@ -82,14 +84,14 @@ export default function PaymentModal({
                 onClose()
               },
             },
-          ],
+          ]
         )
       } else {
-        Alert.alert('Error', 'Failed to process payment. Please try again.')
+        showError('Failed to process payment. Please try again.')
       }
     } catch (error) {
       console.error('Error processing payment:', error)
-      Alert.alert('Error', 'An unexpected error occurred while processing payment.')
+      showError('An unexpected error occurred while processing payment.')
     } finally {
       setProcessing(false)
     }

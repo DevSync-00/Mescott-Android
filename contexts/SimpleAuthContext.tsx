@@ -26,9 +26,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const isAuthenticated = !!user;
   
   const normalizePhone = (phone: string) => {
+    // If phone already starts with +, return as is (already normalized)
+    if (phone.startsWith('+')) {
+      return phone;
+    }
+    
+    // Remove all non-digit characters
     let cleaned = phone.replace(/\D/g, '');
-    if (cleaned.startsWith('0')) cleaned = '251' + cleaned.substring(1);
-    if (!cleaned.startsWith('251')) cleaned = '251' + cleaned;
+    
+    // If starts with 0, remove it (common in some countries)
+    if (cleaned.startsWith('0')) {
+      cleaned = cleaned.substring(1);
+    }
+    
+    // Default to Ethiopia (+251) if no country code detected
+    // This maintains backward compatibility
+    if (!cleaned.startsWith('251') && cleaned.length <= 10) {
+      cleaned = '251' + cleaned;
+    }
+    
     return '+' + cleaned;
   };
 

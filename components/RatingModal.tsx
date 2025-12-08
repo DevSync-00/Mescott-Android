@@ -7,12 +7,13 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  Alert,
   ActivityIndicator,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useToast } from '../contexts/ToastContext'
 import { RatingService, CreateRatingRequest } from '../services/RatingService'
 import { Colors } from '../constants/Colors'
+import { showInfoAlert, showSuccessAlert } from '../utils/alertHelper'
 
 interface RatingModalProps {
   visible: boolean
@@ -39,13 +40,14 @@ function RatingModal({
   taskTitle,
   technicianName,
 }: RatingModalProps) {
+  const { showError } = useToast()
   const [rating, setRating] = useState(0)
   const [review, setReview] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   const handleRatingSubmit = async () => {
     if (rating === 0) {
-      Alert.alert('Rating Required', 'Please select a rating before submitting.')
+      showInfoAlert('Rating Required', 'Please select a rating before submitting.')
       return
     }
 
@@ -71,24 +73,28 @@ function RatingModal({
         // Update technician's profile rating
         await RatingService.updateTechnicianProfileRating(technicianId)
 
-        Alert.alert('Thank You!', 'Your rating and review have been submitted successfully.', [
-          {
-            text: 'OK',
-            onPress: () => {
-              onRatingSubmitted()
-              onClose()
-              // Reset form
-              setRating(0)
-              setReview('')
+        showSuccessAlert(
+          'Thank You!',
+          'Your rating and review have been submitted successfully.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                onRatingSubmitted()
+                onClose()
+                // Reset form
+                setRating(0)
+                setReview('')
+              },
             },
-          },
-        ])
+          ]
+        )
       } else {
-        Alert.alert('Error', 'Failed to submit rating. Please try again.')
+        showError('Failed to submit rating. Please try again.')
       }
     } catch (error) {
       console.error('Error submitting rating:', error)
-      Alert.alert('Error', 'Failed to submit rating. Please try again.')
+      showError('Failed to submit rating. Please try again.')
     } finally {
       setSubmitting(false)
     }

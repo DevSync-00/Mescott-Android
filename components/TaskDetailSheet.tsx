@@ -7,18 +7,19 @@ import {
   ScrollView,
   Image,
   Dimensions,
-  Alert,
   Modal,
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useToast } from '../contexts/ToastContext'
 import { Colors } from '../constants/Colors'
 import { TaskService, Task } from '../services/TaskService'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { router } from 'expo-router'
 import BottomSheet, { BottomSheetRef } from './BottomSheet'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { showConfirmation } from '../utils/alertHelper'
 
 const { width } = Dimensions.get('window')
 
@@ -29,6 +30,7 @@ interface TaskDetailSheetProps {
 }
 
 export default function TaskDetailSheet({ taskId, visible, onClose }: TaskDetailSheetProps) {
+  const { showError } = useToast()
   const bottomSheetRef = useRef<BottomSheetRef>(null)
   const scrollViewRef = useRef<ScrollView>(null)
   const lastScrollY = useRef(0)
@@ -37,6 +39,7 @@ export default function TaskDetailSheet({ taskId, visible, onClose }: TaskDetail
   const [task, setTask] = useState<Task | null>(null)
   const [imageModalVisible, setImageModalVisible] = useState(false)
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (visible && taskId) {
@@ -62,27 +65,28 @@ export default function TaskDetailSheet({ taskId, visible, onClose }: TaskDetail
 
   const handleDelete = async () => {
     if (!task || !user) return
-    Alert.alert('Delete Task', 'Are you sure you want to delete this task?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
+    showConfirmation(
+      'Delete Task',
+      'Are you sure you want to delete this task?',
+      async () => {
+        try {
+          await TaskService.deleteTask(task.id, user.id)
+          onClose()
+        } catch {
+          // Fallback cancel
           try {
-            await TaskService.deleteTask(task.id, user.id)
+            await TaskService.updateTask(task.id, user.id, { status: 'cancelled' } as any)
             onClose()
           } catch {
-            // Fallback cancel
-            try {
-              await TaskService.updateTask(task.id, user.id, { status: 'cancelled' } as any)
-              onClose()
-            } catch {
-              Alert.alert('Error', 'Failed to delete or cancel task')
-            }
+            showError('Failed to delete or cancel task')
           }
-        },
+        }
       },
-    ])
+      undefined,
+      'Delete',
+      'Cancel',
+      'warning'
+    )
   }
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {

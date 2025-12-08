@@ -48,7 +48,7 @@ export default function ReviewsScreen() {
       setTotalReviews(ratingData.count)
     } catch (error) {
       console.error('Error loading reviews:', error)
-      Alert.alert('Error', 'Failed to load reviews')
+      showError('Failed to load reviews')
     } finally {
       setLoading(false)
     }
@@ -62,7 +62,7 @@ export default function ReviewsScreen() {
 
   const handleWriteReview = () => {
     // This would navigate to a task selection screen or review form
-    Alert.alert('Write Review', 'Select a completed task to review')
+    showInfoAlert('Write Review', 'Select a completed task to review')
   }
 
   // Show loading while auth is being determined

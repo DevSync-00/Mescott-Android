@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Alert,
   ActivityIndicator,
   Image,
   StatusBar,
@@ -15,11 +14,14 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
+import { useToast } from '../contexts/ToastContext'
 import { TaskApplicationService, TaskApplication } from '../services/TaskApplicationService'
 import { Colors } from '../constants/Colors'
+import { showConfirmation, showSuccessAlert } from '../utils/alertHelper'
 
 export default function TaskApplications() {
   const { isAuthenticated, isLoading } = useAuth()
+  const { showError, showSuccess } = useToast()
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { taskId } = useLocalSearchParams()
@@ -36,75 +38,75 @@ export default function TaskApplications() {
       setApplications(data)
     } catch (error) {
       console.error('Error loading applications:', error)
-      Alert.alert('Error', 'Failed to load applications')
+      showError('Failed to load applications')
     } finally {
       setLoading(false)
     }
   }, [taskId])
 
   const handleAcceptApplication = async (applicationId: string) => {
-    Alert.alert(
+    showConfirmation(
       'Accept Application',
       'Are you sure you want to accept this application? This will assign the task to this tasker.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Accept',
-          onPress: async () => {
-            setProcessingApplication(applicationId)
-            try {
-              const success = await TaskApplicationService.acceptApplication(
-                taskId as string,
-                applicationId,
-              )
-              if (success) {
-                Alert.alert('Success', 'Application accepted successfully!', [
-                  {
-                    text: 'OK',
-                    onPress: () => {
-                      // Navigate back to jobs page so tabs are visible
-                      router.replace('/jobs')
-                    },
-                  },
-                ])
-              } else {
-                Alert.alert('Error', 'Failed to accept application')
-                setProcessingApplication(null)
-              }
-            } catch {
-              Alert.alert('Error', 'An error occurred while accepting the application')
-              setProcessingApplication(null)
-            }
-          },
-        },
-      ],
+      async () => {
+        setProcessingApplication(applicationId)
+        try {
+          const success = await TaskApplicationService.acceptApplication(
+            taskId as string,
+            applicationId,
+          )
+          if (success) {
+            showSuccessAlert(
+              'Success',
+              'Application accepted successfully!',
+              [
+                {
+                  text: 'OK',
+                  onPress: () => router.replace('/jobs'),
+                },
+              ]
+            )
+          } else {
+            showError('Failed to accept application')
+            setProcessingApplication(null)
+          }
+        } catch {
+          showError('An error occurred while accepting the application')
+          setProcessingApplication(null)
+        }
+      },
+      undefined,
+      'Accept',
+      'Cancel',
+      'info'
     )
   }
 
   const handleRejectApplication = async (applicationId: string) => {
-    Alert.alert('Reject Application', 'Are you sure you want to reject this application?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Reject',
-        style: 'destructive',
-        onPress: async () => {
-          setProcessingApplication(applicationId)
-          try {
-            const success = await TaskApplicationService.rejectApplication(applicationId)
-            if (success) {
-              Alert.alert('Success', 'Application rejected successfully!')
-              loadApplications()
-            } else {
-              Alert.alert('Error', 'Failed to reject application')
-            }
-          } catch {
-            Alert.alert('Error', 'An error occurred while rejecting the application')
-          } finally {
-            setProcessingApplication(null)
+    showConfirmation(
+      'Reject Application',
+      'Are you sure you want to reject this application?',
+      async () => {
+        setProcessingApplication(applicationId)
+        try {
+          const success = await TaskApplicationService.rejectApplication(applicationId)
+          if (success) {
+            showSuccess('Application rejected successfully!')
+            loadApplications()
+          } else {
+            showError('Failed to reject application')
           }
-        },
+        } catch {
+          showError('An error occurred while rejecting the application')
+        } finally {
+          setProcessingApplication(null)
+        }
       },
-    ])
+      undefined,
+      'Reject',
+      'Cancel',
+      'warning'
+    )
   }
 
   const handleViewProfile = (taskerId: string) => {

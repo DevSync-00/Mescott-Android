@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Alert,
   Dimensions,
   Image,
   Modal,
@@ -16,17 +15,21 @@ import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useAuth } from '../contexts/SimpleAuthContext'
+import { useToast } from '../contexts/ToastContext'
 import { TaskService, Task } from '../services/TaskService'
 import { TaskApplicationService } from '../services/TaskApplicationService'
 import { PaymentService } from '../services/PaymentService'
 import ChapaPaymentModal from '../components/ChapaPaymentModal'
 import { Colors } from '../constants/Colors'
 import { SkeletonCard } from '../components/SkeletonLoader'
+import { showConfirmation, showInfoAlert, showErrorAlert, showSuccessAlert } from '../utils/alertHelper'
+import TextureBackground from '../components/TextureBackground'
 
 const { width } = Dimensions.get('window')
 
 export default function TaskDetail() {
   const { user, isAuthenticated, isLoading } = useAuth()
+  const { showSuccess, showError } = useToast()
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { taskId } = useLocalSearchParams()
@@ -80,7 +83,7 @@ export default function TaskDetail() {
       }
     } catch (error) {
       console.error('Error loading task details:', error)
-      Alert.alert('Error', 'Failed to load task details')
+      showError('Failed to load task details')
     } finally {
       setLoading(false)
     }
@@ -107,7 +110,7 @@ export default function TaskDetail() {
     const pendingPayment = pendingPayments.find((p) => p.task_id === task.id)
 
     if (!pendingPayment) {
-      Alert.alert('Error', 'No pending payment found for this task')
+      showError('No pending payment found for this task')
       return
     }
 
@@ -137,34 +140,31 @@ export default function TaskDetail() {
   const handleDeleteTask = () => {
     if (!task || !user) return
 
-    Alert.alert(
+    showConfirmation(
       'Delete Task',
       'Are you sure you want to delete this task? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await TaskService.deleteTask(task.id, user.id)
-              Alert.alert('Success', 'Task deleted successfully')
-              router.push('/jobs')
-            } catch {
-              try {
-                await TaskService.updateTask(task.id, user.id, { status: 'cancelled' } as any)
-                Alert.alert(
-                  'Task Cancelled',
-                  'The task could not be deleted, so it was cancelled instead.',
-                )
-                router.push('/jobs')
-              } catch (e: any) {
-                Alert.alert('Error', e?.message || 'Failed to delete or cancel task')
-              }
-            }
-          },
-        },
-      ],
+      async () => {
+        try {
+          await TaskService.deleteTask(task.id, user.id)
+          showSuccess('Task deleted successfully')
+          router.push('/jobs')
+        } catch {
+          try {
+            await TaskService.updateTask(task.id, user.id, { status: 'cancelled' } as any)
+            showInfoAlert(
+              'Task Cancelled',
+              'The task could not be deleted, so it was cancelled instead.'
+            )
+            router.push('/jobs')
+          } catch (e: any) {
+            showError(e?.message || 'Failed to delete or cancel task')
+          }
+        }
+      },
+      undefined,
+      'Delete',
+      'Cancel',
+      'warning'
     )
   }
 
@@ -182,22 +182,20 @@ export default function TaskDetail() {
     }
 
     if (user.role !== 'tasker' && user.role !== 'both') {
-      Alert.alert(
+      showConfirmation(
         'Become a Tasker',
         'You need to become a tasker to apply for tasks. Would you like to apply now?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Apply Now',
-            onPress: () => router.push('/tasker-application'),
-          },
-        ],
+        () => router.push('/tasker-application'),
+        undefined,
+        'Apply Now',
+        'Cancel',
+        'info'
       )
       return
     }
 
     if (hasApplied) {
-      Alert.alert('Already Applied', 'You have already applied to this task.')
+      showInfoAlert('Already Applied', 'You have already applied to this task.')
       return
     }
 
@@ -259,14 +257,16 @@ export default function TaskDetail() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container} edges={[]}>
-        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
-        <View style={styles.loadingContainer}>
-          <SkeletonCard style={{ marginBottom: 16, height: 200 }} />
-          <SkeletonCard style={{ marginBottom: 16, height: 150 }} />
-          <SkeletonCard style={{ marginBottom: 16, height: 150 }} />
-        </View>
-      </SafeAreaView>
+      <TextureBackground>
+        <SafeAreaView style={styles.container} edges={[]}>
+          <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
+          <View style={styles.loadingContainer}>
+            <SkeletonCard style={{ marginBottom: 16, height: 200 }} />
+            <SkeletonCard style={{ marginBottom: 16, height: 150 }} />
+            <SkeletonCard style={{ marginBottom: 16, height: 150 }} />
+          </View>
+        </SafeAreaView>
+      </TextureBackground>
     )
   }
 
@@ -276,53 +276,58 @@ export default function TaskDetail() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container} edges={[]}>
-        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
-        <View style={[styles.header, { paddingTop: 8 + insets.top }]}>
-          <LinearGradient colors={['#f8f9fc', '#ffffff']} style={StyleSheet.absoluteFill} />
-          <TouchableOpacity onPress={() => router.push('/jobs')} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={Colors.neutral[800]} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Task Details</Text>
-          <View style={styles.placeholder} />
-        </View>
-        <View style={styles.loadingContainer}>
-          <SkeletonCard style={{ marginBottom: 16, height: 200 }} />
-          <SkeletonCard style={{ marginBottom: 16, height: 150 }} />
-          <SkeletonCard style={{ marginBottom: 16, height: 150 }} />
-        </View>
-      </SafeAreaView>
+      <TextureBackground>
+        <SafeAreaView style={styles.container} edges={[]}>
+          <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
+          <View style={[styles.header, { paddingTop: 8 + insets.top }]}>
+            <LinearGradient colors={['#f8f9fc', '#ffffff']} style={StyleSheet.absoluteFill} />
+            <TouchableOpacity onPress={() => router.push('/jobs')} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={24} color={Colors.neutral[800]} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Task Details</Text>
+            <View style={styles.placeholder} />
+          </View>
+          <View style={styles.loadingContainer}>
+            <SkeletonCard style={{ marginBottom: 16, height: 200 }} />
+            <SkeletonCard style={{ marginBottom: 16, height: 150 }} />
+            <SkeletonCard style={{ marginBottom: 16, height: 150 }} />
+          </View>
+        </SafeAreaView>
+      </TextureBackground>
     )
   }
 
   if (!task) {
     return (
-      <SafeAreaView style={styles.container} edges={[]}>
-        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
-        <View style={[styles.header, { paddingTop: 8 + insets.top }]}>
-          <LinearGradient colors={['#f8f9fc', '#ffffff']} style={StyleSheet.absoluteFill} />
-          <TouchableOpacity onPress={() => router.push('/jobs')} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={Colors.neutral[800]} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Task Details</Text>
-          <View style={styles.placeholder} />
-        </View>
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle-outline" size={64} color={Colors.error[500]} />
-          <Text style={styles.errorTitle}>Task Not Found</Text>
-          <Text style={styles.errorSubtitle}>
-            This task may have been removed or doesn&apos;t exist.
-          </Text>
-        </View>
-      </SafeAreaView>
+      <TextureBackground>
+        <SafeAreaView style={styles.container} edges={[]}>
+          <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
+          <View style={[styles.header, { paddingTop: 8 + insets.top }]}>
+            <LinearGradient colors={['#f8f9fc', '#ffffff']} style={StyleSheet.absoluteFill} />
+            <TouchableOpacity onPress={() => router.push('/jobs')} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={24} color={Colors.neutral[800]} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Task Details</Text>
+            <View style={styles.placeholder} />
+          </View>
+          <View style={styles.errorContainer}>
+            <Ionicons name="alert-circle-outline" size={64} color={Colors.error[500]} />
+            <Text style={styles.errorTitle}>Task Not Found</Text>
+            <Text style={styles.errorSubtitle}>
+              This task may have been removed or doesn&apos;t exist.
+            </Text>
+          </View>
+        </SafeAreaView>
+      </TextureBackground>
     )
   }
 
   const images = task.images || task.photos || []
 
   return (
-    <SafeAreaView style={styles.container} edges={[]}>
-      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
+    <TextureBackground>
+      <SafeAreaView style={styles.container} edges={[]}>
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
 
       {/* Fixed Header */}
       <View style={[styles.header, { paddingTop: 8 + insets.top }]}>
@@ -631,13 +636,14 @@ export default function TaskDetail() {
         }}
       />
     </SafeAreaView>
+    </TextureBackground>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: 'transparent',
   },
   header: {
     flexDirection: 'row',

@@ -12,6 +12,8 @@ import { LanguageProvider } from '../contexts/LanguageContext'
 import { NotificationProvider } from '../contexts/NotificationContext'
 import { ToastProvider } from '../contexts/ToastContext'
 import { ErrorBoundary } from '../components/ErrorBoundary'
+import CustomAlert from '../components/CustomAlert'
+import { alertService } from '../utils/alert'
 import {
   initConnectivityListener,
   cleanupConnectivityListener,
@@ -341,6 +343,15 @@ function AppContent() {
   const [appIsReady, setAppIsReady] = useState(false)
   const hasHiddenSplashRef = useRef(false)
   const isOnline = useAppStore((state: { isOnline: boolean }) => state.isOnline)
+  const [alertState, setAlertState] = useState(alertService.getState())
+
+  // Subscribe to alert service
+  useEffect(() => {
+    const unsubscribe = alertService.subscribe((state) => {
+      setAlertState(state)
+    })
+    return unsubscribe
+  }, [])
 
   // Set Android navigation bar color
   useEffect(() => {
@@ -483,6 +494,14 @@ function AppContent() {
         </View>
       )}
       <TabNavigator />
+      <CustomAlert
+        visible={alertState.visible}
+        title={alertState.title}
+        message={alertState.message}
+        buttons={alertState.buttons}
+        type={alertState.type}
+        onDismiss={() => alertService.hide()}
+      />
     </SafeAreaView>
   )
 }

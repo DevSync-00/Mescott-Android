@@ -6,15 +6,16 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  Alert,
   ActivityIndicator,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useToast } from '../contexts/ToastContext'
 import { PaymentMethodService, PaymentMethod } from '../services/PaymentMethodService'
 import { WithdrawalOrderService } from '../services/WithdrawalOrderService'
 import PaymentMethodModal from './PaymentMethodModal'
 import BottomSheet, { BottomSheetRef } from './BottomSheet'
 import { Colors } from '../constants/Colors'
+import { showInfoAlert, showSuccessAlert } from '../utils/alertHelper'
 
 interface WithdrawalModalProps {
   visible: boolean
@@ -31,6 +32,7 @@ export default function WithdrawalModal({
   currentBalance,
   userId,
 }: WithdrawalModalProps) {
+  const { showError } = useToast()
   const bottomSheetRef = useRef<BottomSheetRef>(null)
   const [loading, setLoading] = useState(false)
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
@@ -67,32 +69,26 @@ export default function WithdrawalModal({
 
   const handleWithdraw = async () => {
     if (!selectedMethod) {
-      Alert.alert('Error', 'Please select a payment method')
+      showError('Please select a payment method')
       return
     }
 
     const withdrawAmount = parseFloat(amount)
     if (isNaN(withdrawAmount) || withdrawAmount <= 0) {
-      Alert.alert('Error', 'Please enter a valid amount')
+      showError('Please enter a valid amount')
       return
     }
 
     if (withdrawAmount > currentBalance) {
-      Alert.alert(
+      showInfoAlert(
         'Insufficient Funds',
-        `You have ${currentBalance.toFixed(2)} ETB available. Please enter an amount less than or equal to your current balance.`,
-        [
-          {
-            text: 'OK',
-            style: 'default',
-          },
-        ],
+        `You have ${currentBalance.toFixed(2)} ETB available. Please enter an amount less than or equal to your current balance.`
       )
       return
     }
 
     if (withdrawAmount < 50) {
-      Alert.alert('Error', 'Minimum withdrawal amount is 50 ETB')
+      showError('Minimum withdrawal amount is 50 ETB')
       return
     }
 
@@ -107,7 +103,7 @@ export default function WithdrawalModal({
         selectedMethod.withdrawal_details,
       )
 
-      Alert.alert(
+      showSuccessAlert(
         'Withdrawal Requested',
         'Your withdrawal request has been submitted and is pending approval.',
         [
@@ -118,11 +114,11 @@ export default function WithdrawalModal({
               onClose()
             },
           },
-        ],
+        ]
       )
     } catch (error) {
       console.error('Error creating withdrawal order:', error)
-      Alert.alert('Error', 'Failed to create withdrawal request. Please try again.')
+      showError('Failed to create withdrawal request. Please try again.')
     } finally {
       setLoading(false)
     }

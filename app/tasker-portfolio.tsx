@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  Alert,
   Modal,
   FlatList,
   Image,
@@ -16,6 +15,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
+import { useToast } from '../contexts/ToastContext'
 import {
   PortfolioService,
   TaskerPortfolio,
@@ -26,6 +26,7 @@ import {
 import { ImageService } from '../services/ImageService'
 import * as ImagePicker from 'expo-image-picker'
 import { Colors } from '../constants/Colors'
+import { showConfirmation, showSuccessAlert, showInfoAlert } from '../utils/alertHelper'
 
 const SKILL_LEVELS = ['beginner', 'intermediate', 'advanced', 'expert'] as const
 
@@ -69,6 +70,7 @@ interface FormData {
 
 export default function TaskerPortfolioPage() {
   const { user, isAuthenticated } = useAuth()
+  const { showError, showSuccess } = useToast()
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const [loading, setLoading] = useState(false)
@@ -166,7 +168,7 @@ export default function TaskerPortfolioPage() {
       }
     } catch (error) {
       console.error('Error loading portfolio:', error)
-      Alert.alert('Error', 'Failed to load portfolio')
+      showError('Failed to load portfolio')
     } finally {
       setLoading(false)
     }
@@ -174,7 +176,7 @@ export default function TaskerPortfolioPage() {
 
   const handleSavePortfolio = async () => {
     if (!portfolio?.id) {
-      Alert.alert('Error', 'No portfolio found. Please complete your tasker application first.')
+      showInfoAlert('No portfolio found', 'Please complete your tasker application first.')
       return
     }
 
@@ -182,14 +184,14 @@ export default function TaskerPortfolioPage() {
       setLoading(true)
       const success = await PortfolioService.updatePortfolioBasicInfo(portfolio.id, portfolioData)
       if (success) {
-        Alert.alert('Success', 'Portfolio updated successfully!')
+        showSuccess('Portfolio updated successfully!')
         loadPortfolio()
       } else {
-        Alert.alert('Error', 'Failed to update portfolio')
+        showError('Failed to update portfolio')
       }
     } catch (error) {
       console.error('Error saving portfolio:', error)
-      Alert.alert('Error', 'Failed to save portfolio')
+      showError('Failed to save portfolio')
     } finally {
       setLoading(false)
     }
@@ -206,16 +208,16 @@ export default function TaskerPortfolioPage() {
       } as PortfolioProject)
 
       if (newProject) {
-        Alert.alert('Success', 'Project added successfully!')
+        showSuccess('Project added successfully!')
         setShowProjectModal(false)
         setProjectData({})
         loadPortfolio()
       } else {
-        Alert.alert('Error', 'Failed to add project')
+        showError('Failed to add project')
       }
     } catch (error) {
       console.error('Error adding project:', error)
-      Alert.alert('Error', 'Failed to add project')
+      showError('Failed to add project')
     } finally {
       setLoading(false)
     }
@@ -232,16 +234,16 @@ export default function TaskerPortfolioPage() {
       } as PortfolioSkill)
 
       if (newSkill) {
-        Alert.alert('Success', 'Skill added successfully!')
+        showSuccess('Skill added successfully!')
         setShowSkillModal(false)
         setSkillData({})
         loadPortfolio()
       } else {
-        Alert.alert('Error', 'Failed to add skill')
+        showError('Failed to add skill')
       }
     } catch (error) {
       console.error('Error adding skill:', error)
-      Alert.alert('Error', 'Failed to add skill')
+      showError('Failed to add skill')
     } finally {
       setLoading(false)
     }
@@ -259,17 +261,17 @@ export default function TaskerPortfolioPage() {
       } as PortfolioCertification)
 
       if (newCertification) {
-        Alert.alert('Success', 'Certification added successfully!')
+        showSuccess('Certification added successfully!')
         setShowCertificationModal(false)
         setCertificationData({})
         setCertificateImage(null)
         loadPortfolio()
       } else {
-        Alert.alert('Error', 'Failed to add certification')
+        showError('Failed to add certification')
       }
     } catch (error) {
       console.error('Error adding certification:', error)
-      Alert.alert('Error', 'Failed to add certification')
+      showError('Failed to add certification')
     } finally {
       setLoading(false)
     }
@@ -290,14 +292,14 @@ export default function TaskerPortfolioPage() {
         if (uploadResult.success && uploadResult.url) {
           setCertificateImage(uploadResult.url)
         } else {
-          Alert.alert('Error', uploadResult.error || 'Failed to upload image')
+          showError(uploadResult.error || 'Failed to upload image')
         }
         setUploadingImage(false)
       }
     } catch (error) {
       console.error('Error picking image:', error)
       setUploadingImage(false)
-      Alert.alert('Error', 'Failed to upload image')
+      showError('Failed to upload image')
     }
   }
 
@@ -320,43 +322,44 @@ export default function TaskerPortfolioPage() {
   }
 
   const handleDeleteItem = async (id: string, type: string) => {
-    Alert.alert('Delete Item', 'Are you sure you want to delete this item?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            setLoading(true)
-            let success = false
+    showConfirmation(
+      'Delete Item',
+      'Are you sure you want to delete this item?',
+      async () => {
+        try {
+          setLoading(true)
+          let success = false
 
-            switch (type) {
-              case 'project':
-                success = await PortfolioService.deleteProject(id)
-                break
-              case 'skill':
-                success = await PortfolioService.deleteSkill(id)
-                break
-              case 'certification':
-                success = await PortfolioService.deleteCertification(id)
-                break
-            }
-
-            if (success) {
-              Alert.alert('Success', 'Item deleted successfully!')
-              loadPortfolio()
-            } else {
-              Alert.alert('Error', 'Failed to delete item')
-            }
-          } catch (error) {
-            console.error('Error deleting item:', error)
-            Alert.alert('Error', 'Failed to delete item')
-          } finally {
-            setLoading(false)
+          switch (type) {
+            case 'project':
+              success = await PortfolioService.deleteProject(id)
+              break
+            case 'skill':
+              success = await PortfolioService.deleteSkill(id)
+              break
+            case 'certification':
+              success = await PortfolioService.deleteCertification(id)
+              break
           }
-        },
+
+          if (success) {
+            showSuccess('Item deleted successfully!')
+            loadPortfolio()
+          } else {
+            showError('Failed to delete item')
+          }
+        } catch (error) {
+          console.error('Error deleting item:', error)
+          showError('Failed to delete item')
+        } finally {
+          setLoading(false)
+        }
       },
-    ])
+      undefined,
+      'Delete',
+      'Cancel',
+      'warning'
+    )
   }
 
   const renderOverviewTab = () => (

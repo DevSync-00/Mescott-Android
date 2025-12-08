@@ -7,11 +7,11 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  Alert,
   ActivityIndicator,
   SafeAreaView,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useToast } from '../contexts/ToastContext'
 import { PaymentMethodService, PaymentMethod } from '../services/PaymentMethodService'
 import {
   ETHIOPIAN_BANKS,
@@ -34,6 +34,7 @@ function PaymentMethodModal({
   onPaymentMethodAdded,
   userId,
 }: PaymentMethodModalProps) {
+  const { showError } = useToast()
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState<'type' | 'details'>('type')
   const [selectedType, setSelectedType] = useState<'bank_account' | 'mobile_money' | null>(null)
@@ -118,34 +119,34 @@ function PaymentMethodModal({
     // Validation
     if (selectedType === 'bank_account') {
       if (!selectedBank) {
-        Alert.alert('Error', 'Please select a bank.')
+        showError('Please select a bank.')
         return
       }
       if (!accountNumber) {
-        Alert.alert('Error', 'Please enter account number.')
+        showError('Please enter account number.')
         return
       }
       if (!accountHolder) {
-        Alert.alert('Error', 'Please enter account holder name.')
+        showError('Please enter account holder name.')
         return
       }
       if (!validateAccountNumber(selectedBank, accountNumber)) {
-        Alert.alert('Error', 'Please enter a valid account number.')
+        showError('Please enter a valid account number.')
         return
       }
     }
 
     if (selectedType === 'mobile_money') {
       if (!selectedProvider) {
-        Alert.alert('Error', 'Please select a provider.')
+        showError('Please select a provider.')
         return
       }
       if (!phoneNumber) {
-        Alert.alert('Error', 'Please enter phone number.')
+        showError('Please enter phone number.')
         return
       }
       if (!validatePhoneNumber(selectedProvider, phoneNumber)) {
-        Alert.alert('Error', 'Please enter a valid phone number.')
+        showError('Please enter a valid phone number.')
         return
       }
     }
@@ -171,7 +172,7 @@ function PaymentMethodModal({
       resetForm()
     } catch (error) {
       console.error('Error adding payment method:', error)
-      Alert.alert('Error', 'Failed to add payment method. Please try again.')
+      showError('Failed to add payment method. Please try again.')
     } finally {
       setLoading(false)
     }

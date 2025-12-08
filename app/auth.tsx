@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -14,11 +13,21 @@ import {
   Easing,
   TouchableWithoutFeedback,
   Keyboard,
-  Image,
+  Dimensions,
 } from 'react-native'
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
+import { Image } from 'expo-image'
+import * as Haptics from 'expo-haptics'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
+import { useToast } from '../contexts/ToastContext'
+import CountryPicker, { Country } from '../components/CountryPicker'
+import { Ionicons } from '@expo/vector-icons'
+import { showErrorAlert, showSuccessAlert } from '../utils/alert'
+import { Colors } from '../constants/Colors'
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window')
 
 export default function Auth() {
   const router = useRouter()
@@ -27,9 +36,24 @@ export default function Auth() {
   const [isCodeSent, setIsCodeSent] = useState(false)
   const [loading, setLoading] = useState(false)
   const [countdown, setCountdown] = useState(0)
+  const [selectedCountry, setSelectedCountry] = useState<Country>({
+    code: 'ET',
+    name: 'Ethiopia',
+    dialCode: '+251',
+    flag: 'https://flagcdn.com/w80/et.png',
+  })
+  const [countryPickerVisible, setCountryPickerVisible] = useState(false)
   const { sendVerificationCode, verifyPhoneCode, isAuthenticated, loading: isLoading } = useAuth()
+  const { showSuccess, showError } = useToast()
   const fadeAnim = useRef(new Animated.Value(0)).current
   const slideAnim = useRef(new Animated.Value(16)).current
+  const scrollViewRef = useRef<any>(null)
+  const phoneInputRef = useRef<TextInput>(null)
+  const otpInputRef = useRef<TextInput>(null)
+  const phoneInputContainerRef = useRef<View>(null)
+  const otpInputContainerRef = useRef<View>(null)
+  const [keyboardVisible, setKeyboardVisible] = useState(false)
+  const [keyboardHeight, setKeyboardHeight] = useState(0)
 
   // Smoothly fade/slide in the auth screen to avoid abrupt pop-in
   useEffect(() => {
@@ -48,6 +72,31 @@ export default function Auth() {
       }),
     ]).start()
   }, [fadeAnim, slideAnim])
+
+  // Track keyboard visibility and handle scrolling
+  useEffect(() => {
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardVisible(true)
+        const height = e.endCoordinates?.height || 0
+        setKeyboardHeight(height)
+      }
+    )
+
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false)
+        setKeyboardHeight(0)
+      }
+    )
+
+    return () => {
+      keyboardWillShow.remove()
+      keyboardWillHide.remove()
+    }
+  }, [])
 
   // Redirect away if already authenticated
   useEffect(() => {
@@ -84,26 +133,36 @@ export default function Auth() {
   }
 
   const cleanPhoneNumber = (phone: string) => {
+    // Remove all non-digit characters
     let cleaned = phone.replace(/\D/g, '')
+    
+    // Remove the country code if it's already included
+    const countryCode = selectedCountry.dialCode.replace('+', '')
+    if (cleaned.startsWith(countryCode)) {
+      cleaned = cleaned.substring(countryCode.length)
+    }
+    
+    // Remove leading zero if present (common in some countries)
     if (cleaned.startsWith('0')) {
-      cleaned = '251' + cleaned.substring(1)
+      cleaned = cleaned.substring(1)
     }
-    if (!cleaned.startsWith('251')) {
-      cleaned = '251' + cleaned
-    }
-    return '+' + cleaned
+    
+    // Return formatted phone number with country code
+    return selectedCountry.dialCode + cleaned
   }
 
   const handleSendCode = async () => {
     if (!phoneNumber.trim()) {
-      Alert.alert('Error', 'Please enter your phone number')
+      showError('Please enter your phone number')
       return
     }
 
     const formattedPhone = cleanPhoneNumber(phoneNumber)
 
-    if (formattedPhone.length !== 13) {
-      Alert.alert('Error', 'Please enter a valid 9-digit phone number (e.g., 0912345678)')
+    // Basic validation - at least 7 digits after country code
+    const digitsOnly = formattedPhone.replace(/\D/g, '')
+    if (digitsOnly.length < 7) {
+      showError('Please enter a valid phone number')
       return
     }
 
@@ -113,15 +172,15 @@ export default function Auth() {
       const result = await sendVerificationCode(formattedPhone)
 
       if (result.success) {
-        Alert.alert('Success', result.message)
+        showSuccess('Verification code sent successfully!')
         setIsCodeSent(true)
         startCountdown()
       } else {
-        Alert.alert('Error', result.message)
+        showError(result.message)
       }
     } catch (error: any) {
       console.error('Exception in handleSendCode:', error)
-      Alert.alert('Error', error.message || 'Failed to send verification code. Please try again.')
+      showError(error.message || 'Failed to send verification code. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -129,7 +188,7 @@ export default function Auth() {
 
   const handleVerifyCode = async () => {
     if (verificationCode.length !== 6) {
-      Alert.alert('Error', 'Please enter the 6-digit verification code')
+      showError('Please enter the 6-digit verification code')
       return
     }
 
@@ -139,17 +198,17 @@ export default function Auth() {
       const result = await verifyPhoneCode(formattedPhone, verificationCode)
 
       if (result.success) {
-        Alert.alert('Success', result.message)
+        showSuccess(result.message || 'Verification successful!')
 
         // Reset form state
         setVerificationCode('')
         setIsCodeSent(false)
         setPhoneNumber('')
       } else {
-        Alert.alert('Error', result.message)
+        showError(result.message)
       }
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Verification failed. Please try again.')
+      showError(error.message || 'Verification failed. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -164,13 +223,13 @@ export default function Auth() {
 
         if (result.success) {
           setVerificationCode('')
-          Alert.alert('Success', 'New verification code sent')
+          showSuccess('New verification code sent')
           startCountdown()
         } else {
-          Alert.alert('Error', result.message)
+          showError(result.message)
         }
       } catch (error: any) {
-        Alert.alert('Error', error.message || 'Failed to resend verification code')
+        showError(error.message || 'Failed to resend verification code')
       } finally {
         setLoading(false)
       }
@@ -188,16 +247,30 @@ export default function Auth() {
             { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
           ]}
         >
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.keyboardView}
+          <KeyboardAwareScrollView
+            innerRef={(ref) => {
+              scrollViewRef.current = ref
+            }}
+            contentContainerStyle={[
+              styles.scrollContent,
+              keyboardVisible && { paddingBottom: Math.max(keyboardHeight, 350) },
+            ]}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            bounces={true}
+            keyboardDismissMode="on-drag"
+            enableOnAndroid={true}
+            enableAutomaticScroll={true}
+            extraHeight={200}
+            extraScrollHeight={200}
+            keyboardOpeningTime={Platform.OS === 'ios' ? 250 : 0}
+            scrollEnabled={true}
+            enableResetScrollToCoords={false}
+            resetScrollToCoords={{ x: 0, y: 0 }}
+            scrollToOverflowEnabled={true}
+            viewIsInsideTabBar={false}
+            enableResetKeyboardAvoidingView={true}
           >
-            <ScrollView
-              contentContainerStyle={styles.scrollContent}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              bounces={false}
-            >
               {/* Hero */}
               <View style={styles.hero}>
                 <View style={styles.heroTextBlock}>
@@ -223,17 +296,36 @@ export default function Auth() {
                     <Text style={styles.title}>ENTER YOUR PHONE NUMBER</Text>
                     <Text style={styles.subtitle}>We will send an OTP verification code</Text>
 
-                    <View style={styles.phoneInputRow}>
-                      <View style={styles.flagWrap}>
-                        <Image
-                          source={{
-                            uri: 'https://flagcdn.com/w40/et.png',
-                          }}
-                          style={styles.flag}
-                          resizeMode="cover"
+                    <View ref={phoneInputContainerRef} style={styles.phoneInputRow}>
+                      <TouchableOpacity
+                        style={styles.flagWrap}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                          setCountryPickerVisible(true)
+                        }}
+                        activeOpacity={0.6}
+                      >
+                        <View style={styles.flagImageContainer}>
+                          <Image
+                            source={{ uri: selectedCountry.flag }}
+                            style={styles.flag}
+                            contentFit="cover"
+                            transition={200}
+                            cachePolicy="memory-disk"
+                          />
+                        </View>
+                        <Ionicons
+                          name="chevron-down"
+                          size={16}
+                          color="#666"
+                          style={styles.flagChevron}
                         />
+                      </TouchableOpacity>
+                      <View style={styles.dialCodeContainer}>
+                        <Text style={styles.dialCode}>{selectedCountry.dialCode}</Text>
                       </View>
                       <TextInput
+                        ref={phoneInputRef}
                         style={styles.phoneInput}
                         placeholder="Phone number"
                         placeholderTextColor="#999"
@@ -242,6 +334,28 @@ export default function Auth() {
                         keyboardType="phone-pad"
                         returnKeyType="done"
                         onSubmitEditing={handleSendCode}
+                        onFocus={() => {
+                          // Ensure scroll happens after keyboard animation
+                          setTimeout(() => {
+                            if (scrollViewRef.current && phoneInputContainerRef.current) {
+                              phoneInputContainerRef.current.measureInWindow((x, y, width, height) => {
+                                // Calculate scroll position to bring input above keyboard
+                                const screenHeight = Dimensions.get('window').height
+                                const keyboardHeight = screenHeight - y - height
+                                const scrollOffset = Math.max(0, y - 200)
+                                
+                                // Use scrollToPosition if available (KeyboardAwareScrollView method)
+                                if (scrollViewRef.current.scrollToPosition) {
+                                  scrollViewRef.current.scrollToPosition(0, scrollOffset, true)
+                                } else if (scrollViewRef.current.scrollTo) {
+                                  scrollViewRef.current.scrollTo({ x: 0, y: scrollOffset, animated: true })
+                                } else {
+                                  scrollViewRef.current.scrollToEnd?.({ animated: true })
+                                }
+                              })
+                            }
+                          }, Platform.OS === 'ios' ? 300 : 600)
+                        }}
                       />
                     </View>
 
@@ -261,28 +375,54 @@ export default function Auth() {
                         setIsCodeSent(false)
                         setVerificationCode('')
                       }}
-                      style={styles.backLink}
+                      style={styles.changeNumberButton}
                       activeOpacity={0.7}
                     >
-                      <Text style={styles.backLinkText}>← Change Number</Text>
+                      <Ionicons name="arrow-back" size={18} color={Colors.primary[600]} style={styles.changeNumberIcon} />
+                      <Text style={styles.changeNumberText}>Change Number</Text>
                     </TouchableOpacity>
 
                     <Text style={styles.title}>OTP Verification</Text>
                     <Text style={styles.subtitle}>Enter the OTP verification code</Text>
 
-                    <TextInput
-                      style={styles.otpInput}
-                      placeholder="000000"
-                      placeholderTextColor="#CFCFCF"
-                      value={verificationCode}
-                      onChangeText={setVerificationCode}
-                      keyboardType="number-pad"
-                      maxLength={6}
-                      autoFocus
-                      returnKeyType="done"
-                      onSubmitEditing={handleVerifyCode}
-                      textAlign="center"
-                    />
+                    <View ref={otpInputContainerRef}>
+                      <TextInput
+                        ref={otpInputRef}
+                        style={styles.otpInput}
+                        placeholder="000000"
+                        placeholderTextColor="#CFCFCF"
+                        value={verificationCode}
+                        onChangeText={setVerificationCode}
+                        keyboardType="number-pad"
+                        maxLength={6}
+                        autoFocus
+                        returnKeyType="done"
+                        onSubmitEditing={handleVerifyCode}
+                        textAlign="center"
+                        onFocus={() => {
+                          // Ensure scroll happens after keyboard animation
+                          setTimeout(() => {
+                            if (scrollViewRef.current && otpInputContainerRef.current) {
+                              otpInputContainerRef.current.measureInWindow((x, y, width, height) => {
+                                // Calculate scroll position to bring input above keyboard
+                                const screenHeight = Dimensions.get('window').height
+                                const keyboardHeight = screenHeight - y - height
+                                const scrollOffset = Math.max(0, y - 200)
+                                
+                                // Use scrollToPosition if available (KeyboardAwareScrollView method)
+                                if (scrollViewRef.current.scrollToPosition) {
+                                  scrollViewRef.current.scrollToPosition(0, scrollOffset, true)
+                                } else if (scrollViewRef.current.scrollTo) {
+                                  scrollViewRef.current.scrollTo({ x: 0, y: scrollOffset, animated: true })
+                                } else {
+                                  scrollViewRef.current.scrollToEnd?.({ animated: true })
+                                }
+                              })
+                            }
+                          }, Platform.OS === 'ios' ? 300 : 600)
+                        }}
+                      />
+                    </View>
 
                     <TouchableOpacity
                       style={[styles.primaryButton, loading && styles.buttonDisabled]}
@@ -315,10 +455,19 @@ export default function Auth() {
                   <Text style={styles.footer}>Terms & Conditions Apply*</Text>
                 </View>
               </View>
-            </ScrollView>
-          </KeyboardAvoidingView>
+            </KeyboardAwareScrollView>
         </Animated.View>
       </TouchableWithoutFeedback>
+
+      <CountryPicker
+        visible={countryPickerVisible}
+        onClose={() => setCountryPickerVisible(false)}
+        onSelect={(country) => {
+          setSelectedCountry(country)
+          setCountryPickerVisible(false)
+        }}
+        selectedCountry={selectedCountry}
+      />
     </SafeAreaView>
   )
 }
@@ -336,6 +485,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: 100,
   },
   hero: {
     backgroundColor: '#371F80',
@@ -399,18 +549,44 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   flagWrap: {
-    width: 54,
-    height: 42,
-    borderRadius: 10,
-    overflow: 'hidden',
+    height: 40,
+    borderRadius: 8,
     backgroundColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 8,
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    minWidth: 50,
+  },
+  flagImageContainer: {
+    width: 36,
+    height: 26,
+    borderRadius: 5,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8f8f8',
   },
   flag: {
-    width: '100%',
-    height: '100%',
+    width: 36,
+    height: 26,
+  },
+  flagChevron: {
+    marginLeft: 4,
+    marginTop: 1,
+  },
+  dialCodeContainer: {
+    marginRight: 8,
+    justifyContent: 'center',
+  },
+  dialCode: {
+    fontSize: 16,
+    color: '#1F1F1F',
+    fontWeight: '600',
   },
   phoneInput: {
     flex: 1,
@@ -452,6 +628,32 @@ const styles = StyleSheet.create({
     color: '#371F80',
     fontSize: 14,
     fontWeight: '600',
+  },
+  changeNumberButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.primary[50],
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.primary[200],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  changeNumberIcon: {
+    marginRight: 8,
+  },
+  changeNumberText: {
+    color: Colors.primary[600],
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   resendLink: {
     marginTop: 12,

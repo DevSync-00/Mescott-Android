@@ -1,9 +1,11 @@
 import React, { useState } from 'react'
-import { View, Text, TouchableOpacity, Image, Alert, StyleSheet } from 'react-native'
+import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
+import { useToast } from '../contexts/ToastContext'
 import { ImageService } from '../services/ImageService'
 import { Colors } from '../constants/Colors'
+import { showConfirmation, showInfoAlert } from '../utils/alertHelper'
 
 interface ImageUploadProps {
   onImageUploaded: (url: string) => void
@@ -18,6 +20,7 @@ export default function ImageUpload({
   currentImage,
   placeholder = 'Tap to add image',
 }: ImageUploadProps) {
+  const { showError } = useToast()
   const [uploading, setUploading] = useState(false)
 
   const handleImageSelection = async () => {
@@ -27,7 +30,7 @@ export default function ImageUpload({
       // Request permissions
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Please grant camera roll permissions to upload images')
+        showInfoAlert('Permission Required', 'Please grant camera roll permissions to upload images')
         return
       }
 
@@ -48,22 +51,27 @@ export default function ImageUpload({
         if (uploadResult.success && uploadResult.url) {
           onImageUploaded(uploadResult.url)
         } else {
-          Alert.alert('Upload Failed', uploadResult.error || 'Failed to upload image')
+          showError(uploadResult.error || 'Failed to upload image')
         }
       }
     } catch (error) {
       console.error('Error selecting image:', error)
-      Alert.alert('Error', 'Failed to select image. Please try again.')
+      showError('Failed to select image. Please try again.')
     } finally {
       setUploading(false)
     }
   }
 
   const removeImage = () => {
-    Alert.alert('Remove Image', 'Are you sure you want to remove this image?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: onImageRemoved },
-    ])
+    showConfirmation(
+      'Remove Image',
+      'Are you sure you want to remove this image?',
+      onImageRemoved,
+      undefined,
+      'Remove',
+      'Cancel',
+      'warning'
+    )
   }
 
   return (

@@ -1,19 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react'
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Image,
   RefreshControl,
   TextInput,
   StatusBar,
-  Alert,
   Platform,
   DeviceEventEmitter,
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Image } from 'expo-image'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect } from 'expo-router'
@@ -22,6 +21,9 @@ import { RealtimeChatService } from '../services/RealtimeChatService'
 import { ChatService, Chat } from '../services/ChatService'
 import { Colors } from '../constants/Colors'
 import { SkeletonList } from '../components/SkeletonLoader'
+import { showConfirmation } from '../utils/alertHelper'
+import TextureBackground from '../components/TextureBackground'
+import { supabase } from '../lib/supabase'
 
 export default function Chats() {
   const { isAuthenticated, isLoading, user } = useAuth()
@@ -34,6 +36,23 @@ export default function Chats() {
   const [filteredChats, setFilteredChats] = useState<Chat[]>([])
   const [clearedChats, setClearedChats] = useState<Set<string>>(new Set())
   const CLEARED_KEY = user ? `cleared_unread_${user.id}` : 'cleared_unread'
+  
+  // Cache timestamp calculations for better performance
+  const timestampCache = useRef<Map<string, number>>(new Map())
+  const getTimestamp = useCallback((chat: Chat) => {
+    const key = chat.id
+    if (!timestampCache.current.has(key)) {
+      const ts = chat.last_message_at
+        ? new Date(chat.last_message_at).getTime()
+        : chat.updated_at
+          ? new Date(chat.updated_at).getTime()
+          : chat.created_at
+            ? new Date(chat.created_at).getTime()
+            : 0
+      timestampCache.current.set(key, ts)
+    }
+    return timestampCache.current.get(key) || 0
+  }, [])
 
   const loadChats = useCallback(async () => {
     if (!user?.id) return
@@ -44,23 +63,9 @@ export default function Chats() {
         setLoading(true)
       }
       const userChats = await RealtimeChatService.getUserChats(user.id)
-      // Sort by most recent activity (last_message_at desc, fallback to updated_at or created_at)
+      // Sort by most recent activity using cached timestamps
       const sorted = [...userChats].sort((a, b) => {
-        const at = a.last_message_at
-          ? new Date(a.last_message_at).getTime()
-          : a.updated_at
-            ? new Date(a.updated_at).getTime()
-            : a.created_at
-              ? new Date(a.created_at).getTime()
-              : 0
-        const bt = b.last_message_at
-          ? new Date(b.last_message_at).getTime()
-          : b.updated_at
-            ? new Date(b.updated_at).getTime()
-            : b.created_at
-              ? new Date(b.created_at).getTime()
-              : 0
-        return bt - at // Most recent first
+        return getTimestamp(b) - getTimestamp(a) // Most recent first
       })
       // Apply client-side suppression for chats the user has opened
       const suppressed = sorted.map((c) => (clearedChats.has(c.id) ? { ...c, unread_count: 0 } : c))
@@ -70,7 +75,7 @@ export default function Chats() {
     } finally {
       setLoading(false)
     }
-  }, [user, clearedChats, chats.length])
+  }, [user, clearedChats, chats.length, getTimestamp])
 
   const getOtherParticipant = useCallback(
     (chat: Chat) => {
@@ -143,23 +148,6 @@ export default function Chats() {
     }, [isAuthenticated, loadChats]),
   )
 
-  useEffect(() => {
-    if (searchQuery.trim()) {
-      const filtered = chats.filter((chat) => {
-        const otherParticipant = getOtherParticipant(chat)
-        const participantName = otherParticipant?.full_name || 'Unknown User'
-        const taskTitle = chat.task?.title || 'Task Discussion'
-
-        return (
-          participantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          taskTitle.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-      })
-      setFilteredChats(filtered)
-    } else {
-      setFilteredChats(chats)
-    }
-  }, [searchQuery, chats, getOtherParticipant])
 
   const onRefresh = async () => {
     setRefreshing(true)
@@ -195,6 +183,7 @@ export default function Chats() {
     [user, router, loadChats],
   )
 
+
   const formatLastMessageTime = (timestamp: string | null) => {
     if (!timestamp) return ''
 
@@ -227,6 +216,25 @@ export default function Chats() {
     return 'Start a conversation'
   }
 
+  // Memoized filtered chats for better performance
+  const filteredChatsMemo = useMemo(() => {
+    if (!searchQuery.trim()) return chats
+    const query = searchQuery.toLowerCase()
+    return chats.filter((chat) => {
+      const otherParticipant = getOtherParticipant(chat)
+      const participantName = otherParticipant?.full_name || 'Unknown User'
+      const taskTitle = chat.task?.title || 'Task Discussion'
+      return (
+        participantName.toLowerCase().includes(query) ||
+        taskTitle.toLowerCase().includes(query)
+      )
+    })
+  }, [searchQuery, chats, getOtherParticipant])
+
+  useEffect(() => {
+    setFilteredChats(filteredChatsMemo)
+  }, [filteredChatsMemo])
+
   // Preload messages for top chats when list loads
   useEffect(() => {
     if (chats.length > 0) {
@@ -239,54 +247,39 @@ export default function Chats() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chats.length > 0 ? chats[0]?.id : null]) // Only when first chat changes
 
-  const renderChat = React.useCallback(
-    ({ item }: { item: Chat }) => {
+  // Memoized chat item component for better performance
+  const ChatItem = memo(
+    ({ item, onPress, onLongPress }: { item: Chat; onPress: () => void; onLongPress: () => void }) => {
       const otherParticipant = getOtherParticipant(item)
-      // Only show unread if it's not in cleared chats and has actual unread count
       const effectiveUnread = clearedChats.has(item.id) ? 0 : item.unread_count || 0
       const hasUnread = effectiveUnread > 0
       const lastMessage = getLastMessagePreview(item)
+      const lastMessageTime = useMemo(
+        () => formatLastMessageTime(item.last_message_at),
+        [item.last_message_at]
+      )
 
       return (
         <TouchableOpacity
           style={[styles.chatItem, hasUnread && styles.unreadChatItem]}
-          onPress={() => handleChatSelect(item.id)}
-          onLongPress={() => {
-            Alert.alert(
-              'Delete conversation',
-              'This will delete all messages for this chat. Continue?',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Delete',
-                  style: 'destructive',
-                  onPress: async () => {
-                    try {
-                      const ok = await ChatService.deleteChatAndMessages(item.id, user?.id || '')
-                      if (ok) {
-                        setChats((prev) => prev.filter((c) => c.id !== item.id))
-                        setFilteredChats((prev) => prev.filter((c) => c.id !== item.id))
-                      }
-                    } catch (e) {
-                      console.error('Delete chat failed', e)
-                    }
-                  },
-                },
-              ],
-            )
-          }}
+          onPress={onPress}
+          onLongPress={onLongPress}
           activeOpacity={0.7}
         >
           <View style={styles.avatarContainer}>
             {otherParticipant?.avatar_url ? (
               <Image
-                source={{ uri: otherParticipant.avatar_url, cache: 'force-cache' }}
+                source={{ uri: otherParticipant.avatar_url }}
                 style={styles.avatar}
-                progressiveRenderingEnabled={true}
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                transition={200}
               />
             ) : (
               <View style={styles.avatarPlaceholder}>
-                <Ionicons name="person" size={24} color={Colors.neutral[400]} />
+                <Text style={styles.avatarInitial}>
+                  {(otherParticipant?.full_name || 'U')[0].toUpperCase()}
+                </Text>
               </View>
             )}
             {hasUnread && <View style={styles.unreadBadge} />}
@@ -294,12 +287,10 @@ export default function Chats() {
 
           <View style={styles.chatContent}>
             <View style={styles.chatHeader}>
-              <Text style={[styles.participantName, hasUnread && styles.unreadText]}>
+              <Text style={[styles.participantName, hasUnread && styles.unreadText]} numberOfLines={1}>
                 {otherParticipant?.full_name || 'Unknown User'}
               </Text>
-              <Text style={styles.lastMessageTime}>
-                {formatLastMessageTime(item.last_message_at)}
-              </Text>
+              <Text style={styles.lastMessageTime}>{lastMessageTime}</Text>
             </View>
 
             <View style={styles.chatFooter}>
@@ -308,14 +299,16 @@ export default function Chats() {
               </Text>
               {hasUnread && (
                 <View style={styles.unreadCount}>
-                  <Text style={styles.unreadCountText}>{effectiveUnread}</Text>
+                  <Text style={styles.unreadCountText}>
+                    {effectiveUnread > 99 ? '99+' : effectiveUnread}
+                  </Text>
                 </View>
               )}
             </View>
 
             {item.task && (
               <View style={styles.taskInfo}>
-                <Ionicons name="briefcase" size={12} color={Colors.neutral[500]} />
+                <Ionicons name="briefcase-outline" size={10} color={Colors.neutral[400]} />
                 <Text style={styles.taskTitle} numberOfLines={1}>
                   {item.task.title}
                 </Text>
@@ -325,7 +318,48 @@ export default function Chats() {
         </TouchableOpacity>
       )
     },
-    [clearedChats, user?.id, getOtherParticipant, handleChatSelect],
+    (prevProps, nextProps) => {
+      return (
+        prevProps.item.id === nextProps.item.id &&
+        prevProps.item.unread_count === nextProps.item.unread_count &&
+        prevProps.item.last_message_at === nextProps.item.last_message_at &&
+        prevProps.item.last_message_text === nextProps.item.last_message_text
+      )
+    }
+  )
+  ChatItem.displayName = 'ChatItem'
+
+  const renderChat = useCallback(
+    ({ item }: { item: Chat }) => {
+      return (
+        <ChatItem
+          item={item}
+          onPress={() => handleChatSelect(item.id)}
+          onLongPress={() => {
+            showConfirmation(
+              'Delete conversation',
+              'This will delete all messages for this chat. Continue?',
+              async () => {
+                try {
+                  const ok = await ChatService.deleteChatAndMessages(item.id, user?.id || '')
+                  if (ok) {
+                    setChats((prev) => prev.filter((c) => c.id !== item.id))
+                    setFilteredChats((prev) => prev.filter((c) => c.id !== item.id))
+                  }
+                } catch (e) {
+                  console.error('Delete chat failed', e)
+                }
+              },
+              undefined,
+              'Delete',
+              'Cancel',
+              'warning'
+            )
+          }}
+        />
+      )
+    },
+    [handleChatSelect, user?.id],
   )
 
   if (isLoading) {
@@ -350,32 +384,42 @@ export default function Chats() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={[]}>
-      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
-      <View style={styles.containerContent}>
+    <TextureBackground>
+      <SafeAreaView style={styles.container} edges={[]}>
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
+        <View style={styles.containerContent}>
         {/* Header */}
         <View style={[styles.headerWrapper, { paddingTop: 8 + insets.top }]}>
           <View style={styles.header}>
             <View style={styles.headerContent}>
               <Text style={styles.headerTitle}>Messages</Text>
             </View>
+          </View>
+        </View>
 
-            {/* Search Bar */}
-            <View style={styles.searchContainer}>
-              <Ionicons name="search" size={20} color={Colors.neutral[400]} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search conversations..."
-                placeholderTextColor={Colors.neutral[400]}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity onPress={() => setSearchQuery('')}>
-                  <Ionicons name="close-circle" size={20} color={Colors.neutral[400]} />
-                </TouchableOpacity>
-              )}
+        {/* Search Bar - Separated for better UX */}
+        <View style={styles.searchWrapper}>
+          <View style={styles.searchContainer}>
+            <View style={styles.searchIconContainer}>
+              <Ionicons name="search" size={18} color={Colors.neutral[500]} />
             </View>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search conversations..."
+              placeholderTextColor={Colors.neutral[400]}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity 
+                onPress={() => setSearchQuery('')} 
+                style={styles.clearButton}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close-circle" size={18} color={Colors.neutral[400]} />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -400,7 +444,7 @@ export default function Chats() {
             keyExtractor={(item) => item.id}
             renderItem={renderChat}
             style={styles.chatsList}
-            contentContainerStyle={{ ...styles.chatsListContent, paddingBottom: 120 }}
+            contentContainerStyle={styles.chatsListContent}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -425,19 +469,21 @@ export default function Chats() {
             })}
           />
         )}
+
       </View>
     </SafeAreaView>
+    </TextureBackground>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: 'transparent',
   },
   containerContent: {
     flex: 1,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: 'transparent',
   },
   headerWrapper: {
     paddingTop: 0,
@@ -474,20 +520,20 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: Colors.background.primary,
     paddingHorizontal: 20,
-    paddingVertical: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border.light,
+    paddingTop: 8,
+    paddingBottom: 0,
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 0,
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: '800',
     color: Colors.neutral[900],
+    letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 14,
@@ -502,34 +548,55 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  searchWrapper: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    backgroundColor: Colors.background.primary,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border.light,
+  },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.neutral[100],
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
+    borderRadius: 10,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    minHeight: 40,
+  },
+  searchIconContainer: {
+    paddingLeft: 12,
+    paddingRight: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 14,
     color: Colors.neutral[900],
+    paddingVertical: 10,
+    paddingRight: 8,
+  },
+  clearButton: {
+    paddingRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   chatsList: {
     flex: 1,
   },
   chatsListContent: {
     paddingTop: 0,
-    paddingBottom: 20, // Base padding, will be overridden to 120 in contentContainerStyle
+    paddingBottom: 100,
   },
   chatItem: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.background.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border.light,
   },
   unreadChatItem: {
@@ -537,32 +604,34 @@ const styles = StyleSheet.create({
   },
   avatarContainer: {
     position: 'relative',
-    marginRight: 16,
+    marginRight: 10,
   },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    borderWidth: 2,
-    borderColor: Colors.neutral[200],
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.neutral[100],
   },
   avatarPlaceholder: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.neutral[100],
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primary[100],
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: Colors.neutral[200],
+  },
+  avatarInitial: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.primary[600],
   },
   unreadBadge: {
     position: 'absolute',
-    top: 2,
-    right: 2,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    top: 0,
+    right: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: Colors.primary[500],
     borderWidth: 2,
     borderColor: Colors.background.primary,
@@ -574,10 +643,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 2,
   },
   participantName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: Colors.neutral[900],
     flex: 1,
@@ -587,7 +656,7 @@ const styles = StyleSheet.create({
     color: Colors.neutral[900],
   },
   lastMessageTime: {
-    fontSize: 12,
+    fontSize: 11,
     color: Colors.neutral[500],
     fontWeight: '500',
   },
@@ -595,54 +664,58 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginTop: 1,
   },
   lastMessage: {
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.neutral[600],
     flex: 1,
-    lineHeight: 20,
+    lineHeight: 18,
   },
   unreadCount: {
     backgroundColor: Colors.primary[500],
-    borderRadius: 12,
-    minWidth: 24,
-    height: 24,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 8,
+    marginLeft: 6,
+    paddingHorizontal: 6,
   },
   unreadCountText: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
   },
   taskInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 3,
+    marginTop: 2,
   },
   taskTitle: {
-    fontSize: 12,
-    color: Colors.neutral[500],
+    fontSize: 10,
+    color: Colors.neutral[400],
     flex: 1,
-    fontStyle: 'italic',
   },
   emptyState: {
+    flex: 1,
     alignItems: 'center',
-    paddingVertical: 60,
+    justifyContent: 'center',
+    paddingVertical: 80,
+    paddingHorizontal: 40,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
-    color: Colors.neutral[600],
-    marginTop: 16,
+    color: Colors.neutral[700],
+    marginTop: 20,
     marginBottom: 8,
   },
   emptySubtitle: {
-    fontSize: 14,
+    fontSize: 15,
     color: Colors.neutral[500],
     textAlign: 'center',
-    paddingHorizontal: 40,
+    lineHeight: 22,
   },
 })

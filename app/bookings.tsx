@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Alert,
   RefreshControl,
   StatusBar,
 } from 'react-native'
@@ -13,9 +12,11 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
+import { useToast } from '../contexts/ToastContext'
 import { BookingService, Booking } from '../services/BookingService'
 import { Colors } from '../constants/Colors'
 import { SkeletonList } from '../components/SkeletonLoader'
+import { showConfirmation, showInfoAlert, showSuccessAlert } from '../utils/alertHelper'
 
 const statusColors = {
   pending: Colors.warning[500],
@@ -47,6 +48,7 @@ const taskStatusLabels = {
 
 export default function Bookings() {
   const { user, isAuthenticated, loading: isLoading } = useAuth()
+  const { showError } = useToast()
   const insets = useSafeAreaInsets()
   const router = useRouter()
   const [selectedStatus, setSelectedStatus] = useState('all')
@@ -69,7 +71,7 @@ export default function Bookings() {
         setBookings(fetchedBookings)
       } catch (error) {
         console.error('🚀 BOOKINGS PAGE - Error loading bookings:', error)
-        Alert.alert('Error', 'Failed to load bookings')
+        showError('Failed to load bookings')
       } finally {
         if (isRefresh) {
           setRefreshing(false)
@@ -138,20 +140,20 @@ export default function Bookings() {
           } else {
             // Revert optimistic update on failure
             loadBookings(true).catch(console.error)
-            Alert.alert('Error', 'Failed to update booking status. Please try again.')
+            showError('Failed to update booking status. Please try again.')
           }
         })
         .catch((error) => {
           console.error('Error updating booking status:', error)
           // Revert optimistic update on error
           loadBookings(true).catch(console.error)
-          Alert.alert('Error', 'An unexpected error occurred. Please try again.')
+          showError('An unexpected error occurred. Please try again.')
         })
     } catch (error) {
       console.error('Error updating booking status:', error)
       // Revert optimistic update
       loadBookings(true).catch(console.error)
-      Alert.alert('Error', 'An unexpected error occurred. Please try again.')
+      showError('An unexpected error occurred. Please try again.')
     }
   }
 
@@ -170,11 +172,11 @@ export default function Bookings() {
         // Navigate to chat with the chat ID
         router.push(`/chat-detail?chatId=${chatId}&bookingId=${booking.id}`)
       } else {
-        Alert.alert('Error', 'Failed to create chat')
+        showError('Failed to create chat')
       }
     } catch (error) {
       console.error('🚀 BOOKINGS - Error creating chat:', error)
-      Alert.alert('Error', 'Failed to create chat')
+      showError('Failed to create chat')
     }
   }
 
@@ -369,16 +371,14 @@ export default function Bookings() {
                       <TouchableOpacity
                         style={[styles.actionButton, styles.acceptButton]}
                         onPress={() => {
-                          Alert.alert(
+                          showConfirmation(
                             'Accept Booking',
                             'Are you sure you want to accept this booking?',
-                            [
-                              { text: 'Cancel', style: 'cancel' },
-                              {
-                                text: 'Accept',
-                                onPress: () => updateBookingStatus(booking.id, 'confirmed'),
-                              },
-                            ],
+                            () => updateBookingStatus(booking.id, 'confirmed'),
+                            undefined,
+                            'Accept',
+                            'Cancel',
+                            'info'
                           )
                         }}
                       >
@@ -388,16 +388,14 @@ export default function Bookings() {
                       <TouchableOpacity
                         style={[styles.actionButton, styles.declineButton]}
                         onPress={() => {
-                          Alert.alert(
+                          showConfirmation(
                             'Decline Booking',
                             'Are you sure you want to decline this booking?',
-                            [
-                              { text: 'Cancel', style: 'cancel' },
-                              {
-                                text: 'Decline',
-                                onPress: () => updateBookingStatus(booking.id, 'cancelled'),
-                              },
-                            ],
+                            () => updateBookingStatus(booking.id, 'cancelled'),
+                            undefined,
+                            'Decline',
+                            'Cancel',
+                            'warning'
                           )
                         }}
                       >
@@ -411,13 +409,15 @@ export default function Bookings() {
                     <TouchableOpacity
                       style={[styles.actionButton, styles.completeButton]}
                       onPress={() => {
-                        Alert.alert('Complete Task', 'Are you sure you have completed this task?', [
-                          { text: 'Cancel', style: 'cancel' },
-                          {
-                            text: 'Complete',
-                            onPress: () => updateBookingStatus(booking.id, 'completed'),
-                          },
-                        ])
+                        showConfirmation(
+                          'Complete Task',
+                          'Are you sure you have completed this task?',
+                          () => updateBookingStatus(booking.id, 'completed'),
+                          undefined,
+                          'Complete',
+                          'Cancel',
+                          'info'
+                        )
                       }}
                     >
                       <Ionicons name="checkmark-circle" size={18} color="#fff" />
@@ -430,16 +430,14 @@ export default function Bookings() {
                     <TouchableOpacity
                       style={[styles.actionButton, styles.cancelButton]}
                       onPress={() => {
-                        Alert.alert(
+                        showConfirmation(
                           'Cancel Booking',
                           'Are you sure you want to cancel this booking?',
-                          [
-                            { text: 'No', style: 'cancel' },
-                            {
-                              text: 'Yes, Cancel',
-                              onPress: () => updateBookingStatus(booking.id, 'cancelled'),
-                            },
-                          ],
+                          () => updateBookingStatus(booking.id, 'cancelled'),
+                          undefined,
+                          'Yes, Cancel',
+                          'No',
+                          'warning'
                         )
                       }}
                     >

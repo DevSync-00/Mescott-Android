@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  Alert,
   KeyboardAvoidingView,
   Keyboard,
   TouchableWithoutFeedback,
@@ -16,11 +15,14 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
+import { useToast } from '../contexts/ToastContext'
 import { TaskApplicationService } from '../services/TaskApplicationService'
 import { Colors } from '../constants/Colors'
+import { showSuccessAlert } from '../utils/alertHelper'
 
 export default function ApplyTask() {
   const { user, isAuthenticated, isLoading } = useAuth()
+  const { showError } = useToast()
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { taskId, taskTitle, customerName, budget } = useLocalSearchParams()
@@ -53,33 +55,33 @@ export default function ApplyTask() {
 
   const handleSubmitApplication = async () => {
     if (!user || !taskId) {
-      Alert.alert('Error', 'Missing required information')
+      showError('Missing required information')
       return
     }
 
     // Validation
     if (!proposedPrice.trim()) {
-      Alert.alert('Error', 'Please enter your proposed price')
+      showError('Please enter your proposed price')
       return
     }
     if (!estimatedTime.trim()) {
-      Alert.alert('Error', 'Please enter estimated time')
+      showError('Please enter estimated time')
       return
     }
     if (!coverLetter.trim()) {
-      Alert.alert('Error', 'Please write a cover letter')
+      showError('Please write a cover letter')
       return
     }
 
     const price = parseFloat(proposedPrice)
     if (isNaN(price) || price <= 0) {
-      Alert.alert('Error', 'Please enter a valid price')
+      showError('Please enter a valid price')
       return
     }
 
     const time = parseInt(estimatedTime)
     if (isNaN(time) || time <= 0) {
-      Alert.alert('Error', 'Please enter a valid estimated time')
+      showError('Please enter a valid estimated time')
       return
     }
 
@@ -97,7 +99,7 @@ export default function ApplyTask() {
 
       await TaskApplicationService.createApplication(applicationData)
 
-      Alert.alert(
+      showSuccessAlert(
         'Application Submitted!',
         'Your application has been sent to the customer. You will be notified when they respond.',
         [
@@ -105,11 +107,11 @@ export default function ApplyTask() {
             text: 'OK',
             onPress: () => router.push('/jobs'),
           },
-        ],
+        ]
       )
     } catch (error) {
       console.error('Error submitting application:', error)
-      Alert.alert('Error', 'Failed to submit application. Please try again.')
+      showError('Failed to submit application. Please try again.')
     } finally {
       setLoading(false)
     }

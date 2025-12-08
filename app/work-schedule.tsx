@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Switch } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
+import { useToast } from '../contexts/ToastContext'
 import { Colors } from '../constants/Colors'
+import { showConfirmation, showSuccessAlert } from '../utils/alertHelper'
 
 interface TimeSlot {
   id: string
@@ -35,6 +37,7 @@ const TIME_SLOTS = [
 
 export default function WorkSchedule() {
   const router = useRouter()
+  const { showError, showSuccess } = useToast()
   const [schedule, setSchedule] = useState<TimeSlot[]>([])
   const [isAvailable, setIsAvailable] = useState(true)
   const [loading, setLoading] = useState(true)
@@ -76,10 +79,10 @@ export default function WorkSchedule() {
   const saveSchedule = async () => {
     try {
       // Here you would save to your backend
-      Alert.alert('Success', 'Your work schedule has been updated')
+      showSuccess('Your work schedule has been updated')
     } catch (error) {
       console.error('Error saving schedule:', error)
-      Alert.alert('Error', 'Failed to save schedule')
+      showError('Failed to save schedule')
     }
   }
 
@@ -95,21 +98,22 @@ export default function WorkSchedule() {
         isAvailable: sourceDay.isAvailable,
       })),
     )
-    Alert.alert('Success', 'Schedule copied to all days')
+    showSuccess('Schedule copied to all days')
   }
 
   const resetToDefault = () => {
-    Alert.alert('Reset Schedule', 'Are you sure you want to reset your schedule to default?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Reset',
-        style: 'destructive',
-        onPress: () => {
-          loadSchedule()
-          Alert.alert('Success', 'Schedule reset to default')
-        },
+    showConfirmation(
+      'Reset Schedule',
+      'Are you sure you want to reset your schedule to default?',
+      () => {
+        loadSchedule()
+        showSuccess('Schedule reset to default')
       },
-    ])
+      undefined,
+      'Reset',
+      'Cancel',
+      'warning'
+    )
   }
 
   const getAvailabilityStats = () => {

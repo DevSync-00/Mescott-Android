@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react'
 import {
   View,
   Text,
@@ -29,6 +29,8 @@ import { TaskApplicationService } from '../services/TaskApplicationService'
 import { ChatService } from '../services/ChatService'
 import { SearchService, SearchFilters } from '../services/SearchService'
 import { PaymentService, Payment } from '../services/PaymentService'
+import { supabase } from '../lib/supabase'
+import { getCache } from '../lib/cache'
 import AdvancedSearch from '../components/AdvancedSearch'
 import LoadingErrorState from '../components/LoadingErrorState'
 import ChapaPaymentModal from '../components/ChapaPaymentModal'
@@ -38,6 +40,7 @@ import { Colors } from '../constants/Colors'
 import { SkeletonList } from '../components/SkeletonLoader'
 // import TaskDetailSheet from '../components/TaskDetailSheet'
 import { moderateFont } from '../utils/fontScale'
+import TextureBackground from '../components/TextureBackground'
 
 const { width } = Dimensions.get('window')
 
@@ -124,28 +127,37 @@ export default function Jobs() {
     }
   }, [isAuthenticated, isLoading, router])
 
+  // Optimized batch check for applied tasks
   const checkAppliedTasks = useCallback(
     async (tasks: Task[]) => {
-      if (!user) return
+      if (!user || tasks.length === 0) return
 
-      const appliedSet = new Set<string>()
+      try {
+        // Get user's profile ID first
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('user_id', user.user_id)
+          .maybeSingle()
 
-      // Check each task to see if user has applied
-      for (const task of tasks) {
-        try {
-          const hasApplied = await TaskApplicationService.hasUserAppliedToTask(
-            user.user_id,
-            task.id,
-          )
-          if (hasApplied) {
-            appliedSet.add(task.id)
-          }
-        } catch (error) {
-          console.error(`Error checking application for task ${task.id}:`, error)
-        }
+        if (!profile) return
+
+        // Batch check all tasks in a single query
+        const taskIds = tasks.map((t) => t.id)
+        const { data: applications } = await supabase
+          .from('task_applications')
+          .select('task_id')
+          .eq('tasker_id', profile.id)
+          .in('task_id', taskIds)
+          .in('status', ['pending', 'accepted'])
+
+        const appliedSet = new Set<string>(
+          applications?.map((app) => app.task_id) || []
+        )
+        setAppliedTasks(appliedSet)
+      } catch (error) {
+        console.error('Error checking applied tasks:', error)
       }
-
-      setAppliedTasks(appliedSet)
     },
     [user],
   )
@@ -155,6 +167,22 @@ export default function Jobs() {
       return
     }
 
+    // Show cached data immediately for instant display
+    const cacheKey = activeTab === 'available' 
+      ? `tasks:available:${user.user_id}`
+      : `tasks:my:${user.user_id}`
+    
+    const cachedTasks = await getCache<Task[]>(cacheKey)
+    if (cachedTasks && cachedTasks.length > 0) {
+      setTasks(cachedTasks)
+      setLoading(false)
+      // Check applied tasks in background
+      if (activeTab === 'available' && (user.role === 'tasker' || user.role === 'both')) {
+        checkAppliedTasks(cachedTasks).catch(() => {})
+      }
+    }
+
+    // Load fresh data
     setLoading(true)
     try {
       let fetchedTasks: Task[] = []
@@ -167,13 +195,17 @@ export default function Jobs() {
 
       setTasks(fetchedTasks)
 
-      // Check which tasks user has already applied to
+      // Check which tasks user has already applied to (in parallel)
       if (activeTab === 'available' && (user.role === 'tasker' || user.role === 'both')) {
-        await checkAppliedTasks(fetchedTasks)
+        // Don't await - let it run in background
+        checkAppliedTasks(fetchedTasks).catch(() => {})
       }
     } catch (error) {
       console.error('Error loading tasks:', error)
-      Alert.alert('Error', 'Failed to load tasks')
+      // Don't show alert if we have cached data
+      if (!cachedTasks || cachedTasks.length === 0) {
+        Alert.alert('Error', 'Failed to load tasks')
+      }
     } finally {
       setLoading(false)
     }
@@ -193,16 +225,18 @@ export default function Jobs() {
   useEffect(() => {
     if (isAuthenticated) {
       loadTasks()
-      loadPendingPayments()
+      // Load payments in background (non-blocking)
+      loadPendingPayments().catch(() => {})
     }
   }, [activeTab, user, isAuthenticated, loadTasks, loadPendingPayments])
 
-  // Refresh tasks when screen comes into focus
+  // Refresh tasks when screen comes into focus (but don't block UI)
   useFocusEffect(
     useCallback(() => {
       if (isAuthenticated && user) {
-        loadTasks() // This will call checkAppliedTasks internally
-        loadPendingPayments()
+        // Load fresh data in background without blocking
+        loadTasks().catch(() => {})
+        loadPendingPayments().catch(() => {})
       }
     }, [isAuthenticated, user, loadTasks, loadPendingPayments]),
   )
@@ -461,9 +495,10 @@ export default function Jobs() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={[]}>
-      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
-      <View style={styles.containerContent}>
+    <TextureBackground>
+      <SafeAreaView style={styles.container} edges={[]}>
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
+        <View style={styles.containerContent}>
         {/* Fixed Header (does not scroll) */}
         <View style={styles.headerWrapper}>
           <JobsHeader title={activeTab === 'available' ? 'Available' : t('jobs.my_tasks')} />
@@ -568,6 +603,13 @@ export default function Jobs() {
             <FlatList
               data={filteredTasks}
               keyExtractor={(item) => item.id}
+              removeClippedSubviews={Platform.OS === 'android'}
+              maxToRenderPerBatch={10}
+              updateCellsBatchingPeriod={50}
+              windowSize={10}
+              initialNumToRender={10}
+              // Note: getItemLayout disabled due to dynamic heights based on viewMode
+              // This is fine as FlatList will calculate automatically
               ListHeaderComponent={
                 <>
                   {/* Tasker Registration Prompt */}
@@ -628,9 +670,10 @@ export default function Jobs() {
               }
               renderItem={({ item: task }) => {
                 const isFavorite = favoriteTasks.has(task.id)
+                const hasApplied = appliedTasks.has(task.id)
+                
                 return (
                   <TouchableOpacity
-                    key={task.id}
                     style={[styles.taskCard, viewMode === 'compact' && styles.taskCardCompact]}
                     onPress={() => {
                       router.push({ pathname: '/task-detail', params: { taskId: task.id } })
@@ -1017,6 +1060,7 @@ export default function Jobs() {
         </TouchableOpacity>
       </Animated.View>
     </SafeAreaView>
+    </TextureBackground>
   )
 }
 
@@ -1027,7 +1071,7 @@ const styles = StyleSheet.create({
   },
   containerContent: {
     flex: 1,
-    backgroundColor: Colors.background.primary,
+    backgroundColor: 'transparent',
   },
   content: {
     flex: 1,
