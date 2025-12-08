@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   View,
   Text,
@@ -10,6 +10,11 @@ import {
   Platform,
   ScrollView,
   StatusBar,
+  Animated,
+  Easing,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Image,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
@@ -17,15 +22,32 @@ import { useAuth } from '../contexts/SimpleAuthContext'
 
 export default function Auth() {
   const router = useRouter()
-  const [isSignUp, setIsSignUp] = useState(false)
-  const [fullName, setFullName] = useState('')
-  const [username, setUsername] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
   const [verificationCode, setVerificationCode] = useState('')
   const [isCodeSent, setIsCodeSent] = useState(false)
   const [loading, setLoading] = useState(false)
   const [countdown, setCountdown] = useState(0)
   const { sendVerificationCode, verifyPhoneCode, isAuthenticated, loading: isLoading } = useAuth()
+  const fadeAnim = useRef(new Animated.Value(0)).current
+  const slideAnim = useRef(new Animated.Value(16)).current
+
+  // Smoothly fade/slide in the auth screen to avoid abrupt pop-in
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 220,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 220,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start()
+  }, [fadeAnim, slideAnim])
 
   // Redirect away if already authenticated
   useEffect(() => {
@@ -73,18 +95,6 @@ export default function Auth() {
   }
 
   const handleSendCode = async () => {
-    if (isSignUp) {
-      if (!fullName.trim()) {
-        Alert.alert('Error', 'Please enter your full name')
-        return
-      }
-
-      if (!username.trim()) {
-        Alert.alert('Error', 'Please enter a username')
-        return
-      }
-    }
-
     if (!phoneNumber.trim()) {
       Alert.alert('Error', 'Please enter your phone number')
       return
@@ -100,7 +110,7 @@ export default function Auth() {
     setLoading(true)
 
     try {
-      const result = await sendVerificationCode(formattedPhone, isSignUp, fullName, username)
+      const result = await sendVerificationCode(formattedPhone)
 
       if (result.success) {
         Alert.alert('Success', result.message)
@@ -135,8 +145,6 @@ export default function Auth() {
         setVerificationCode('')
         setIsCodeSent(false)
         setPhoneNumber('')
-        setFullName('')
-        setUsername('')
       } else {
         Alert.alert('Error', result.message)
       }
@@ -152,7 +160,7 @@ export default function Auth() {
       setLoading(true)
       try {
         const formattedPhone = cleanPhoneNumber(phoneNumber)
-        const result = await sendVerificationCode(formattedPhone, isSignUp, fullName, username)
+        const result = await sendVerificationCode(formattedPhone)
 
         if (result.success) {
           setVerificationCode('')
@@ -171,172 +179,146 @@ export default function Auth() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" translucent={false} />
+      <StatusBar barStyle="light-content" backgroundColor="#371F80" translucent={false} />
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          bounces={true}
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <Animated.View
+          style={[
+            styles.animatedContainer,
+            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+          ]}
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.logo}>MESCOTT</Text>
-            <Text style={styles.subtitle}>
-              {isCodeSent
-                ? 'Verify your phone number'
-                : isSignUp
-                  ? 'Create your account'
-                  : 'Good to see you again'}
-            </Text>
-          </View>
-
-          {/* Form Container */}
-          <View style={styles.formContainer}>
-            {/* Auth Mode Toggle */}
-            {!isCodeSent && (
-              <View style={styles.authToggle}>
-                <TouchableOpacity
-                  style={[styles.toggleButton, !isSignUp && styles.toggleButtonActive]}
-                  onPress={() => setIsSignUp(false)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.toggleText, !isSignUp && styles.toggleTextActive]}>
-                    Sign In
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.toggleButton, isSignUp && styles.toggleButtonActive]}
-                  onPress={() => setIsSignUp(true)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.toggleText, isSignUp && styles.toggleTextActive]}>
-                    Sign Up
-                  </Text>
-                </TouchableOpacity>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.keyboardView}
+          >
+            <ScrollView
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+            >
+              {/* Hero */}
+              <View style={styles.hero}>
+                <View style={styles.heroTextBlock}>
+                  <Text style={styles.heroGreeting}>Hey!</Text>
+                  <Text style={styles.heroGreeting}>Welcome To</Text>
+                  <View style={styles.brandRow}>
+                    <Text style={styles.heroBrand}>MESCO</Text>
+                    <Image
+                      source={{
+                        uri: 'https://figma-alpha-api.s3.us-west-2.amazonaws.com/images/af4c84d7-57e5-42c9-9d89-94e58d60ec53',
+                      }}
+                      resizeMode="contain"
+                      style={styles.heroMark}
+                    />
+                  </View>
+                </View>
               </View>
-            )}
 
-            {/* Form Fields */}
-            {!isCodeSent ? (
-              <>
-                {isSignUp && (
+              {/* Card */}
+              <View style={styles.card}>
+                {!isCodeSent ? (
                   <>
-                    <View style={styles.inputWrapper}>
+                    <Text style={styles.title}>ENTER YOUR PHONE NUMBER</Text>
+                    <Text style={styles.subtitle}>We will send an OTP verification code</Text>
+
+                    <View style={styles.phoneInputRow}>
+                      <View style={styles.flagWrap}>
+                        <Image
+                          source={{
+                            uri: 'https://flagcdn.com/w40/et.png',
+                          }}
+                          style={styles.flag}
+                          resizeMode="cover"
+                        />
+                      </View>
                       <TextInput
-                        style={styles.input}
-                        placeholder="Full Name"
+                        style={styles.phoneInput}
+                        placeholder="Phone number"
                         placeholderTextColor="#999"
-                        value={fullName}
-                        onChangeText={setFullName}
-                        autoCapitalize="words"
-                        returnKeyType="next"
+                        value={phoneNumber}
+                        onChangeText={setPhoneNumber}
+                        keyboardType="phone-pad"
+                        returnKeyType="done"
+                        onSubmitEditing={handleSendCode}
                       />
                     </View>
 
-                    <View style={styles.inputWrapper}>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="Username"
-                        placeholderTextColor="#999"
-                        value={username}
-                        onChangeText={setUsername}
-                        autoCapitalize="none"
-                        returnKeyType="next"
-                      />
-                    </View>
+                    <TouchableOpacity
+                      style={[styles.primaryButton, loading && styles.buttonDisabled]}
+                      onPress={handleSendCode}
+                      disabled={loading}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.buttonText}>{loading ? 'Sending...' : 'CONTINUE'}</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setIsCodeSent(false)
+                        setVerificationCode('')
+                      }}
+                      style={styles.backLink}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.backLinkText}>← Change Number</Text>
+                    </TouchableOpacity>
+
+                    <Text style={styles.title}>OTP Verification</Text>
+                    <Text style={styles.subtitle}>Enter the OTP verification code</Text>
+
+                    <TextInput
+                      style={styles.otpInput}
+                      placeholder="000000"
+                      placeholderTextColor="#CFCFCF"
+                      value={verificationCode}
+                      onChangeText={setVerificationCode}
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      autoFocus
+                      returnKeyType="done"
+                      onSubmitEditing={handleVerifyCode}
+                      textAlign="center"
+                    />
+
+                    <TouchableOpacity
+                      style={[styles.primaryButton, loading && styles.buttonDisabled]}
+                      onPress={handleVerifyCode}
+                      disabled={loading}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.buttonText}>{loading ? 'Verifying...' : 'VERIFY'}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={handleResendCode}
+                      disabled={countdown > 0 || loading}
+                      style={styles.resendLink}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.resendText,
+                          (countdown > 0 || loading) && styles.resendTextDisabled,
+                        ]}
+                      >
+                        {countdown > 0 ? `Resend code in ${countdown}s` : 'Resend Code'}
+                      </Text>
+                    </TouchableOpacity>
                   </>
                 )}
 
-                <View style={styles.inputWrapper}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Phone Number (0912345678)"
-                    placeholderTextColor="#999"
-                    value={phoneNumber}
-                    onChangeText={setPhoneNumber}
-                    keyboardType="phone-pad"
-                    returnKeyType="done"
-                    onSubmitEditing={handleSendCode}
-                  />
+                <View style={styles.footerWrap}>
+                  <Text style={styles.footer}>Terms & Conditions Apply*</Text>
                 </View>
-
-                <TouchableOpacity
-                  style={[styles.primaryButton, loading && styles.buttonDisabled]}
-                  onPress={handleSendCode}
-                  disabled={loading}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.buttonText}>{loading ? 'Sending Code...' : 'Continue'}</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                {/* Back Button */}
-                <TouchableOpacity
-                  style={styles.backButton}
-                  onPress={() => {
-                    setIsCodeSent(false)
-                    setVerificationCode('')
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.backButtonText}>← Change Number</Text>
-                </TouchableOpacity>
-
-                <Text style={styles.codeHint}>Enter the 6-digit code sent to {phoneNumber}</Text>
-
-                {/* Verification Code Input */}
-                <View style={styles.inputWrapper}>
-                  <TextInput
-                    style={[styles.input, styles.codeInput]}
-                    placeholder="000000"
-                    placeholderTextColor="#ccc"
-                    value={verificationCode}
-                    onChangeText={setVerificationCode}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    autoFocus
-                    returnKeyType="done"
-                    onSubmitEditing={handleVerifyCode}
-                  />
-                </View>
-
-                <TouchableOpacity
-                  style={[styles.primaryButton, loading && styles.buttonDisabled]}
-                  onPress={handleVerifyCode}
-                  disabled={loading}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.buttonText}>{loading ? 'Verifying...' : 'Verify'}</Text>
-                </TouchableOpacity>
-
-                {/* Resend Code */}
-                <TouchableOpacity
-                  style={[styles.resendButton, countdown > 0 && styles.resendButtonDisabled]}
-                  onPress={handleResendCode}
-                  disabled={countdown > 0}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.resendText, countdown > 0 && styles.resendTextDisabled]}>
-                    {countdown > 0 ? `Resend code in ${countdown}s` : 'Resend Code'}
-                  </Text>
-                </TouchableOpacity>
-              </>
-            )}
-
-            {/* Footer */}
-            <Text style={styles.footer}>
-              By continuing, you agree to our Terms of Service and Privacy Policy
-            </Text>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </Animated.View>
+      </TouchableWithoutFeedback>
     </SafeAreaView>
   )
 }
@@ -344,131 +326,152 @@ export default function Auth() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#371F80',
+  },
+  animatedContainer: {
+    flex: 1,
   },
   keyboardView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
+  },
+  hero: {
+    backgroundColor: '#371F80',
+    paddingTop: 56,
     paddingHorizontal: 32,
-    paddingTop: 60,
-    paddingBottom: 40,
+    paddingBottom: 36,
   },
-  header: {
-    alignItems: 'center',
-    marginBottom: 60,
+  heroTextBlock: {
+    marginTop: 8,
   },
-  logo: {
-    fontSize: 36,
+  heroGreeting: {
+    color: '#FFFFFF',
+    fontSize: 32,
     fontWeight: '800',
-    color: '#6F4685',
-    letterSpacing: 2,
+    lineHeight: 40,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
+  },
+  heroBrand: {
+    color: '#FFFFFF',
+    fontSize: 56,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  heroMark: {
+    width: 60,
+    height: 60,
+    marginLeft: 10,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 56,
+    borderTopRightRadius: 56,
+    paddingHorizontal: 28,
+    paddingTop: 48,
+    paddingBottom: 32,
+    flex: 1,
+    marginTop: -24,
+  },
+  title: {
+    color: '#000000',
+    fontSize: 20,
+    fontWeight: '700',
     marginBottom: 12,
   },
   subtitle: {
+    color: '#371F80',
     fontSize: 15,
-    color: '#666',
-    textAlign: 'center',
-  },
-  formContainer: {
-    flex: 1,
-  },
-  authToggle: {
-    flexDirection: 'row',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    marginBottom: 40,
-    overflow: 'hidden',
-  },
-  toggleButton: {
-    flex: 1,
-    paddingVertical: 14,
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  toggleButtonActive: {
-    backgroundColor: '#6F4685',
-  },
-  toggleText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#999',
-  },
-  toggleTextActive: {
-    color: '#fff',
-  },
-  inputWrapper: {
-    marginBottom: 16,
-  },
-  input: {
-    fontSize: 16,
-    color: '#6F4685',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: '#fff',
-  },
-  codeInput: {
-    fontSize: 24,
-    letterSpacing: 12,
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-  codeHint: {
-    fontSize: 14,
-    color: '#666',
     marginBottom: 24,
-    textAlign: 'center',
+  },
+  phoneInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E9E9E9',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 32,
+  },
+  flagWrap: {
+    width: 54,
+    height: 42,
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  flag: {
+    width: '100%',
+    height: '100%',
+  },
+  phoneInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1F1F1F',
+    paddingVertical: 12,
+  },
+  otpInput: {
+    width: '100%',
+    height: 64,
+    backgroundColor: '#E9E9E9',
+    borderRadius: 18,
+    fontSize: 26,
+    fontWeight: '700',
+    letterSpacing: 12,
+    marginBottom: 28,
+    color: '#1F1F1F',
   },
   primaryButton: {
-    backgroundColor: '#6F4685',
-    borderRadius: 8,
+    backgroundColor: '#7B4FFF',
+    borderRadius: 24,
     paddingVertical: 16,
     alignItems: 'center',
-    marginTop: 24,
+    marginTop: 8,
   },
   buttonDisabled: {
-    backgroundColor: '#ccc',
+    opacity: 0.6,
   },
   buttonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  backLink: {
+    marginBottom: 10,
+  },
+  backLinkText: {
+    color: '#371F80',
+    fontSize: 14,
     fontWeight: '600',
   },
-  backButton: {
-    paddingVertical: 12,
-    marginBottom: 24,
-  },
-  backButtonText: {
-    color: '#6F4685',
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  resendButton: {
+  resendLink: {
+    marginTop: 12,
     alignItems: 'center',
-    paddingVertical: 16,
-    marginTop: 16,
-  },
-  resendButtonDisabled: {
-    opacity: 0.4,
   },
   resendText: {
-    color: '#6F4685',
-    fontSize: 15,
-    fontWeight: '500',
+    color: '#7B4FFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   resendTextDisabled: {
-    color: '#999',
+    color: '#B0B0B0',
+  },
+  footerWrap: {
+    marginTop: 32,
+    alignItems: 'center',
   },
   footer: {
     fontSize: 12,
-    color: '#999',
+    color: '#371F80',
     textAlign: 'center',
-    marginTop: 48,
-    lineHeight: 18,
   },
 })

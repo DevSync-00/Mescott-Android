@@ -10,7 +10,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   loading: boolean;
   isLoading: boolean; // Add this for backward compatibility
-  sendVerificationCode: (phone: string, isSignUp?: boolean, fullName?: string, username?: string) => Promise<{ success: boolean; message: string }>;
+  sendVerificationCode: (phone: string) => Promise<{ success: boolean; message: string }>;
   verifyPhoneCode: (phone: string, code: string) => Promise<{ success: boolean; message: string; isNewUser?: boolean }>;
   logout: () => Promise<void>;
   refreshUserProfile: () => Promise<void>;
@@ -169,16 +169,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const sendVerificationCode = async (phone: string, isSignUp = false, fullName = '', username = '') => {
+  const sendVerificationCode = async (phone: string) => {
     const normalized = normalizePhone(phone);
 
-    // Save signup info if it's a sign-up attempt
-    if (isSignUp) {
-      await AsyncStorage.setItem('pending_signup', JSON.stringify({ fullName, username, phone: normalized }));
-    }
-
-    // Send OTP without checking user existence first
-    // We'll check during verification phase
+    // Send OTP (login-only flow)
     const { error } = await supabase.auth.signInWithOtp({ phone: normalized });
     if (error) return { success: false, message: error.message };
     return { success: true, message: 'Verification code sent' };
@@ -202,38 +196,32 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const authUser = data.user;
       console.log('OTP verified successfully for user:', authUser.id);
 
-      // Check pending sign-up
-      const stored = await AsyncStorage.getItem('pending_signup');
+      // Login-only flow: if profile missing, auto-create minimal profile
       let isNewUser = false;
+      try {
+        const { data: existingProfile, error: checkError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', authUser.id)
+          .maybeSingle();
 
-      if (stored) {
-        try {
-          const signUpData = JSON.parse(stored);
-          await AsyncStorage.removeItem('pending_signup');
+        if (checkError) {
+          console.error('Error checking user existence during sign-in:', checkError);
+          await supabase.auth.signOut();
+          setUser(null);
+          return { success: false, message: 'Error verifying user. Please try again.' };
+        }
 
-          console.log('Creating new profile for sign-up');
-          
-          // First check if profile already exists
-          const { data: existingProfile } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('user_id', authUser.id)
-            .maybeSingle();
-
-          if (existingProfile) {
-            console.log('Profile already exists, loading it');
-            await loadUserProfile(authUser.id);
-            isNewUser = false;
-            return { success: true, message: 'Account already exists. Signed in successfully.', isNewUser };
-          }
-
+        if (!existingProfile) {
+          console.log('No profile found, creating a minimal profile for OTP login');
+          const usernameSeed = normalized.replace(/\D/g, '').slice(-4) || '0000';
           const { data: profile, error: createError } = await supabase
             .from('profiles')
             .insert({
-              user_id: authUser.id, // Let database generate id automatically
-              full_name: signUpData.fullName,
-              username: signUpData.username,
-              phone: signUpData.phone,
+              user_id: authUser.id,
+              full_name: '',
+              username: `user-${usernameSeed}`,
+              phone: normalized,
               role: 'customer',
               current_mode: 'customer',
             })
@@ -242,56 +230,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
           if (createError) {
             console.error('Profile creation error:', createError);
-            // If it's a duplicate key error, try to load existing profile
-            if (createError.code === '23505') {
-              console.log('Profile already exists (duplicate key), loading it');
-              await loadUserProfile(authUser.id);
-              isNewUser = false;
-              return { success: true, message: 'Account already exists. Signed in successfully.', isNewUser };
-            }
             return { success: false, message: createError.message };
           }
 
-          await loadUserProfile(authUser.id);
+          console.log('Minimal profile created:', profile?.id);
           isNewUser = true;
-          return { success: true, message: 'Account created successfully', isNewUser };
-        } catch (signUpError) {
-          console.error('Sign-up process error:', signUpError);
-          return { success: false, message: 'Failed to create account. Please try again.' };
         }
-      } else {
-        // Sign-in flow - check if user exists first
-        try {
-          console.log('Checking if user exists for sign-in');
-          const { data: existingProfile, error: checkError } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('user_id', authUser.id)
-            .maybeSingle();
 
-          if (checkError) {
-            console.error('Error checking user existence during sign-in:', checkError);
-            await supabase.auth.signOut();
-            setUser(null);
-            return { success: false, message: 'Error verifying user. Please try again.' };
-          }
-
-          if (!existingProfile) {
-            console.log('No profile found for sign-in');
-            await supabase.auth.signOut();
-            setUser(null);
-            return { success: false, message: 'User not found. Please sign up first.' };
-          }
-
-          console.log('Loading existing profile for sign-in');
-          await loadUserProfile(authUser.id);
-          return { success: true, message: 'Signed in successfully', isNewUser: false };
-        } catch (profileError) {
-          console.error('Profile loading error during sign-in:', profileError);
-          await supabase.auth.signOut();
-          setUser(null);
-          return { success: false, message: 'No profile found. Please sign up first.' };
-        }
+        await loadUserProfile(authUser.id);
+        return {
+          success: true,
+          message: isNewUser ? 'Signed in. Please complete your profile.' : 'Signed in successfully',
+          isNewUser,
+        };
+      } catch (profileError) {
+        console.error('Profile handling error during sign-in:', profileError);
+        await supabase.auth.signOut();
+        setUser(null);
+        return { success: false, message: 'Unable to load profile. Please try again.' };
       }
     } catch (error) {
       console.error('Unexpected error in verifyPhoneCode:', error);

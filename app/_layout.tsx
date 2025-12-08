@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { View, Text, StatusBar } from 'react-native'
 import { Tabs, usePathname, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -99,6 +99,7 @@ function TabNavigator() {
   return (
     <Tabs
       key={user?.current_mode} // Force re-render when mode changes
+      initialRouteName={isAuthenticated ? 'index' : 'auth'}
       screenOptions={{
         tabBarActiveTintColor: Colors.primary[500],
         tabBarInactiveTintColor: Colors.neutral[400],
@@ -338,6 +339,7 @@ function AppContent() {
   const router = useRouter()
   const pathname = usePathname()
   const [appIsReady, setAppIsReady] = useState(false)
+  const hasHiddenSplashRef = useRef(false)
   const isOnline = useAppStore((state: { isOnline: boolean }) => state.isOnline)
 
   // Set Android navigation bar color
@@ -412,23 +414,31 @@ function AppContent() {
 
   // Hide native splash screen when app is ready
   useEffect(() => {
-    async function prepare() {
+    let isMounted = true
+
+    const prepare = async () => {
+      if (isLoading) return
+
       try {
-        // Wait for auth to finish loading
-        if (!isLoading) {
-          // Small delay to ensure everything is ready
-          await new Promise((resolve) => setTimeout(resolve, 500))
+        // Small delay to let navigation and context settle before revealing UI
+        await new Promise((resolve) => setTimeout(resolve, 300))
+        if (isMounted) {
           setAppIsReady(true)
         }
+        if (!hasHiddenSplashRef.current) {
+          hasHiddenSplashRef.current = true
+          await SplashScreen.hideAsync()
+        }
       } catch (e) {
-        console.warn(e)
-      } finally {
-        // Hide the native splash screen with fade animation
-        SplashScreen.hide()
+        console.warn('Splash screen hide failed:', e)
       }
     }
 
     prepare()
+
+    return () => {
+      isMounted = false
+    }
   }, [isLoading])
 
   const onLayoutRootView = useCallback(async () => {
@@ -451,6 +461,11 @@ function AppContent() {
 
   if (!appIsReady) {
     return null // Native splash screen is showing
+  }
+
+  // While redirecting to auth after logout, avoid flashing the previous screen
+  if (!isAuthenticated && pathname !== '/auth') {
+    return <SafeAreaView style={{ flex: 1, backgroundColor: '#ffffff' }} edges={[]} />
   }
 
   return (
