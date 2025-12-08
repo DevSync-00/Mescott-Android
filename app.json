@@ -14,7 +14,7 @@
     "primaryColor": "#7B42F6",
     "android": {
       "package": "com.mescott.app",
-      "versionCode": 500,
+      "versionCode": 550,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"

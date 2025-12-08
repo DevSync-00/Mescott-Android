@@ -19,6 +19,7 @@ import { Colors } from '../constants/Colors'
 import { supabase } from '../lib/supabase'
 import { SkeletonCard } from '../components/SkeletonLoader'
 import { showConfirmation, showInfoAlert, showErrorAlert, showSuccessAlert } from '../utils/alertHelper'
+import TextureBackground from '../components/TextureBackground'
 
 export default function Profile() {
   const { user, logout, switchMode, isAuthenticated, isLoading, refreshUserProfile } = useAuth()
