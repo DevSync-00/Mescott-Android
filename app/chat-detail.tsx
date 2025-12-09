@@ -171,7 +171,7 @@ const useGradualAnimation = () => {
 
 export default function ChatDetail() {
   const { user, isAuthenticated, loading: isLoading } = useAuth()
-  const { showError } = useToast()
+  const { showError, showSuccess } = useToast()
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { chatId, taskId, otherUserName } = useLocalSearchParams<{
@@ -184,11 +184,12 @@ export default function ChatDetail() {
   const [chat, setChat] = useState<Chat | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
-  const [loading, setLoading] = useState(false) // Start as false - show cached immediately
+  const [loading, setLoading] = useState(true) // Start as true to load participant data first
   const [initialLoad, setInitialLoad] = useState(true) // Track if we've done initial load
   const [sending, setSending] = useState(false)
-  const [participantName, setParticipantName] = useState<string>(otherUserName || 'Unknown')
+  const [participantName, setParticipantName] = useState<string>(otherUserName || '...')
   const [participantAvatarUrl, setParticipantAvatarUrl] = useState<string | null>(null)
+  const [participantDataLoaded, setParticipantDataLoaded] = useState(false)
   const participantFirstName = useMemo(() => {
     if (!participantName) return 'there'
     const [first] = participantName.trim().split(' ')
@@ -200,9 +201,9 @@ export default function ChatDetail() {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
   const [showImageHeader, setShowImageHeader] = useState(true)
   const imageScrollX = useSharedValue(0)
-  const [selectedImageIndex, setSelectedImageIndex] = useState(0)
-  const [showImageHeader, setShowImageHeader] = useState(true)
-  const imageScrollX = useSharedValue(0)
+  const savedScrollOffset = useRef<number | null>(null)
+  const currentScrollOffset = useRef<number>(0)
+  const isRestoringScroll = useRef<boolean>(false)
   const [uploadingAttachment, setUploadingAttachment] = useState(false)
   const [showAttachmentOptions, setShowAttachmentOptions] = useState(false)
   const [selectedImageForEdit, setSelectedImageForEdit] = useState<string | null>(null)
@@ -254,28 +255,36 @@ export default function ChatDetail() {
   }, [isAuthenticated, isLoading])
 
   useEffect(() => {
-    // Reset participant info when chatId changes to prevent showing wrong profile
-    setParticipantName(otherUserName || 'Unknown')
-    setParticipantAvatarUrl(null)
+    // Reset state when chatId changes
     setMessages([])
     setChat(null)
     setInitialLoad(true)
+    setLoading(true)
+    setParticipantDataLoaded(false)
 
     if (chatId && user?.id) {
-      // Load cached messages synchronously if available - INSTANT display
+      // INSTANT LOADING: Try to get cached participant data first (Telegram-style)
+      const cachedParticipant = ChatService.getCachedParticipant(chatId)
+      if (cachedParticipant) {
+        // Set participant info INSTANTLY from cache
+        setParticipantName(cachedParticipant.participantName)
+        setParticipantAvatarUrl(cachedParticipant.participantAvatarUrl)
+        setParticipantDataLoaded(true)
+        setLoading(false)
+      } else {
+        // Fallback to otherUserName or empty
+        setParticipantName(otherUserName || '...')
+        setParticipantAvatarUrl(null)
+      }
+
+      // Load chat data to get/refresh participant info
+      loadChatData()
+      
+      // Load cached messages synchronously if available
       const cached = ChatService['messageCache'].get(chatId)
       if (cached && cached.length > 0) {
         setMessages(cached)
-        setLoading(false)
-        setInitialLoad(false)
-      } else {
-        setLoading(true)
       }
-
-      // Use InteractionManager to load fresh data after UI is ready
-      InteractionManager.runAfterInteractions(() => {
-        loadChatData()
-      })
     }
   }, [chatId, user?.id])
 
@@ -351,49 +360,47 @@ export default function ChatDetail() {
     try {
       const targetChatId = chatId || null
 
-      // Get cached messages immediately if available (for instant display)
-      const messagesResult = targetChatId
-        ? await ChatService.getChatMessagesFast(targetChatId, 30)
-        : null
-      // Use cached messages immediately if we don't have messages yet
-      if (messagesResult?.cached && messagesResult.cached.length > 0) {
-        if (messages.length === 0) {
-          setMessages(messagesResult.cached)
-          setLoading(false)
-        }
-      }
-
-      // Load chat data and fresh messages in parallel
-      const [chatDataResult, freshMessages] = await Promise.all([
-        targetChatId
-          ? ChatService.getChatById(targetChatId)
-          : taskId
-            ? ChatService.getOrCreateChat(taskId, user.id, 'temp-tasker-id')
-            : null,
-        messagesResult?.fresh || Promise.resolve([]),
-      ])
+      // PRIORITY 1: Load chat data FIRST to get participant info immediately
+      const chatDataResult = targetChatId
+        ? await ChatService.getChatById(targetChatId)
+        : taskId
+          ? await ChatService.getOrCreateChat(taskId, user.id, 'temp-tasker-id')
+          : null
 
       if (!chatDataResult) throw new Error('Chat not found')
 
-      // Batch all state updates together
-      setChat(chatDataResult)
-
-      // Extract participant info from chat data immediately (no extra query)
-      // Always reset and set fresh to prevent stale data
+      // IMMEDIATELY update participant info (before messages) - prevents "Unknown" flash
       if (chatDataResult.customer && chatDataResult.tasker) {
         const isCustomer = user.id === chatDataResult.customer_id
         const otherParticipant = isCustomer ? chatDataResult.tasker : chatDataResult.customer
         
-        // Always update participant info, even if it's the same, to ensure correct data
-        setParticipantName(otherParticipant?.full_name || 'Unknown')
-        setParticipantAvatarUrl(otherParticipant?.avatar_url || null)
+        const participantName = otherParticipant?.full_name || otherUserName || '...'
+        const participantAvatar = otherParticipant?.avatar_url || null
+        
+        // Set participant info ASAP
+        setParticipantName(participantName)
+        setParticipantAvatarUrl(participantAvatar)
+        setParticipantDataLoaded(true)
+        
+        // Cache participant data for instant loading next time (Telegram-style)
+        ChatService.cacheParticipant(chatDataResult.id, participantName, participantAvatar)
       } else {
-        // Fallback: reset to defaults if chat data is incomplete
-        setParticipantName(otherUserName || 'Unknown')
+        setParticipantName(otherUserName || '...')
         setParticipantAvatarUrl(null)
+        setParticipantDataLoaded(true)
       }
 
-      // Update messages with fresh data (only if different from cached)
+      setChat(chatDataResult)
+
+      // PRIORITY 2: Load messages after participant info is set
+      const messagesResult = targetChatId
+        ? await ChatService.getChatMessagesFast(targetChatId, 30)
+        : null
+
+      // Get fresh messages
+      const freshMessages = messagesResult?.fresh ? await messagesResult.fresh : []
+
+      // Update messages with fresh data
       // Also update message status based on is_read: single tick when sent, double tick when read
       if (freshMessages && freshMessages.length > 0) {
         const messagesWithStatus = freshMessages.map((msg: any) => {
@@ -423,6 +430,7 @@ export default function ChatDetail() {
       if (initialLoad) {
         showError('Failed to load chat')
       }
+      setParticipantDataLoaded(true) // Set to true even on error to prevent infinite loading
       setLoading(false)
     }
   }
@@ -659,14 +667,17 @@ export default function ChatDetail() {
         copyToCacheDirectory: true,
       })
 
-      if (result.type === 'success' && result.uri) {
-        // Upload file
-        const uploadResult = await FileService.uploadFile(result.uri, 'chat-attachments')
-        
-        if (uploadResult.success && uploadResult.url) {
-          await sendMessage(uploadResult.url, 'file')
-        } else {
-          showError(uploadResult.error || 'Failed to upload file')
+      if (!result.canceled && 'uri' in result) {
+        const fileUri = (result as any).uri as string
+        if (fileUri) {
+          // Upload file
+          const uploadResult = await FileService.uploadFile(fileUri, 'chat-attachments')
+
+          if (uploadResult.success && uploadResult.url) {
+            await sendMessage(uploadResult.url, 'file')
+          } else {
+            showError(uploadResult.error || 'Failed to upload file')
+          }
         }
       }
     } catch (error) {
@@ -693,7 +704,10 @@ export default function ChatDetail() {
       const fileName = fileUrl.split('/').pop() || 'file'
       
       // Create download directory if it doesn't exist
-      const downloadDir = `${FileSystem.documentDirectory}downloads/`
+      // Use cache directory for downloads (available on both iOS and Android)
+      // @ts-ignore - cacheDirectory exists at runtime but may not be in types
+      const cacheDir = FileSystem.cacheDirectory || ''
+      const downloadDir = `${cacheDir}downloads/`
       const dirInfo = await FileSystem.getInfoAsync(downloadDir)
       if (!dirInfo.exists) {
         await FileSystem.makeDirectoryAsync(downloadDir, { intermediates: true })
@@ -777,6 +791,9 @@ export default function ChatDetail() {
     ({ message, isMine, showDate, showAvatar, isGroupStart, isGroupEnd }: any) => {
       const handleImagePress = useCallback(() => {
         if (message.message_type === 'image') {
+          // Save current scroll position before opening modal
+          savedScrollOffset.current = currentScrollOffset.current
+          
           // Find all image messages and get the index
           const imageMessages = messages.filter((m) => m.message_type === 'image')
           const index = imageMessages.findIndex((m) => m.id === message.id)
@@ -802,17 +819,42 @@ export default function ChatDetail() {
                   styles.messageBubble,
                   isMine ? styles.myMessageBubble : styles.otherMessageBubble,
                   isGroupEnd && (isMine ? styles.myBubbleTail : styles.otherBubbleTail),
+                  message.message_type === 'image' && !isMine && styles.imageMessageBubble,
                 ]}
               >
                 {message.message_type === 'image' ? (
-                  <TouchableOpacity activeOpacity={0.9} onPress={handleImagePress}>
-                    <Image
-                      source={{ uri: message.message }}
-                      style={styles.messageImage}
-                      contentFit="cover"
-                      cachePolicy="memory-disk"
-                      transition={200}
-                    />
+                  <TouchableOpacity activeOpacity={0.95} onPress={handleImagePress}>
+                    <View style={[
+                      styles.imageMessageContainer,
+                      isMine ? styles.myImageContainer : styles.otherImageContainer
+                    ]}>
+                      {/* Telegram-style image placeholder */}
+                      <View style={[
+                        styles.imagePlaceholder,
+                        isMine ? styles.myImagePlaceholder : styles.otherImagePlaceholder
+                      ]}>
+                        <Ionicons name="image-outline" size={32} color="rgba(255,255,255,0.6)" />
+                      </View>
+                      
+                      <Image
+                        source={{ uri: message.message }}
+                        style={[
+                          styles.messageImage,
+                          message.status === 'sending' && styles.messageImageSending
+                        ]}
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
+                        transition={150}
+                      />
+                      {message.status === 'sending' && (
+                        <View style={styles.imageOverlay}>
+                          <View style={styles.imageLoadingContainer}>
+                            <ActivityIndicator size="large" color="#fff" />
+                            <Text style={styles.imageLoadingText}>Sending...</Text>
+                          </View>
+                        </View>
+                      )}
+                    </View>
                   </TouchableOpacity>
                 ) : message.message_type === 'file' ? (
                   <TouchableOpacity
@@ -828,7 +870,7 @@ export default function ChatDetail() {
                       isMine && styles.myFileIconContainer,
                     ]}>
                       <Ionicons
-                        name={FileService.getFileIcon(getFileTypeFromUrl(message.message))}
+                        name={FileService.getFileIcon(getFileTypeFromUrl(message.message)) as any}
                         size={24}
                         color={isMine ? '#fff' : Colors.primary[500]}
                       />
@@ -868,16 +910,8 @@ export default function ChatDetail() {
                     {message.message}
                   </Text>
                 )}
-                <View style={styles.messageFooter}>
-                  <Text
-                    style={[
-                      styles.messageTime,
-                      isMine ? styles.myMessageTime : styles.otherMessageTime,
-                    ]}
-                  >
-                    {formatTime(message.created_at)}
-                  </Text>
-                  {isMine && (
+                {isMine && (
+                  <View style={styles.messageFooter}>
                     <View style={styles.statusIndicator}>
                       {message.status === 'sending' && (
                         <ActivityIndicator size={12} color="rgba(255,255,255,0.8)" />
@@ -889,8 +923,8 @@ export default function ChatDetail() {
                         <Ionicons name="checkmark-done" size={16} color={Colors.primary[200]} />
                       )}
                     </View>
-                  )}
-                </View>
+                  </View>
+                )}
               </View>
             </TouchableWithoutFeedback>
           </View>
@@ -946,8 +980,8 @@ export default function ChatDetail() {
 
   const keyExtractor = useCallback((item: Message) => item.id, [])
 
-  // Don't block rendering - show UI immediately even while loading
-  const showLoading = isLoading || (loading && messages.length === 0)
+  // Show loading only if participant data is not yet loaded
+  const showLoading = isLoading || (loading && !participantDataLoaded)
 
   return (
     <TextureBackground>
@@ -955,7 +989,7 @@ export default function ChatDetail() {
         <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
       {/* Fixed Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+      <View style={[styles.header, { paddingTop: 8 + insets.top }]}>
         <LinearGradient colors={['#f8f9fc', '#ffffff']} style={StyleSheet.absoluteFill} />
         <TouchableOpacity
           onPress={() => {
@@ -966,26 +1000,31 @@ export default function ChatDetail() {
         >
           <Ionicons name="arrow-back" size={24} color={Colors.neutral[800]} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.userInfo}>
-          {participantAvatarUrl ? (
+        <View style={styles.userInfo}>
+          {participantDataLoaded ? (
+            <Text style={styles.name}>{participantName || '...'}</Text>
+          ) : (
+            <View style={styles.nameSkeleton} />
+          )}
+        </View>
+        <View style={styles.headerAvatarContainer}>
+          {participantDataLoaded && participantAvatarUrl ? (
             <Image 
               source={{ uri: participantAvatarUrl }} 
-              style={styles.avatarImage}
+              style={styles.headerAvatarImage}
               contentFit="cover"
               cachePolicy="memory-disk"
             />
-          ) : (
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{participantName[0]?.toUpperCase()}</Text>
+          ) : participantDataLoaded ? (
+            <View style={styles.headerAvatar}>
+              <Text style={styles.avatarText}>
+                {participantName && participantName.length > 0 ? participantName[0]?.toUpperCase() : '•'}
+              </Text>
             </View>
+          ) : (
+            <View style={styles.headerAvatarSkeleton} />
           )}
-          <View>
-            <Text style={styles.name}>{participantName}</Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => setOptionsVisible(true)}>
-          <Ionicons name="ellipsis-vertical" size={22} color={Colors.neutral[800]} />
-        </TouchableOpacity>
+        </View>
       </View>
 
       {/* Main Content with Smooth Keyboard Animation */}
@@ -1016,24 +1055,28 @@ export default function ChatDetail() {
             keyboardDismissMode="none"
             nestedScrollEnabled={true}
             scrollEventThrottle={16}
+            onScroll={(e) => {
+              currentScrollOffset.current = e.nativeEvent.contentOffset.y
+            }}
             maintainVisibleContentPosition={{
               minIndexForVisible: 0,
               autoscrollToTopThreshold: 10,
             }}
             onContentSizeChange={() => {
-              // Only scroll if we have messages and not during initial load
-              if (sortedMessages.length > 0 && !initialLoad) {
+              // Only scroll if we have messages and not during initial load or scroll restoration
+              if (sortedMessages.length > 0 && !initialLoad && !isRestoringScroll.current) {
                 // Use immediate scroll for better performance
                 flatListRef.current?.scrollToEnd({ animated: false })
               }
             }}
             onLayout={(e) => {
-              // Only scroll on initial layout when content is loaded
+              // Only scroll on initial layout when content is loaded and not restoring scroll
               if (
                 sortedMessages.length > 0 &&
                 e.nativeEvent.layout.height > 0 &&
                 !loading &&
-                !initialLoad
+                !initialLoad &&
+                !isRestoringScroll.current
               ) {
                 flatListRef.current?.scrollToEnd({ animated: false })
               }
@@ -1141,17 +1184,43 @@ export default function ChatDetail() {
         </Modal>
       </View>
 
-      {/* Image Preview Modal - Telegram/WhatsApp Style */}
-      <Modal visible={imageModalVisible} animationType="fade" presentationStyle="fullScreen">
+      {/* Image Preview Modal - Telegram Style with Fast Animations */}
+      <Modal 
+        visible={imageModalVisible} 
+        animationType="none" 
+        presentationStyle="fullScreen"
+        onRequestClose={() => {
+          setImageModalVisible(false)
+          setSelectedImageUri(null)
+          // Restore scroll position after modal closes
+          if (savedScrollOffset.current !== null && flatListRef.current) {
+            isRestoringScroll.current = true
+            setTimeout(() => {
+              flatListRef.current?.scrollToOffset({
+                offset: savedScrollOffset.current!,
+                animated: false,
+              })
+              // Reset flag after restoration
+              setTimeout(() => {
+                isRestoringScroll.current = false
+              }, 200)
+            }, 150)
+          }
+        }}
+      >
         <GestureHandlerRootView style={{ flex: 1 }}>
-          <View style={styles.imageModal}>
-            <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+          <Animated.View 
+            style={[styles.imageModal]}
+            entering={FadeIn.duration(150)}
+            exiting={FadeOut.duration(150)}
+          >
+            <StatusBar barStyle="light-content" backgroundColor="#000" translucent={false} />
             
-            {/* Header with image count */}
+            {/* Header with image count - Telegram style */}
             {showImageHeader && (
               <Animated.View
-                entering={FadeIn.duration(200)}
-                exiting={FadeOut.duration(200)}
+                entering={FadeIn.duration(150).delay(50)}
+                exiting={FadeOut.duration(100)}
                 style={styles.imageModalHeader}
               >
                 <SafeAreaView edges={['top']} style={styles.imageModalHeaderSafeArea}>
@@ -1161,38 +1230,40 @@ export default function ChatDetail() {
                       onPress={() => {
                         setImageModalVisible(false)
                         setSelectedImageUri(null)
+                        // Restore scroll position after modal closes
+                        if (savedScrollOffset.current !== null && flatListRef.current) {
+                          isRestoringScroll.current = true
+                          setTimeout(() => {
+                            flatListRef.current?.scrollToOffset({
+                              offset: savedScrollOffset.current!,
+                              animated: false,
+                            })
+                            // Reset flag after restoration
+                            setTimeout(() => {
+                              isRestoringScroll.current = false
+                            }, 200)
+                          }, 150)
+                        }
                       }}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
-                      <Ionicons name="arrow-back" size={24} color="#fff" />
+                      <Ionicons name="close" size={28} color="#fff" />
                     </TouchableOpacity>
                     <Text style={styles.imageModalCount}>
                       {(() => {
                         const imageMessages = messages.filter((m) => m.message_type === 'image')
                         return imageMessages.length > 0
-                          ? `${selectedImageIndex + 1} / ${imageMessages.length}`
-                          : '1 / 1'
+                          ? `${selectedImageIndex + 1} of ${imageMessages.length}`
+                          : '1 of 1'
                       })()}
                     </Text>
-                    <TouchableOpacity
-                      style={styles.imageModalMoreButton}
-                      onPress={async () => {
-                        if (selectedImageUri) {
-                          try {
-                            await Share.share({ url: selectedImageUri })
-                          } catch (error) {
-                            showError('Failed to share image')
-                          }
-                        }
-                      }}
-                    >
-                      <Ionicons name="ellipsis-horizontal" size={24} color="#fff" />
-                    </TouchableOpacity>
+                    <View style={styles.imageModalPlaceholder} />
                   </View>
                 </SafeAreaView>
               </Animated.View>
             )}
 
-            {/* Swipeable Image Container */}
+            {/* Swipeable Image Container - Fast loading */}
             {(() => {
               const imageMessages = messages.filter((m) => m.message_type === 'image')
               if (imageMessages.length === 0) return null
@@ -1202,6 +1273,9 @@ export default function ChatDetail() {
                   horizontal
                   pagingEnabled
                   showsHorizontalScrollIndicator={false}
+                  decelerationRate="fast"
+                  snapToInterval={screenWidth}
+                  snapToAlignment="center"
                   onScroll={(e) => {
                     const offsetX = e.nativeEvent.contentOffset.x
                     imageScrollX.value = offsetX
@@ -1225,7 +1299,7 @@ export default function ChatDetail() {
                 </Animated.ScrollView>
               )
             })()}
-          </View>
+          </Animated.View>
         </GestureHandlerRootView>
       </Modal>
 
@@ -1271,7 +1345,7 @@ export default function ChatDetail() {
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.imageEditorActionButton, styles.sendButton]}
+              style={[styles.imageEditorActionButton, styles.imageEditorSendButton]}
               onPress={() => selectedImageForEdit && handleSendImage(selectedImageForEdit)}
               disabled={uploadingAttachment}
             >
@@ -1280,7 +1354,7 @@ export default function ChatDetail() {
               ) : (
                 <>
                   <Ionicons name="send" size={18} color="#fff" style={{ marginRight: 6 }} />
-                  <Text style={styles.sendButtonText}>Send</Text>
+                  <Text style={styles.imageEditorSendButtonText}>Send</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -1310,7 +1384,7 @@ export default function ChatDetail() {
             <View style={styles.filePreviewContent}>
               <View style={styles.filePreviewIconContainer}>
                 <Ionicons
-                  name={FileService.getFileIcon(getFileTypeFromUrl(previewFileUrl))}
+                  name={FileService.getFileIcon(getFileTypeFromUrl(previewFileUrl)) as any}
                   size={140}
                   color={Colors.primary[500]}
                 />
@@ -1417,7 +1491,32 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   backButton: { padding: 8 },
-  userInfo: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  userInfo: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  headerAvatarContainer: {
+    width: 40,
+    height: 40,
+    marginLeft: 8,
+  },
+  headerAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primary[500],
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  headerAvatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  headerAvatarSkeleton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.neutral[200],
+  },
   avatar: {
     width: 40,
     height: 40,
@@ -1435,7 +1534,21 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   avatarText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  name: { fontSize: 16, fontWeight: '600', color: '#000' },
+  avatarSkeleton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.neutral[200],
+    marginRight: 12,
+  },
+  nameSkeleton: {
+    width: 110,
+    height: 14,
+    borderRadius: 8,
+    backgroundColor: Colors.neutral[200],
+    alignSelf: 'center',
+  },
+  name: { fontSize: 16, fontWeight: '600', color: '#000', textAlign: 'center' },
   status: { fontSize: 13, marginTop: 2 },
 
   messagesList: {
@@ -1490,6 +1603,12 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  imageMessageBubble: {
+    borderWidth: 0.5,
+    borderColor: Colors.neutral[200],
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+  },
   myBubbleTail: { borderBottomRightRadius: 18 },
   otherBubbleTail: { borderBottomLeftRadius: 18 },
 
@@ -1506,12 +1625,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    marginTop: 6,
-    gap: 4,
+    marginTop: 4,
   },
-  messageTime: { fontSize: 11, color: '#666' },
-  myMessageTime: { fontSize: 11, color: 'rgba(255,255,255,0.8)' },
-  otherMessageTime: { fontSize: 11, color: Colors.neutral[500] },
   statusIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1520,11 +1635,78 @@ const styles = StyleSheet.create({
     minWidth: 18,
     height: 18,
   },
+  imageMessageContainer: {
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: 12,
+    marginBottom: 2,
+    maxWidth: screenWidth * 0.55,
+    width: screenWidth * 0.55,
+    height: screenWidth * 0.55,
+  },
+  myImageContainer: {
+    borderTopRightRadius: 4,
+    borderBottomRightRadius: 4,
+  },
+  otherImageContainer: {
+    borderTopLeftRadius: 4,
+    borderBottomLeftRadius: 4,
+  },
+  imagePlaceholder: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 0,
+    borderRadius: 12,
+  },
+  myImagePlaceholder: {
+    backgroundColor: Colors.primary[400],
+    borderTopRightRadius: 4,
+    borderBottomRightRadius: 4,
+  },
+  otherImagePlaceholder: {
+    backgroundColor: Colors.neutral[300],
+    borderTopLeftRadius: 4,
+    borderBottomLeftRadius: 4,
+  },
   messageImage: { 
-    width: 220, 
-    height: 180, 
-    borderRadius: 16,
-    marginBottom: 4,
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
+    zIndex: 1,
+  },
+  messageImageSending: {
+    opacity: 0.65,
+  },
+  imageOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 12,
+    zIndex: 2,
+  },
+  imageLoadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imageLoadingText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 10,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+    letterSpacing: 0.3,
   },
 
   inputContainer: {
@@ -1736,10 +1918,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.neutral[700],
   },
-  sendButton: {
+  imageEditorSendButton: {
     backgroundColor: Colors.primary[500],
   },
-  sendButtonText: {
+  imageEditorSendButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
@@ -1888,7 +2070,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 10,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
   imageModalHeaderSafeArea: {
     backgroundColor: 'transparent',
@@ -1897,31 +2084,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    height: 56,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    height: 60,
   },
   imageModalCloseButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   imageModalCount: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#fff',
     textAlign: 'center',
+    letterSpacing: 0.3,
   },
-  imageModalMoreButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+  imageModalPlaceholder: {
+    width: 44,
+    height: 44,
   },
   imageScrollView: {
     flex: 1,

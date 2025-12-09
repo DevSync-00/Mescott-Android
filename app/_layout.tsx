@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
-import { View, Text, StatusBar } from 'react-native'
+import { View, Text, StatusBar, Animated } from 'react-native'
 import { Tabs, usePathname, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -344,6 +344,8 @@ function AppContent() {
   const hasHiddenSplashRef = useRef(false)
   const isOnline = useAppStore((state: { isOnline: boolean }) => state.isOnline)
   const [alertState, setAlertState] = useState(alertService.getState())
+  const fadeAnim = useRef(new Animated.Value(0)).current
+  const [isTransitioning, setIsTransitioning] = useState(false)
 
   // Subscribe to alert service
   useEffect(() => {
@@ -423,7 +425,7 @@ function AppContent() {
     }
   }, [])
 
-  // Hide native splash screen when app is ready
+  // Hide native splash screen when app is ready with smooth fade-in
   useEffect(() => {
     let isMounted = true
 
@@ -432,12 +434,20 @@ function AppContent() {
 
       try {
         // Small delay to let navigation and context settle before revealing UI
-        await new Promise((resolve) => setTimeout(resolve, 300))
+        await new Promise((resolve) => setTimeout(resolve, 160))
         if (isMounted) {
           setAppIsReady(true)
+          // Fade in the app content smoothly
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 200,
+            useNativeDriver: true,
+          }).start()
         }
         if (!hasHiddenSplashRef.current) {
           hasHiddenSplashRef.current = true
+          // Hide splash screen with a slight delay to ensure smooth transition
+          await new Promise((resolve) => setTimeout(resolve, 60))
           await SplashScreen.hideAsync()
         }
       } catch (e) {
@@ -450,59 +460,101 @@ function AppContent() {
     return () => {
       isMounted = false
     }
-  }, [isLoading])
+  }, [isLoading, fadeAnim])
 
   const onLayoutRootView = useCallback(async () => {
     // This callback is called when the root view is laid out
   }, [])
 
-  // Handle initial navigation based on auth state after loading completes
+  // Handle initial navigation based on auth state after loading completes with smooth transitions
   useEffect(() => {
-    if (!isLoading) {
+    if (!isLoading && !isTransitioning) {
       // Only redirect if we're on the auth page and user is authenticated
       if (pathname === '/auth' && isAuthenticated) {
-        router.replace('/')
+        setIsTransitioning(true)
+        // Fade out before navigation
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 180,
+          useNativeDriver: true,
+        }).start(() => {
+          router.replace('/')
+          // Fade back in after navigation
+          setTimeout(() => {
+            Animated.timing(fadeAnim, {
+              toValue: 1,
+              duration: 180,
+              useNativeDriver: true,
+            }).start(() => {
+              setIsTransitioning(false)
+            })
+          }, 50)
+        })
       }
       // If not authenticated and not on auth page, redirect to auth
       else if (!isAuthenticated && pathname !== '/auth') {
-        router.replace('/auth')
+        setIsTransitioning(true)
+        // Fade out before navigation
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 180,
+          useNativeDriver: true,
+        }).start(() => {
+          router.replace('/auth')
+          // Fade back in after navigation
+          setTimeout(() => {
+            Animated.timing(fadeAnim, {
+              toValue: 1,
+              duration: 180,
+              useNativeDriver: true,
+            }).start(() => {
+              setIsTransitioning(false)
+            })
+          }, 50)
+        })
       }
     }
-  }, [isLoading, isAuthenticated, pathname, router])
+  }, [isLoading, isAuthenticated, pathname, router, isTransitioning, fadeAnim])
 
   if (!appIsReady) {
     return null // Native splash screen is showing
   }
 
-  // While redirecting to auth after logout, avoid flashing the previous screen
-  if (!isAuthenticated && pathname !== '/auth') {
-    return <SafeAreaView style={{ flex: 1, backgroundColor: '#ffffff' }} edges={[]} />
+  // While redirecting to auth after logout, show fading placeholder
+  if (!isAuthenticated && pathname !== '/auth' && !isTransitioning) {
+    return (
+      <Animated.View style={{ flex: 1, backgroundColor: '#ffffff', opacity: fadeAnim }}>
+        <SafeAreaView style={{ flex: 1 }} edges={[]} />
+      </Animated.View>
+    )
   }
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: '#ffffff' }}
-      edges={[]}
-      onLayout={onLayoutRootView}
-    >
-      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
-      {!isOnline && (
-        <View style={{ backgroundColor: '#F59E0B', paddingVertical: 6, paddingHorizontal: 12 }}>
-          <Text style={{ color: '#1F2937', fontWeight: '600' }}>
-            Offline mode: changes will sync when back online
-          </Text>
-        </View>
-      )}
-      <TabNavigator />
-      <CustomAlert
-        visible={alertState.visible}
-        title={alertState.title}
-        message={alertState.message}
-        buttons={alertState.buttons}
-        type={alertState.type}
-        onDismiss={() => alertService.hide()}
-      />
-    </SafeAreaView>
+    <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: '#ffffff' }}
+        edges={[]}
+        onLayout={onLayoutRootView}
+      >
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
+        {!isOnline && (
+          <View style={{ backgroundColor: '#F59E0B', paddingVertical: 6, paddingHorizontal: 12 }}>
+            <Text style={{ color: '#1F2937', fontWeight: '600' }}>
+              Offline mode: changes will sync when back online
+            </Text>
+          </View>
+        )}
+        <TabNavigator />
+        <CustomAlert
+          visible={alertState.visible}
+          title={alertState.title}
+          message={alertState.message}
+          buttons={alertState.buttons}
+          type={alertState.type}
+          onDismiss={() => alertService.hide()}
+        />
+      </SafeAreaView>
+    </Animated.View>
   )
 }
 

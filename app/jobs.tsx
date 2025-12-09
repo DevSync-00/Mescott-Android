@@ -241,7 +241,7 @@ export default function Jobs() {
     }, [isAuthenticated, user, loadTasks, loadPendingPayments]),
   )
 
-  const fabBottomOffset = 0 + insets.bottom
+  const fabBottomOffset = 40 + insets.bottom
   const listBottomPadding = fabBottomOffset + 0
 
   // Animated styles for tab indicator

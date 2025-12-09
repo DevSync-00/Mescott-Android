@@ -5,15 +5,12 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   StatusBar,
   Animated,
   Easing,
   TouchableWithoutFeedback,
   Keyboard,
-  Dimensions,
+  Platform,
 } from 'react-native'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import { Image } from 'expo-image'
@@ -26,8 +23,6 @@ import CountryPicker, { Country } from '../components/CountryPicker'
 import { Ionicons } from '@expo/vector-icons'
 import { showErrorAlert, showSuccessAlert } from '../utils/alert'
 import { Colors } from '../constants/Colors'
-
-const { height: SCREEN_HEIGHT } = Dimensions.get('window')
 
 export default function Auth() {
   const router = useRouter()
@@ -50,10 +45,6 @@ export default function Auth() {
   const scrollViewRef = useRef<any>(null)
   const phoneInputRef = useRef<TextInput>(null)
   const otpInputRef = useRef<TextInput>(null)
-  const phoneInputContainerRef = useRef<View>(null)
-  const otpInputContainerRef = useRef<View>(null)
-  const [keyboardVisible, setKeyboardVisible] = useState(false)
-  const [keyboardHeight, setKeyboardHeight] = useState(0)
 
   // Smoothly fade/slide in the auth screen to avoid abrupt pop-in
   useEffect(() => {
@@ -73,41 +64,29 @@ export default function Auth() {
     ]).start()
   }, [fadeAnim, slideAnim])
 
-  // Track keyboard visibility and handle scrolling
-  useEffect(() => {
-    const keyboardWillShow = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      (e) => {
-        setKeyboardVisible(true)
-        const height = e.endCoordinates?.height || 0
-        setKeyboardHeight(height)
-      }
-    )
-
-    const keyboardWillHide = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => {
-        setKeyboardVisible(false)
-        setKeyboardHeight(0)
-      }
-    )
-
-    return () => {
-      keyboardWillShow.remove()
-      keyboardWillHide.remove()
-    }
-  }, [])
-
-  // Redirect away if already authenticated
+  // Redirect away if already authenticated with smooth transition
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      // Small delay to ensure router is ready
-      const timer = setTimeout(() => {
+      // Fade out smoothly before navigation
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 180,
+          easing: Easing.in(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: -20,
+          duration: 180,
+          easing: Easing.in(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        // Navigate after fade out completes
         router.replace('/')
-      }, 100)
-      return () => clearTimeout(timer)
+      })
     }
-  }, [isAuthenticated, isLoading, router])
+  }, [isAuthenticated, isLoading, router, fadeAnim, slideAnim])
 
   // Reset auth state when user logs out
   useEffect(() => {
@@ -200,16 +179,18 @@ export default function Auth() {
       if (result.success) {
         showSuccess(result.message || 'Verification successful!')
 
-        // Reset form state
+        // Reset form state (will be handled by auth state change)
         setVerificationCode('')
         setIsCodeSent(false)
         setPhoneNumber('')
+        
+        // Note: Navigation will be handled by useEffect above with smooth transition
       } else {
         showError(result.message)
+        setLoading(false)
       }
     } catch (error: any) {
       showError(error.message || 'Verification failed. Please try again.')
-    } finally {
       setLoading(false)
     }
   }
@@ -251,25 +232,24 @@ export default function Auth() {
             innerRef={(ref) => {
               scrollViewRef.current = ref
             }}
-            contentContainerStyle={[
-              styles.scrollContent,
-              keyboardVisible && { paddingBottom: Math.max(keyboardHeight, 350) },
-            ]}
-            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.scrollContent}
+            style={styles.scrollView}
+            keyboardShouldPersistTaps="never"
             showsVerticalScrollIndicator={false}
-            bounces={true}
-            keyboardDismissMode="on-drag"
+            bounces={false}
+            alwaysBounceVertical={false}
+            alwaysBounceHorizontal={false}
+            keyboardDismissMode="none"
             enableOnAndroid={true}
             enableAutomaticScroll={true}
-            extraHeight={200}
-            extraScrollHeight={200}
-            keyboardOpeningTime={Platform.OS === 'ios' ? 250 : 0}
+            extraHeight={0}
+            extraScrollHeight={0}
             scrollEnabled={true}
-            enableResetScrollToCoords={false}
-            resetScrollToCoords={{ x: 0, y: 0 }}
-            scrollToOverflowEnabled={true}
             viewIsInsideTabBar={false}
-            enableResetKeyboardAvoidingView={true}
+            enableResetScrollToCoords={false}
+            keyboardOpeningTime={Platform.OS === 'ios' ? 250 : 0}
+            scrollToOverflowEnabled={false}
+            overScrollMode="never"
           >
               {/* Hero */}
               <View style={styles.hero}>
@@ -294,9 +274,9 @@ export default function Auth() {
                 {!isCodeSent ? (
                   <>
                     <Text style={styles.title}>ENTER YOUR PHONE NUMBER</Text>
-                    <Text style={styles.subtitle}>We will send an OTP verification code</Text>
+                    <Text style={styles.subtitle}>We will send you an OTP verification code</Text>
 
-                    <View ref={phoneInputContainerRef} style={styles.phoneInputRow}>
+                    <View style={styles.phoneInputRow}>
                       <TouchableOpacity
                         style={styles.flagWrap}
                         onPress={() => {
@@ -334,28 +314,6 @@ export default function Auth() {
                         keyboardType="phone-pad"
                         returnKeyType="done"
                         onSubmitEditing={handleSendCode}
-                        onFocus={() => {
-                          // Ensure scroll happens after keyboard animation
-                          setTimeout(() => {
-                            if (scrollViewRef.current && phoneInputContainerRef.current) {
-                              phoneInputContainerRef.current.measureInWindow((x, y, width, height) => {
-                                // Calculate scroll position to bring input above keyboard
-                                const screenHeight = Dimensions.get('window').height
-                                const keyboardHeight = screenHeight - y - height
-                                const scrollOffset = Math.max(0, y - 200)
-                                
-                                // Use scrollToPosition if available (KeyboardAwareScrollView method)
-                                if (scrollViewRef.current.scrollToPosition) {
-                                  scrollViewRef.current.scrollToPosition(0, scrollOffset, true)
-                                } else if (scrollViewRef.current.scrollTo) {
-                                  scrollViewRef.current.scrollTo({ x: 0, y: scrollOffset, animated: true })
-                                } else {
-                                  scrollViewRef.current.scrollToEnd?.({ animated: true })
-                                }
-                              })
-                            }
-                          }, Platform.OS === 'ios' ? 300 : 600)
-                        }}
                       />
                     </View>
 
@@ -385,7 +343,7 @@ export default function Auth() {
                     <Text style={styles.title}>OTP Verification</Text>
                     <Text style={styles.subtitle}>Enter the OTP verification code</Text>
 
-                    <View ref={otpInputContainerRef}>
+                    <View>
                       <TextInput
                         ref={otpInputRef}
                         style={styles.otpInput}
@@ -399,28 +357,6 @@ export default function Auth() {
                         returnKeyType="done"
                         onSubmitEditing={handleVerifyCode}
                         textAlign="center"
-                        onFocus={() => {
-                          // Ensure scroll happens after keyboard animation
-                          setTimeout(() => {
-                            if (scrollViewRef.current && otpInputContainerRef.current) {
-                              otpInputContainerRef.current.measureInWindow((x, y, width, height) => {
-                                // Calculate scroll position to bring input above keyboard
-                                const screenHeight = Dimensions.get('window').height
-                                const keyboardHeight = screenHeight - y - height
-                                const scrollOffset = Math.max(0, y - 200)
-                                
-                                // Use scrollToPosition if available (KeyboardAwareScrollView method)
-                                if (scrollViewRef.current.scrollToPosition) {
-                                  scrollViewRef.current.scrollToPosition(0, scrollOffset, true)
-                                } else if (scrollViewRef.current.scrollTo) {
-                                  scrollViewRef.current.scrollTo({ x: 0, y: scrollOffset, animated: true })
-                                } else {
-                                  scrollViewRef.current.scrollToEnd?.({ animated: true })
-                                }
-                              })
-                            }
-                          }, Platform.OS === 'ios' ? 300 : 600)
-                        }}
                       />
                     </View>
 
@@ -483,9 +419,11 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
+  scrollView: {
+    flex: 1,
+  },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 100,
   },
   hero: {
     backgroundColor: '#371F80',
@@ -525,7 +463,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     paddingTop: 48,
     paddingBottom: 32,
-    flex: 1,
+    minHeight: '100%',
     marginTop: -24,
   },
   title: {

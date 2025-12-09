@@ -26,7 +26,7 @@ export default function Settings() {
       'Are you sure you want to logout?',
       async () => {
         await logout()
-        router.replace('/auth')
+        // Navigation to auth will be handled automatically by _layout.tsx with smooth transition
       },
       undefined,
       'Logout',

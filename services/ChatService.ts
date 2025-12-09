@@ -64,6 +64,14 @@ export class ChatService {
     { id: string; full_name: string; avatar_url: string | null; phone: string }
   > = new Map()
   private static messageCache: Map<string, Message[]> = new Map()
+  
+  // Cache for chat participant data (for instant loading like Telegram)
+  private static chatParticipantCache: Map<string, {
+    participantName: string
+    participantAvatarUrl: string | null
+    timestamp: number
+  }> = new Map()
+  private static readonly PARTICIPANT_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
   // Cache for user chats
   private static userChatsCache: Map<string, { chats: Chat[]; timestamp: number }> = new Map()
@@ -633,7 +641,33 @@ export class ChatService {
     }
   }
 
-  // Get chat by ID
+  // Get cached participant data for instant loading (Telegram-style)
+  static getCachedParticipant(chatId: string): { participantName: string; participantAvatarUrl: string | null } | null {
+    const cached = this.chatParticipantCache.get(chatId)
+    if (!cached) return null
+    
+    const now = Date.now()
+    if (now - cached.timestamp > this.PARTICIPANT_CACHE_TTL) {
+      this.chatParticipantCache.delete(chatId)
+      return null
+    }
+    
+    return {
+      participantName: cached.participantName,
+      participantAvatarUrl: cached.participantAvatarUrl,
+    }
+  }
+
+  // Cache participant data
+  static cacheParticipant(chatId: string, participantName: string, participantAvatarUrl: string | null): void {
+    this.chatParticipantCache.set(chatId, {
+      participantName,
+      participantAvatarUrl,
+      timestamp: Date.now(),
+    })
+  }
+
+  // Get chat by ID (with participant caching for Telegram-style instant loading)
   static async getChatById(chatId: string): Promise<Chat | null> {
     try {
       const { data, error } = await supabase
@@ -664,6 +698,13 @@ export class ChatService {
         .single()
 
       if (error) throw error
+      
+      // Cache participant data for instant loading next time
+      if (data && data.customer && data.tasker) {
+        // Note: Current user ID needs to be determined to cache the correct participant
+        // This will be handled in the chat-detail component
+      }
+      
       return data
     } catch (error) {
       console.error('Error getting chat by ID:', error)

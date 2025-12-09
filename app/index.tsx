@@ -10,6 +10,7 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   StatusBar,
+  Animated,
 } from 'react-native'
 import { Image } from 'expo-image'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -39,6 +40,7 @@ export default function Index() {
   const [notificationsVisible, setNotificationsVisible] = useState(false)
   const [showAllCategories, setShowAllCategories] = useState(false)
   const [categorySearchVisible, setCategorySearchVisible] = useState(false)
+  const fadeAnim = useRef(new Animated.Value(0)).current
   // const [taskDetailVisible, setTaskDetailVisible] = useState(false)
   // const [selectedTaskIdForDetail, setSelectedTaskIdForDetail] = useState<string | null>(null)
 
@@ -51,9 +53,9 @@ export default function Index() {
       // Load all available tasks to filter for featured
       const allTasks = await TaskService.getAvailableTasks(user.user_id)
 
-      // Filter featured tasks: budget over 5000 birr OR General category
+      // Filter featured tasks: budget 5000 ETB and more OR General category
       const featuredTasksFiltered = allTasks.filter((task) => {
-        const isHighBudget = task.budget > 5000
+        const isHighBudget = task.budget >= 5000
         const isGeneralCategory = task.category_name === 'General'
         return isHighBudget || isGeneralCategory
       })
@@ -84,6 +86,15 @@ export default function Index() {
   useEffect(() => {
     loadTasks()
   }, [user, loadTasks])
+
+  // Smooth fade-in animation on mount
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start()
+  }, [fadeAnim])
 
   const scrollViewRef = useRef<ScrollView>(null)
 
@@ -117,9 +128,10 @@ export default function Index() {
 
   return (
     <TextureBackground>
-      <SafeAreaView style={styles.container} edges={[]}>
-        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
-        <View style={styles.containerContent}>
+      <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+        <SafeAreaView style={styles.container} edges={[]}>
+          <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
+          <View style={styles.containerContent}>
         {/* Fixed Header */}
         <View style={[styles.headerWrapper, { paddingTop: 8 + insets.top }]}>
           <View style={styles.header}>
@@ -388,8 +400,9 @@ export default function Index() {
           }}
         />
         {/* Task Detail navigates to full page now; sheet removed */}
-        </View>
-      </SafeAreaView>
+          </View>
+        </SafeAreaView>
+      </Animated.View>
     </TextureBackground>
   )
 }
