@@ -563,15 +563,15 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ErrorBoundary>
         <KeyboardProvider>
-          <LanguageProvider>
-            <AuthProvider>
+          <AuthProvider>
+            <LanguageProvider>
               <NotificationProvider>
                 <ToastProvider>
                   <AppContent />
                 </ToastProvider>
               </NotificationProvider>
-            </AuthProvider>
-          </LanguageProvider>
+            </LanguageProvider>
+          </AuthProvider>
         </KeyboardProvider>
       </ErrorBoundary>
     </GestureHandlerRootView>
