@@ -14,6 +14,7 @@ import {
   Platform,
   Keyboard,
   InteractionManager,
+  ScrollView,
 } from 'react-native'
 import { Image } from 'expo-image'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -40,7 +41,7 @@ import { Linking, Share } from 'react-native'
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window')
 
 // Image Zoom Viewer Component (Telegram/WhatsApp Style)
-const ImageZoomViewer = ({ imageUri, onTap }: { imageUri: string; onTap: () => void }) => {
+const ImageZoomViewer = ({ imageUri, onTap, fullHeight }: { imageUri: string; onTap: () => void; fullHeight: number }) => {
   const scale = useSharedValue(1)
   const savedScale = useSharedValue(1)
   const translateX = useSharedValue(0)
@@ -117,7 +118,7 @@ const ImageZoomViewer = ({ imageUri, onTap }: { imageUri: string; onTap: () => v
   })
 
   return (
-    <View style={styles.imageZoomContainer}>
+    <View style={[styles.imageZoomContainer, { height: fullHeight }]}>
       <GestureDetector gesture={composedGesture}>
         <Animated.View style={animatedStyle}>
           <Image
@@ -793,6 +794,7 @@ export default function ChatDetail() {
         if (message.message_type === 'image') {
           // Save current scroll position before opening modal
           savedScrollOffset.current = currentScrollOffset.current
+          isRestoringScroll.current = true
           
           // Find all image messages and get the index
           const imageMessages = messages.filter((m) => m.message_type === 'image')
@@ -1058,10 +1060,14 @@ export default function ChatDetail() {
             onScroll={(e) => {
               currentScrollOffset.current = e.nativeEvent.contentOffset.y
             }}
-            maintainVisibleContentPosition={{
-              minIndexForVisible: 0,
-              autoscrollToTopThreshold: 10,
-            }}
+            maintainVisibleContentPosition={
+              imageModalVisible
+                ? undefined
+                : {
+                    minIndexForVisible: 0,
+                    autoscrollToTopThreshold: 10,
+                  }
+            }
             onContentSizeChange={() => {
               // Only scroll if we have messages and not during initial load or scroll restoration
               if (sortedMessages.length > 0 && !initialLoad && !isRestoringScroll.current) {
@@ -1184,10 +1190,11 @@ export default function ChatDetail() {
         </Modal>
       </View>
 
-      {/* Image Preview Modal - Telegram Style with Fast Animations */}
+      {/* Image Preview Modal - Fullscreen with Smooth Animations */}
       <Modal 
         visible={imageModalVisible} 
-        animationType="none" 
+        transparent={true}
+        animationType="fade" 
         presentationStyle="fullScreen"
         onRequestClose={() => {
           setImageModalVisible(false)
@@ -1209,20 +1216,12 @@ export default function ChatDetail() {
         }}
       >
         <GestureHandlerRootView style={{ flex: 1 }}>
-          <Animated.View 
-            style={[styles.imageModal]}
-            entering={FadeIn.duration(150)}
-            exiting={FadeOut.duration(150)}
-          >
+          <View style={[styles.imageModal]}>
             <StatusBar barStyle="light-content" backgroundColor="#000" translucent={false} />
             
             {/* Header with image count - Telegram style */}
             {showImageHeader && (
-              <Animated.View
-                entering={FadeIn.duration(150).delay(50)}
-                exiting={FadeOut.duration(100)}
-                style={styles.imageModalHeader}
-              >
+              <View style={styles.imageModalHeader}>
                 <SafeAreaView edges={['top']} style={styles.imageModalHeaderSafeArea}>
                   <View style={styles.imageModalHeaderContent}>
                     <TouchableOpacity
@@ -1260,22 +1259,23 @@ export default function ChatDetail() {
                     <View style={styles.imageModalPlaceholder} />
                   </View>
                 </SafeAreaView>
-              </Animated.View>
+              </View>
             )}
 
-            {/* Swipeable Image Container - Fast loading */}
+            {/* Swipeable Image Container - Fullscreen */}
             {(() => {
               const imageMessages = messages.filter((m) => m.message_type === 'image')
               if (imageMessages.length === 0) return null
 
               return (
-                <Animated.ScrollView
+                <ScrollView
                   horizontal
                   pagingEnabled
                   showsHorizontalScrollIndicator={false}
                   decelerationRate="fast"
                   snapToInterval={screenWidth}
                   snapToAlignment="center"
+                  style={styles.imageScrollView}
                   onScroll={(e) => {
                     const offsetX = e.nativeEvent.contentOffset.x
                     imageScrollX.value = offsetX
@@ -1287,19 +1287,19 @@ export default function ChatDetail() {
                   }}
                   scrollEventThrottle={16}
                   contentOffset={{ x: selectedImageIndex * screenWidth, y: 0 }}
-                  style={styles.imageScrollView}
                 >
                   {imageMessages.map((msg, index) => (
                     <ImageZoomViewer
                       key={msg.id}
                       imageUri={msg.message}
+                      fullHeight={screenHeight + insets.top + insets.bottom}
                       onTap={() => setShowImageHeader((prev) => !prev)}
                     />
                   ))}
-                </Animated.ScrollView>
+                </ScrollView>
               )
             })()}
-          </Animated.View>
+          </View>
         </GestureHandlerRootView>
       </Modal>
 
@@ -2065,17 +2065,12 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   imageModalHeader: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(0,0,0,0.8)',
   },
   imageModalHeaderSafeArea: {
     backgroundColor: 'transparent',
@@ -2084,9 +2079,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    height: 60,
+    width: '100%',
   },
   imageModalCloseButton: {
     width: 44,
@@ -2109,10 +2102,11 @@ const styles = StyleSheet.create({
   },
   imageScrollView: {
     flex: 1,
+    backgroundColor: '#000',
   },
   imageZoomContainer: {
     width: screenWidth,
-    height: '100%',
+    minHeight: screenHeight,
     justifyContent: 'center',
     alignItems: 'center',
   },
