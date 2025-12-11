@@ -970,11 +970,6 @@ export default function Jobs() {
               style={styles.tasksList}
               contentContainerStyle={[styles.scrollContent, { paddingBottom: listBottomPadding }]}
               showsVerticalScrollIndicator={false}
-              removeClippedSubviews={Platform.OS === 'android'}
-              maxToRenderPerBatch={5}
-              updateCellsBatchingPeriod={100}
-              windowSize={7}
-              initialNumToRender={8}
               keyboardShouldPersistTaps="handled"
             />
           )}

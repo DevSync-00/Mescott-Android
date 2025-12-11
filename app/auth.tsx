@@ -21,7 +21,6 @@ import { useAuth } from '../contexts/SimpleAuthContext'
 import { useToast } from '../contexts/ToastContext'
 import CountryPicker, { Country } from '../components/CountryPicker'
 import { Ionicons } from '@expo/vector-icons'
-import { showErrorAlert, showSuccessAlert } from '../utils/alert'
 import { Colors } from '../constants/Colors'
 
 export default function Auth() {

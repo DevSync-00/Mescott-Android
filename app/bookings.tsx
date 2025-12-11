@@ -16,7 +16,7 @@ import { useToast } from '../contexts/ToastContext'
 import { BookingService, Booking } from '../services/BookingService'
 import { Colors } from '../constants/Colors'
 import { SkeletonList } from '../components/SkeletonLoader'
-import { showConfirmation, showInfoAlert, showSuccessAlert } from '../utils/alertHelper'
+import { showConfirmation } from '../utils/alertHelper'
 
 const statusColors = {
   pending: Colors.warning[500],
@@ -80,7 +80,7 @@ export default function Bookings() {
         }
       }
     },
-    [user],
+    [user, showError],
   )
 
   useEffect(() => {

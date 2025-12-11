@@ -48,6 +48,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return '+' + cleaned;
   };
 
+  // Helper function to check if error is a refresh token error
+  const isRefreshTokenError = (error: any): boolean => {
+    if (!error) return false;
+    const message = error.message || error.toString() || '';
+    return (
+      message.includes('Refresh Token') ||
+      message.includes('refresh_token') ||
+      message.includes('Invalid Refresh Token') ||
+      message.includes('Refresh Token Not Found') ||
+      (error.name === 'AuthApiError' && message.includes('refresh'))
+    );
+  };
+
+  // Helper function to clear invalid session
+  const clearInvalidSession = async () => {
+    try {
+      await supabase.auth.signOut();
+      await AsyncStorage.multiRemove([
+        'supabase.auth.token',
+      ]);
+      setUser(null);
+    } catch (error) {
+      console.error('Error clearing invalid session:', error);
+      setUser(null);
+    }
+  };
+
   // Init auth state
   useEffect(() => {
     init();
@@ -56,18 +83,44 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, session?.user?.id);
-      
-      if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+      try {
+        console.log('Auth state changed:', event, session?.user?.id);
+        
         if (event === 'SIGNED_OUT') {
           setUser(null);
         } else if (event === 'TOKEN_REFRESHED' && session?.user) {
           try {
             await loadUserProfile(session.user.id);
-          } catch (error) {
+          } catch (error: any) {
             console.error('Error loading profile after token refresh:', error);
-            setUser(null);
+            // Check if it's a refresh token error
+            if (isRefreshTokenError(error)) {
+              console.log('Invalid refresh token detected in TOKEN_REFRESHED event, clearing session');
+              await clearInvalidSession();
+            } else {
+              setUser(null);
+            }
           }
+        } else if (event === 'SIGNED_IN' && session?.user) {
+          try {
+            await loadUserProfile(session.user.id);
+          } catch (error: any) {
+            console.error('Error loading profile after sign in:', error);
+            // Check if it's a refresh token error
+            if (isRefreshTokenError(error)) {
+              console.log('Invalid refresh token detected in SIGNED_IN event, clearing session');
+              await clearInvalidSession();
+            } else {
+              setUser(null);
+            }
+          }
+        }
+      } catch (error: any) {
+        console.error('Error in auth state change handler:', error);
+        // Check if it's a refresh token error
+        if (isRefreshTokenError(error)) {
+          console.log('Invalid refresh token detected in auth state change handler, clearing session');
+          await clearInvalidSession();
         }
       }
     });
@@ -90,17 +143,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         console.error('Session error:', sessionError);
         
         // If it's a refresh token error, clear the session
-        if (sessionError.message?.includes('Refresh Token') || 
-            sessionError.message?.includes('refresh_token')) {
+        if (isRefreshTokenError(sessionError)) {
           console.log('Invalid refresh token detected, clearing session');
-          try {
-            await supabase.auth.signOut();
-            await AsyncStorage.multiRemove([
-              'supabase.auth.token',
-            ]);
-          } catch (signOutError) {
-            console.error('Error signing out:', signOutError);
-          }
+          await clearInvalidSession();
         }
         
         setUser(null);
@@ -123,17 +168,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.error('Auth init error:', err);
       
       // Handle refresh token errors in catch block too
-      if (err?.message?.includes('Refresh Token') || 
-          err?.message?.includes('refresh_token')) {
+      if (isRefreshTokenError(err)) {
         console.log('Invalid refresh token in catch block, clearing session');
-        try {
-          await supabase.auth.signOut();
-          await AsyncStorage.multiRemove([
-            'supabase.auth.token',
-          ]);
-        } catch (signOutError) {
-          console.error('Error signing out:', signOutError);
-        }
+        await clearInvalidSession();
       }
       
       setUser(null);
