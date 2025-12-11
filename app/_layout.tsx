@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
-import { View, Text, StatusBar, Animated } from 'react-native'
+import { View, Text, StatusBar, Animated, Easing } from 'react-native'
 import { Tabs, usePathname, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -346,6 +346,10 @@ function AppContent() {
   const [alertState, setAlertState] = useState(alertService.getState())
   const fadeAnim = useRef(new Animated.Value(0)).current
   const [isTransitioning, setIsTransitioning] = useState(false)
+  const [showCustomSplash, setShowCustomSplash] = useState(true)
+  const splashOpacity = useRef(new Animated.Value(1)).current
+  const splashScale = useRef(new Animated.Value(0.92)).current
+  const SPLASH_MAX_DURATION = 3000 // ms guardrail so all animation completes within 3s
 
   // Subscribe to alert service
   useEffect(() => {
@@ -462,6 +466,58 @@ function AppContent() {
     }
   }, [isLoading, fadeAnim])
 
+  // Run a custom splash overlay animation to smoothly introduce and remove the brand mark
+  useEffect(() => {
+    if (!appIsReady || !showCustomSplash) return
+
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(splashOpacity, {
+          toValue: 1,
+          duration: 220,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.spring(splashScale, {
+          toValue: 1,
+          damping: 12,
+          mass: 0.7,
+          stiffness: 160,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.delay(320),
+      Animated.timing(splashOpacity, {
+        toValue: 0,
+        duration: 240,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start(() => setShowCustomSplash(false))
+  }, [appIsReady, showCustomSplash, splashOpacity, splashScale])
+
+  // Safety: ensure splash never lingers beyond 3 seconds total
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (showCustomSplash) {
+        Animated.timing(splashOpacity, {
+          toValue: 0,
+          duration: 220,
+          easing: Easing.in(Easing.quad),
+          useNativeDriver: true,
+        }).start(() => setShowCustomSplash(false))
+      }
+      if (!hasHiddenSplashRef.current) {
+        hasHiddenSplashRef.current = true
+        SplashScreen.hideAsync().catch(() => {
+          // ignore forced hide errors
+        })
+      }
+    }, SPLASH_MAX_DURATION - 200) // finish fully under 3s budget
+
+    return () => clearTimeout(timeout)
+  }, [showCustomSplash, splashOpacity])
+
   const onLayoutRootView = useCallback(async () => {
     // This callback is called when the root view is laid out
   }, [])
@@ -525,6 +581,29 @@ function AppContent() {
     return (
       <Animated.View style={{ flex: 1, backgroundColor: '#ffffff', opacity: fadeAnim }}>
         <SafeAreaView style={{ flex: 1 }} edges={[]} />
+        {showCustomSplash && (
+          <Animated.View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: '#7B42F6',
+              opacity: splashOpacity,
+            }}
+          >
+            <Animated.Image
+              source={require('../assets/images/splash-icon-light.png')}
+              resizeMode="contain"
+              style={{
+                width: 200,
+                height: 200,
+                transform: [{ scale: splashScale }],
+              }}
+            />
+          </Animated.View>
+        )}
       </Animated.View>
     )
   }
@@ -554,6 +633,29 @@ function AppContent() {
           onDismiss={() => alertService.hide()}
         />
       </SafeAreaView>
+      {showCustomSplash && (
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: '#7B42F6',
+            opacity: splashOpacity,
+          }}
+        >
+          <Animated.Image
+            source={require('../assets/images/splash-icon-light.png')}
+            resizeMode="contain"
+            style={{
+              width: 200,
+              height: 200,
+              transform: [{ scale: splashScale }],
+            }}
+          />
+        </Animated.View>
+      )}
     </Animated.View>
   )
 }

@@ -13,20 +13,20 @@ import {
   Modal,
   Platform,
   Keyboard,
-  InteractionManager,
   ScrollView,
+  Linking,
+  Share,
 } from 'react-native'
 import { Image } from 'expo-image'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming, runOnJS, FadeIn, FadeOut } from 'react-native-reanimated'
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, runOnJS } from 'react-native-reanimated'
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler'
 import { useKeyboardHandler } from 'react-native-keyboard-controller'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { ChatService, Chat } from '../services/ChatService'
-import { supabase } from '../lib/supabase'
 import { Colors } from '../constants/Colors'
 import { SkeletonList } from '../components/SkeletonLoader'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -36,7 +36,6 @@ import * as ImagePicker from 'expo-image-picker'
 import * as FileSystem from 'expo-file-system'
 import { ImageService } from '../services/ImageService'
 import { FileService } from '../services/FileService'
-import { Linking, Share } from 'react-native'
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window')
 
@@ -690,8 +689,6 @@ export default function ChatDetail() {
   }
 
   const [downloadingFile, setDownloadingFile] = useState<string | null>(null)
-  const [fileDownloadProgress, setFileDownloadProgress] = useState(0)
-
   const handleFilePress = (fileUrl: string) => {
     setPreviewFileUrl(fileUrl)
     setFilePreviewVisible(true)
@@ -701,22 +698,20 @@ export default function ChatDetail() {
     try {
       setDownloadingFile(fileUrl)
 
-      // Get file name from URL
       const fileName = fileUrl.split('/').pop() || 'file'
-      
-      // Create download directory if it doesn't exist
-      // Use cache directory for downloads (available on both iOS and Android)
-      // @ts-ignore - cacheDirectory exists at runtime but may not be in types
-      const cacheDir = FileSystem.cacheDirectory || ''
-      const downloadDir = `${cacheDir}downloads/`
-      const dirInfo = await FileSystem.getInfoAsync(downloadDir)
+
+      // Create download directory if it doesn't exist (use document directory for broader support)
+      const fs = FileSystem as any
+      const baseDir = fs.cacheDirectory || fs.documentDirectory || ''
+      const downloadDir = `${baseDir}downloads/`
+      const dirInfo = await fs.getInfoAsync(downloadDir)
       if (!dirInfo.exists) {
-        await FileSystem.makeDirectoryAsync(downloadDir, { intermediates: true })
+        await fs.makeDirectoryAsync(downloadDir, { intermediates: true })
       }
 
       // Download file
       const fileUri = `${downloadDir}${fileName}`
-      const downloadResult = await FileSystem.downloadAsync(fileUrl, fileUri)
+      const downloadResult = await fs.downloadAsync(fileUrl, fileUri)
 
       if (downloadResult.status === 200) {
         showSuccess('File downloaded successfully!')
