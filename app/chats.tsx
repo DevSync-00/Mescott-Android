@@ -204,12 +204,23 @@ export default function Chats() {
   }
 
   const getLastMessagePreview = (chat: Chat) => {
-    // Use last_message_text if available, otherwise use last_message.message
-    const messageText = chat.last_message_text || chat.last_message?.message || ''
-    if (messageText && messageText.trim()) {
-      return messageText.length > 50 ? messageText.substring(0, 50) + '...' : messageText
+    const last = chat.last_message
+    const type = last?.message_type
+    const messageText = last?.message || chat.last_message_text || ''
+
+    const label =
+      type === 'image'
+        ? '📷 Photo'
+        : type === 'file'
+          ? `📎 ${(messageText.split('/').pop() || 'File')}`
+          : type === 'system'
+            ? 'ℹ️ System'
+            : messageText
+
+    if (label && label.trim()) {
+      return label.length > 70 ? `${label.slice(0, 70)}…` : label
     }
-    // If there are unread messages but no last_message text, show a generic message
+
     if ((chat.unread_count || 0) > 0) {
       return 'New message'
     }

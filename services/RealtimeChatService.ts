@@ -11,6 +11,7 @@ export interface RealtimeMessage extends Message {
 type Subscriber = {
   onMessage: (message: RealtimeMessage) => void
   onUserOnline?: (userId: string, isOnline: boolean) => void
+  onTyping?: (userId: string, isTyping: boolean) => void
 }
 
 export class RealtimeChatService {
@@ -50,11 +51,16 @@ export class RealtimeChatService {
     callbacks: {
       onMessage: (message: RealtimeMessage) => void
       onUserOnline?: (userId: string, isOnline: boolean) => void
+      onTyping?: (userId: string, isTyping: boolean) => void
     },
   ): Promise<RealtimeChannel | null> {
     try {
       // Add subscriber
-      const s: Subscriber = { onMessage: callbacks.onMessage, onUserOnline: callbacks.onUserOnline }
+      const s: Subscriber = {
+        onMessage: callbacks.onMessage,
+        onUserOnline: callbacks.onUserOnline,
+        onTyping: callbacks.onTyping,
+      }
       if (!this.subscribers.has(chatId)) this.subscribers.set(chatId, new Set())
       this.subscribers.get(chatId)!.add(s)
 
@@ -86,6 +92,13 @@ export class RealtimeChatService {
           },
           (payload) => this.enqueueRealtimeMessage(chatId, payload.new),
         )
+        .on('broadcast', { event: 'typing' }, (payload) => {
+          const senderId = payload.payload?.userId as string | undefined
+          const isTyping = !!payload.payload?.isTyping
+          if (!senderId) return
+          const subs = this.subscribers.get(chatId)
+          subs?.forEach((sub) => sub.onTyping?.(senderId, isTyping))
+        })
         // NOTE: consider separate handlers for presence/online events if you have a table for it
         .subscribe((status) => {
           // keep minimal logging; in production remove entirely or toggle by env
@@ -177,6 +190,7 @@ export class RealtimeChatService {
     callbacks?: {
       onMessage?: (message: RealtimeMessage) => void
       onUserOnline?: (userId: string, isOnline: boolean) => void
+      onTyping?: (userId: string, isTyping: boolean) => void
     },
   ): void {
     const subs = this.subscribers.get(chatId)
@@ -345,6 +359,29 @@ export class RealtimeChatService {
     } catch (error) {
       console.error('RealtimeChatService: getChatById error', error)
       return null
+    }
+  }
+
+  // Typing indicator broadcast (best-effort, non-persistent)
+  static async sendTyping(chatId: string, userId: string, isTyping: boolean): Promise<boolean> {
+    try {
+      // Ensure channel exists so broadcast has a target
+      let channel = this.channels.get(chatId)
+      if (!channel) {
+        channel = await this.subscribeToChat(chatId, {
+          onMessage: () => {},
+        })
+      }
+      if (!channel) return false
+      const res = await channel.send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: { userId, isTyping },
+      })
+      return res === 'ok'
+    } catch (error) {
+      console.error('RealtimeChatService: sendTyping error', error)
+      return false
     }
   }
 }
