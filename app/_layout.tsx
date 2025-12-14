@@ -6,6 +6,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { setStatusBarBackgroundColor, setStatusBarStyle } from 'expo-status-bar'
 import * as SplashScreen from 'expo-splash-screen'
+import Constants from 'expo-constants'
 import { KeyboardProvider } from 'react-native-keyboard-controller'
 import { AuthProvider, useAuth } from '../contexts/SimpleAuthContext'
 import { LanguageProvider } from '../contexts/LanguageContext'
@@ -29,13 +30,16 @@ SplashScreen.preventAutoHideAsync()
 
 // Set the animation options for a smooth fade transition
 // Note: setOptions is only available in development builds, not Expo Go
-try {
-  SplashScreen.setOptions({
-    duration: 1000,
-    fade: true,
-  })
-} catch {
-  // Ignore error - setOptions is not available in Expo Go
+if (typeof SplashScreen.setOptions === 'function') {
+  // Only call setOptions if it exists (not available in Expo Go)
+  try {
+    SplashScreen.setOptions({
+      duration: 1000,
+      fade: true,
+    })
+  } catch {
+    // Ignore error - setOptions may not be available
+  }
 }
 
 function TabNavigator() {

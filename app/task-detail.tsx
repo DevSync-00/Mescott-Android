@@ -6,10 +6,11 @@ import {
   TouchableOpacity,
   ScrollView,
   Dimensions,
-  Image,
   Modal,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native'
+import { Image } from 'expo-image'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router'
@@ -24,8 +25,9 @@ import { Colors } from '../constants/Colors'
 import { SkeletonCard } from '../components/SkeletonLoader'
 import { showConfirmation, showInfoAlert, showErrorAlert, showSuccessAlert } from '../utils/alertHelper'
 import TextureBackground from '../components/TextureBackground'
+import FullScreenImageViewer from '../components/FullScreenImageViewer'
 
-const { width } = Dimensions.get('window')
+const { width, height: screenHeight } = Dimensions.get('window')
 
 export default function TaskDetail() {
   const { user, isAuthenticated, isLoading } = useAuth()
@@ -349,39 +351,76 @@ export default function TaskDetail() {
         {/* Image Carousel */}
         {images.length > 0 && (
           <View style={styles.imageSection}>
-            <ScrollView
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              onScroll={(e) => {
-                const index = Math.round(e.nativeEvent.contentOffset.x / width)
-                setActiveImageIndex(index)
-              }}
-              scrollEventThrottle={16}
-            >
-              {images.map((uri, index) => (
-                <TouchableOpacity
-                  key={index}
-                  activeOpacity={0.9}
-                  onPress={() => {
-                    setSelectedImageIndex(index)
-                    setImageModalVisible(true)
+            <View style={styles.imageCardContainer}>
+              <View style={styles.imageScrollWrapper}>
+                <ScrollView
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onScroll={(e) => {
+                    const imageCardWidth = width - 40 - 24 // Account for card padding
+                    const index = Math.round(e.nativeEvent.contentOffset.x / imageCardWidth)
+                    setActiveImageIndex(index)
                   }}
-                  style={styles.imageContainer}
+                  scrollEventThrottle={16}
+                  decelerationRate="fast"
+                  snapToInterval={width - 40 - 24}
+                  snapToAlignment="center"
                 >
-                  <Image source={{ uri }} style={styles.taskImage} resizeMode="cover" />
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+                  {images.map((uri, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      activeOpacity={0.95}
+                      onPress={() => {
+                        setSelectedImageIndex(index)
+                        setImageModalVisible(true)
+                      }}
+                      style={styles.imageContainer}
+                    >
+                      <Image
+                        source={{ uri }}
+                        style={styles.taskImage}
+                        contentFit="cover"
+                        transition={200}
+                        placeholder={{ blurhash: 'LGF5]+Yk^6#M@-5c,1J5@[or[Q6.' }}
+                        placeholderContentFit="cover"
+                        cachePolicy="memory-disk"
+                      />
+                      <View style={styles.imageOverlay}>
+                        <LinearGradient
+                          colors={['transparent', 'rgba(0,0,0,0.1)']}
+                          style={StyleSheet.absoluteFill}
+                        />
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
 
-            {/* Image Dots */}
-            {images.length > 1 && (
-              <View style={styles.dotsContainer}>
-                {images.map((_, i) => (
-                  <View key={i} style={[styles.dot, i === activeImageIndex && styles.dotActive]} />
-                ))}
+                {/* Image Indicators */}
+                {images.length > 1 && (
+                  <View style={styles.indicatorsContainer}>
+                    <View style={styles.indicatorsWrapper}>
+                      {images.map((_, i) => (
+                        <View
+                          key={i}
+                          style={[
+                            styles.indicator,
+                            i === activeImageIndex && styles.indicatorActive,
+                          ]}
+                        />
+                      ))}
+                    </View>
+                    {images.length > 1 && (
+                      <View style={styles.imageCounter}>
+                        <Text style={styles.imageCounterText}>
+                          {activeImageIndex + 1} / {images.length}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
               </View>
-            )}
+            </View>
           </View>
         )}
 
@@ -580,44 +619,13 @@ export default function TaskDetail() {
         </View>
       </ScrollView>
 
-      {/* Image Viewer Modal */}
-      <Modal
+      {/* Full Screen Image Viewer with Zoom */}
+      <FullScreenImageViewer
         visible={imageModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setImageModalVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <StatusBar backgroundColor="rgba(0,0,0,0.95)" barStyle="light-content" />
-
-          <View style={styles.modalHeader}>
-            <TouchableOpacity
-              onPress={() => setImageModalVisible(false)}
-              style={styles.modalCloseButton}
-            >
-              <Ionicons name="close" size={28} color="#fff" />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>
-              {selectedImageIndex + 1} / {images.length}
-            </Text>
-            <View style={styles.placeholder} />
-          </View>
-
-          <ScrollView
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            contentOffset={{ x: width * selectedImageIndex, y: 0 }}
-            style={styles.modalScroll}
-          >
-            {images.map((uri, i) => (
-              <View key={i} style={styles.modalImageContainer}>
-                <Image source={{ uri }} style={styles.modalImage} resizeMode="contain" />
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-      </Modal>
+        images={images}
+        initialIndex={selectedImageIndex}
+        onClose={() => setImageModalVisible(false)}
+      />
 
       {/* Payment Modal */}
       <ChapaPaymentModal
@@ -703,35 +711,84 @@ const styles = StyleSheet.create({
   },
   imageSection: {
     marginBottom: 20,
-    marginHorizontal: -20,
+  },
+  imageCardContainer: {
+    backgroundColor: Colors.background.primary,
+    borderRadius: 16,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.neutral[200],
+    overflow: 'hidden',
+  },
+  imageScrollWrapper: {
+    position: 'relative',
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   imageContainer: {
-    width,
-    height: 280,
+    width: width - 40 - 24, // Account for card padding (12px on each side)
+    height: (width - 40 - 24) * 0.75, // 4:3 aspect ratio
     backgroundColor: Colors.neutral[100],
+    position: 'relative',
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   taskImage: {
     width: '100%',
     height: '100%',
+    borderRadius: 12,
   },
-  dotsContainer: {
+  imageOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    pointerEvents: 'none',
+  },
+  indicatorsContainer: {
+    position: 'absolute',
+    bottom: 16,
+    left: 12,
+    right: 12,
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
-    gap: 6,
   },
-  dot: {
+  indicatorsWrapper: {
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'center',
+  },
+  indicator: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: Colors.neutral[300],
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
   },
-  dotActive: {
+  indicatorActive: {
     width: 24,
     height: 6,
     borderRadius: 3,
-    backgroundColor: Colors.primary[500],
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  imageCounter: {
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backdropFilter: 'blur(10px)',
+  },
+  imageCounterText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   card: {
     backgroundColor: Colors.background.primary,
@@ -978,11 +1035,14 @@ const styles = StyleSheet.create({
   },
   modalImageContainer: {
     width,
+    height: screenHeight,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: 20,
   },
   modalImage: {
     width: width - 40,
-    height: '100%',
+    height: screenHeight - 160,
+    maxHeight: '90%',
   },
 })

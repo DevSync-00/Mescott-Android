@@ -20,6 +20,7 @@ import { router } from 'expo-router'
 import BottomSheet, { BottomSheetRef } from './BottomSheet'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { showConfirmation } from '../utils/alertHelper'
+import FullScreenImageViewer from './FullScreenImageViewer'
 
 const { width } = Dimensions.get('window')
 
@@ -244,34 +245,13 @@ export default function TaskDetailSheet({ taskId, visible, onClose }: TaskDetail
         </View>
       </View>
 
-      {/* Fullscreen Image Modal */}
-      <Modal
+      {/* Full Screen Image Viewer with Zoom */}
+      <FullScreenImageViewer
         visible={imageModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setImageModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalTopBar}>
-            <TouchableOpacity onPress={() => setImageModalVisible(false)} style={styles.modalClose}>
-              <Ionicons name="close" size={28} color="#fff" />
-            </TouchableOpacity>
-          </View>
-          <ScrollView
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            contentOffset={{ x: width * selectedImageIndex, y: 0 }}
-            style={styles.fullscreenScroll}
-          >
-            {(task?.photos || []).map((uri, i) => (
-              <View key={i} style={{ width, alignItems: 'center', justifyContent: 'center' }}>
-                <Image source={{ uri }} style={styles.fullscreenImage} resizeMode="contain" />
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-      </Modal>
+        images={task?.photos || []}
+        initialIndex={selectedImageIndex}
+        onClose={() => setImageModalVisible(false)}
+      />
     </BottomSheet>
   )
 }

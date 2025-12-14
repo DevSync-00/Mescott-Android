@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { View, StyleSheet, TouchableOpacity, StatusBar, ActivityIndicator, Linking, Text } from 'react-native'
+import { View, StyleSheet, TouchableOpacity, StatusBar, ActivityIndicator, Linking, Text, Platform } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
@@ -14,6 +14,7 @@ import * as ImagePicker from 'expo-image-picker'
 import { ImageService } from '../services/ImageService'
 import { FileService } from '../services/FileService'
 import { Image } from 'expo-image'
+import FullScreenImageViewer from '../components/FullScreenImageViewer'
 
 type GiftedMessage = {
   _id: string
@@ -52,6 +53,9 @@ export default function ChatDetail() {
   const typingBroadcastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const chatIdRef = useRef<string | null>(null)
   const userIdRef = useRef<string | null>(null)
+  const [imageViewerVisible, setImageViewerVisible] = useState(false)
+  const [viewerImages, setViewerImages] = useState<string[]>([])
+  const [viewerInitialIndex, setViewerInitialIndex] = useState(0)
 
   useFocusEffect(
     useCallback(() => {
@@ -106,18 +110,27 @@ export default function ChatDetail() {
       await RealtimeChatService.subscribeToChat(id, {
         onMessage: (message) => {
           setMessages((prev) => {
-            const mapped = mapToGifted(message)
-            const idx = prev.findIndex((m) => m._id === message.id)
-            if (idx >= 0) {
-              const copy = [...prev]
-              copy[idx] = { ...copy[idx], ...mapped }
-              return GiftedChat.sortMessages(copy)
+            // Prevent duplicate messages by checking if message already exists
+            const existingIndex = prev.findIndex((m) => m._id === message.id)
+            if (existingIndex >= 0) {
+              // Update existing message instead of adding duplicate
+              const updated = [...prev]
+              const mapped = mapToGifted(message)
+              updated[existingIndex] = { ...updated[existingIndex], ...mapped }
+              // Sort by createdAt descending (newest first)
+              return updated.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
             }
+            // Only add if message doesn't exist
+            const mapped = mapToGifted(message)
             const next = [...prev, mapped]
-            return GiftedChat.sortMessages(next)
+            // Sort by createdAt descending (newest first)
+            return next.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
           })
-          if (message.sender_id !== user?.id) {
-            ChatService.markMessagesAsRead(id, user!.id)
+          // Mark as read if message is from other user
+          if (message.sender_id !== user?.id && user?.id) {
+            ChatService.markMessagesAsRead(id, user.id).catch((err: any) => {
+              console.error('Failed to mark message as read:', err)
+            })
           }
         },
         onTyping: (senderId, typing) => {
@@ -132,6 +145,7 @@ export default function ChatDetail() {
       setIsSubscribed(true)
     } catch (error) {
       console.error('Subscribe failed', error)
+      showError('Failed to connect to chat')
     }
   }
 
@@ -147,40 +161,79 @@ export default function ChatDetail() {
     user: {
       _id: msg.sender_id,
       name: msg.sender?.full_name || participantName || 'User',
-      avatar: msg.sender?.avatar_url || null,
+      avatar: msg.sender?.avatar_url || undefined,
     },
     image: msg.message_type === 'image' ? msg.message : undefined,
     fileUrl: msg.message_type === 'file' ? msg.message : undefined,
     status: msg.is_read ? 'read' : 'sent',
   })
 
-  // Clear timers on unmount
+  // Cleanup subscriptions and timers on unmount
   useEffect(() => {
     return () => {
+      // Clear all timers
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
       if (remoteTypingTimeoutRef.current) clearTimeout(remoteTypingTimeoutRef.current)
       if (typingBroadcastTimeoutRef.current) clearTimeout(typingBroadcastTimeoutRef.current)
+      
+      // Unsubscribe from real-time updates
+      if (chatIdRef.current && isSubscribed) {
+        try {
+          RealtimeChatService.unsubscribeFromChat(chatIdRef.current)
+        } catch (err) {
+          console.error('Failed to unsubscribe:', err)
+        }
+        setIsSubscribed(false)
+      }
     }
-  }, [])
+  }, [isSubscribed])
 
   const handleSend = async (outMessages: GiftedMessage[] = []) => {
-    if (!user?.id || !chat?.id) return
+    if (!user?.id || !chat?.id || sending) return
     const outgoing = outMessages[0]
+    if (!outgoing) return
+
     setSending(true)
-    setMessages((prev) => GiftedChat.append(prev, { ...outgoing, status: 'sending' }))
+    const tempId = outgoing._id || `temp-${Date.now()}-${Math.random()}`
+    const optimisticMessage = { ...outgoing, _id: tempId, status: 'sending' as const }
+    
+    // Add optimistic message immediately for better UX
+    setMessages((prev) => {
+      const appended = [...prev, optimisticMessage]
+      // Sort by createdAt descending (newest first)
+      return appended.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    })
+    
     try {
       const messageType = outgoing.image ? 'image' : outgoing.fileUrl ? 'file' : 'text'
       const content = outgoing.image || outgoing.fileUrl || outgoing.text
+      
+      if (!content) {
+        throw new Error('Message content is empty')
+      }
+
       const result = await ChatService.sendMessage(chat.id, user.id, content, messageType as any)
       if (!result) throw new Error('send failed')
-      // reload statuses
+      
+      // Remove optimistic message and reload with server response
+      setMessages((prev) => {
+        const filtered = prev.filter((m) => m._id !== tempId)
+        // The real message will come through the subscription
+        return filtered
+      })
+      
+      // Optionally refresh to get the actual message with correct ID
+      // The subscription should handle this, but we can do a quick refresh
       const { fresh } = await ChatService.getChatMessagesFast(chat.id)
       const latest = fresh ? await fresh : []
-      setMessages(GiftedChat.sortMessages(latest.map(mapToGifted)))
+      const mapped = latest.map(mapToGifted)
+      // Sort by createdAt descending (newest first)
+      setMessages(mapped.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()))
     } catch (error) {
       console.error('Send failed', error)
-      setMessages((prev) => prev.filter((m) => m._id !== outgoing._id))
-      showError('Message failed to send')
+      // Remove failed optimistic message
+      setMessages((prev) => prev.filter((m) => m._id !== tempId))
+      showError('Message failed to send. Please try again.')
     } finally {
       setSending(false)
     }
@@ -248,7 +301,7 @@ export default function ChatDetail() {
     }
   }
 
-  const renderActions = (props: any) => (
+  const renderActions = useCallback((props: any) => (
     <Actions
       {...props}
       onPressActionButton={pickImage}
@@ -261,9 +314,9 @@ export default function ChatDetail() {
       )}
       containerStyle={{ marginLeft: 4, marginBottom: 2 }}
     />
-  )
+  ), [uploadingAttachment, pickImage])
 
-  const renderSend = (props: any) => (
+  const renderSend = useCallback((props: any) => (
     <Send {...props} disabled={sending}>
       <View style={styles.sendButton}>
         {sending ? (
@@ -273,9 +326,9 @@ export default function ChatDetail() {
         )}
       </View>
     </Send>
-  )
+  ), [sending])
 
-  const renderBubble = (props: any) => {
+  const renderBubble = useCallback((props: any) => {
     const status = props.currentMessage?.status
     const fileUrl = props.currentMessage?.fileUrl
     return (
@@ -322,30 +375,50 @@ export default function ChatDetail() {
         )}
       </View>
     )
-  }
+  }, [])
 
-  const renderInputToolbar = (props: any) => (
+  const renderInputToolbar = useCallback((props: any) => (
     <InputToolbar
       {...props}
       containerStyle={styles.inputToolbar}
       primaryStyle={{ alignItems: 'center' }}
     />
-  )
+  ), [])
 
-  const renderMessageImage = (props: any) => (
-    <MessageImage
-      {...props}
-      imageStyle={{ borderRadius: 14, margin: 0 }}
-    />
-  )
+  const renderMessageImage = useCallback((props: any) => {
+    const imageUri = props.currentMessage?.image
+    if (!imageUri) return null
 
-  const renderScrollToBottom = () => (
+    // Collect all image messages for gallery view
+    const imageMessages = messages.filter((m) => m.image).map((m) => m.image!)
+    const currentImageIndex = imageMessages.findIndex((uri) => uri === imageUri)
+
+    return (
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={() => {
+          if (imageMessages.length > 0) {
+            setViewerImages(imageMessages)
+            setViewerInitialIndex(currentImageIndex >= 0 ? currentImageIndex : 0)
+            setImageViewerVisible(true)
+          }
+        }}
+      >
+        <MessageImage
+          {...props}
+          imageStyle={{ borderRadius: 14, margin: 0 }}
+        />
+      </TouchableOpacity>
+    )
+  }, [messages])
+
+  const renderScrollToBottom = useCallback(() => (
     <View style={styles.scrollToBottom}>
       <Ionicons name="chevron-down" size={20} color="#fff" />
     </View>
-  )
+  ), [])
 
-  const renderChatFooter = () => {
+  const renderChatFooter = useCallback(() => {
     if (uploadingAttachment) {
       return (
         <View style={styles.footerRow}>
@@ -360,14 +433,14 @@ export default function ChatDetail() {
           <View style={styles.typingDot} />
           <View style={styles.typingDot} />
           <View style={styles.typingDot} />
-          <Text style={styles.footerText}>Typing...</Text>
+          <Text style={styles.footerText}>{participantName} is typing...</Text>
         </View>
       )
     }
     return null
-  }
+  }, [uploadingAttachment, remoteTyping, participantName])
 
-  const renderAvatar = (props: any) => {
+  const renderAvatar = useCallback((props: any) => {
     const uri = props.currentMessage?.user?.avatar || participantAvatarUrl
     const fallback = props.currentMessage?.user?.name?.[0]?.toUpperCase() || '•'
     return (
@@ -388,7 +461,7 @@ export default function ChatDetail() {
         )}
       </View>
     )
-  }
+  }, [participantAvatarUrl])
 
   if (isAuthLoading || loading) {
     return (
@@ -405,7 +478,7 @@ export default function ChatDetail() {
 
   return (
     <TextureBackground>
-      <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={styles.container} edges={['left', 'right']}>
         <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
         <View style={[styles.header, { paddingTop: 8 + insets.top }]}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/chats')}>
@@ -436,7 +509,7 @@ export default function ChatDetail() {
         </View>
 
         <GiftedChat
-          messages={messages}
+          messages={messages as any}
           onSend={(msgs) => handleSend(msgs as any)}
           user={{ _id: user!.id, name: user!.full_name || 'Me', avatar: user?.avatar_url }}
           renderBubble={renderBubble}
@@ -446,8 +519,6 @@ export default function ChatDetail() {
           renderMessageImage={renderMessageImage}
           renderAvatar={renderAvatar}
           renderChatFooter={renderChatFooter}
-          renderScrollToBottom={renderScrollToBottom}
-          alwaysShowSend
           scrollToBottom
           scrollToBottomComponent={renderScrollToBottom}
           showUserAvatar
@@ -471,8 +542,31 @@ export default function ChatDetail() {
             right: { color: '#E5ECFF' },
           }}
           messagesContainerStyle={{ backgroundColor: '#F8FAFF' }}
-          bottomOffset={insets.bottom + 12}
-          listViewProps={{ keyboardShouldPersistTaps: 'handled' }}
+          keyboardAvoidingViewProps={{
+            keyboardVerticalOffset: Platform.select({
+              ios: insets.top + 60, // Header height + safe area
+              android: insets.bottom, // Account for navigation bar in edge-to-edge
+            }),
+            behavior: Platform.select({ ios: 'padding', android: 'padding' }),
+          }}
+          listViewProps={{
+            keyboardShouldPersistTaps: 'handled',
+            // Performance optimizations for FlatList
+            removeClippedSubviews: Platform.OS === 'android',
+            maxToRenderPerBatch: 10,
+            updateCellsBatchingPeriod: 50,
+            initialNumToRender: 15,
+            windowSize: 10,
+            getItemLayout: undefined, // Can be optimized if messages have fixed height
+          }}
+        />
+
+        {/* Full Screen Image Viewer for Chat Images */}
+        <FullScreenImageViewer
+          visible={imageViewerVisible}
+          images={viewerImages}
+          initialIndex={viewerInitialIndex}
+          onClose={() => setImageViewerVisible(false)}
         />
       </SafeAreaView>
     </TextureBackground>
