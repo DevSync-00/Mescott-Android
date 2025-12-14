@@ -6,8 +6,11 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { setStatusBarBackgroundColor, setStatusBarStyle } from 'expo-status-bar'
 import * as SplashScreen from 'expo-splash-screen'
+<<<<<<< HEAD
 import Constants from 'expo-constants'
 import { KeyboardProvider } from 'react-native-keyboard-controller'
+=======
+>>>>>>> 433ea561bd9d509aae94440cade68e278b84f548
 import { AuthProvider, useAuth } from '../contexts/SimpleAuthContext'
 import { LanguageProvider } from '../contexts/LanguageContext'
 import { NotificationProvider } from '../contexts/NotificationContext'
@@ -24,6 +27,15 @@ import { useAppStore } from '../state/store'
 import { ChatService } from '../services/ChatService'
 import { TaskService } from '../services/TaskService'
 import { Colors } from '../constants/Colors'
+
+// Conditionally import KeyboardProvider to handle cases where it might not be available
+let KeyboardProvider: React.ComponentType<{ children: React.ReactNode }> | null = null
+try {
+  const keyboardController = require('react-native-keyboard-controller')
+  KeyboardProvider = keyboardController?.KeyboardProvider || null
+} catch (error) {
+  console.warn('react-native-keyboard-controller not available:', error)
+}
 
 // Keep the native splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync()
@@ -665,20 +677,26 @@ function AppContent() {
 }
 
 export default function RootLayout() {
+  const content = (
+    <AuthProvider>
+      <LanguageProvider>
+        <NotificationProvider>
+          <ToastProvider>
+            <AppContent />
+          </ToastProvider>
+        </NotificationProvider>
+      </LanguageProvider>
+    </AuthProvider>
+  )
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ErrorBoundary>
-        <KeyboardProvider>
-          <AuthProvider>
-            <LanguageProvider>
-              <NotificationProvider>
-                <ToastProvider>
-                  <AppContent />
-                </ToastProvider>
-              </NotificationProvider>
-            </LanguageProvider>
-          </AuthProvider>
-        </KeyboardProvider>
+        {KeyboardProvider ? (
+          <KeyboardProvider>{content}</KeyboardProvider>
+        ) : (
+          content
+        )}
       </ErrorBoundary>
     </GestureHandlerRootView>
   )
