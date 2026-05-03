@@ -6,11 +6,6 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { setStatusBarBackgroundColor, setStatusBarStyle } from 'expo-status-bar'
 import * as SplashScreen from 'expo-splash-screen'
-<<<<<<< HEAD
-import Constants from 'expo-constants'
-import { KeyboardProvider } from 'react-native-keyboard-controller'
-=======
->>>>>>> 433ea561bd9d509aae94440cade68e278b84f548
 import { AuthProvider, useAuth } from '../contexts/SimpleAuthContext'
 import { LanguageProvider } from '../contexts/LanguageContext'
 import { NotificationProvider } from '../contexts/NotificationContext'

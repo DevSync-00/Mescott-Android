@@ -258,11 +258,10 @@ export default function Auth() {
                   <View style={styles.brandRow}>
                     <Text style={styles.heroBrand}>MESCO</Text>
                     <Image
-                      source={{
-                        uri: 'https://figma-alpha-api.s3.us-west-2.amazonaws.com/images/af4c84d7-57e5-42c9-9d89-94e58d60ec53',
-                      }}
-                      resizeMode="contain"
+                      source={require('../assets/images/splash-icon-light.png')}
                       style={styles.heroMark}
+                      contentFit="contain"
+                      cachePolicy="memory-disk"
                     />
                   </View>
                 </View>
@@ -451,9 +450,9 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   heroMark: {
-    width: 60,
-    height: 60,
-    marginLeft: 10,
+    width: 122,
+    height: 122,
+    marginLeft: -4,
   },
   card: {
     backgroundColor: '#FFFFFF',
