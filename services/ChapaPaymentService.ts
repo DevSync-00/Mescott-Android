@@ -33,7 +33,8 @@ export interface ChapaPaymentResponse {
   message: string
   data: {
     checkout_url: string
-    tx_ref: string
+    /** Chapa sometimes omits this on success; we fall back to the request `tx_ref`. */
+    tx_ref?: string
   }
 }
 
@@ -257,18 +258,28 @@ export class ChapaPaymentService {
         throw new Error(`Chapa payment failed: ${result.message?.email || result.message || 'Unknown error'}`)
       }
 
+      const checkoutUrl = result.data?.checkout_url
+      if (!checkoutUrl || typeof checkoutUrl !== 'string') {
+        throw new Error('Chapa did not return a checkout URL')
+      }
+
+      const resolvedTxRef =
+        typeof result.data?.tx_ref === 'string' && result.data.tx_ref.length > 0
+          ? result.data.tx_ref
+          : txRef
+
       // Store payment record in database
       await this.createPaymentRecord(
         taskId,
         customerUserId,
         calculation,
-        txRef,
+        resolvedTxRef,
         'pending'
       )
 
       return {
-        checkoutUrl: result.data.checkout_url,
-        txRef: result.data.tx_ref
+        checkoutUrl,
+        txRef: resolvedTxRef
       }
 
     } catch (error) {
