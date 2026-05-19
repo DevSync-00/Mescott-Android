@@ -8,8 +8,8 @@ import {
   KeyboardAvoidingView,
   Keyboard,
   TouchableWithoutFeedback,
-  Modal,
   StatusBar,
+  Alert,
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { ScrollView } from 'react-native-gesture-handler'
@@ -23,6 +23,12 @@ import { SimpleNotificationService } from '../services/SimpleNotificationService
 import { supabase } from '../lib/supabase'
 import { Colors } from '../constants/Colors'
 import MultiImageUpload from '../components/MultiImageUpload'
+import TaskDateTimePickerSheet from '../components/TaskDateTimePickerSheet'
+import {
+  formatTaskDateField,
+  formatTaskTimeField,
+  startOfToday,
+} from '../lib/formatTaskDateTime'
 import { showSuccessAlert } from '../utils/alertHelper'
 
 const categories = [
@@ -430,71 +436,77 @@ export default function PostTask() {
                 <Text style={styles.characterCount}>{description.length}/500</Text>
               </View>
 
-              {/* Task Date and Time */}
-              <View style={styles.row}>
-                <View style={[styles.inputCard, { flex: 1, marginRight: 8 }]}>
-                  <View style={styles.labelRow}>
-                    <Ionicons name="calendar" size={18} color={Colors.primary[500]} />
-                    <Text style={styles.label}>Task Date *</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.dateTimeInputContainer}
-                    onPress={() => setShowDatePicker(true)}
-                  >
-                    <Text style={styles.dateText}>{taskDate.toLocaleDateString()}</Text>
-                    <Ionicons name="chevron-down" size={18} color={Colors.primary[500]} />
-                  </TouchableOpacity>
+              {/* Task Date */}
+              <View style={styles.inputCard}>
+                <View style={styles.labelRow}>
+                  <Ionicons name="calendar" size={18} color={Colors.primary[500]} />
+                  <Text style={styles.label}>Task Date *</Text>
                 </View>
-                <View style={[styles.inputCard, { flex: 1, marginLeft: 8 }]}>
-                  <View style={styles.labelRow}>
-                    <Ionicons name="time" size={18} color={Colors.primary[500]} />
-                    <Text style={styles.label}>Task Time *</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.dateTimeInputContainer}
-                    onPress={() => setShowTimePicker(true)}
-                  >
-                    <Text style={styles.dateText}>
-                      {taskTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </Text>
-                    <Ionicons name="chevron-down" size={18} color={Colors.primary[500]} />
-                  </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.dateTimeInputContainer}
+                  onPress={() => setShowDatePicker(true)}
+                  accessibilityLabel="Select task date"
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.dateText} numberOfLines={1}>
+                    {formatTaskDateField(taskDate)}
+                  </Text>
+                  <Ionicons name="chevron-down" size={18} color={Colors.primary[500]} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Task Time */}
+              <View style={styles.inputCard}>
+                <View style={styles.labelRow}>
+                  <Ionicons name="time" size={18} color={Colors.primary[500]} />
+                  <Text style={styles.label}>Task Time *</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.dateTimeInputContainer}
+                  onPress={() => setShowTimePicker(true)}
+                  accessibilityLabel="Select task time"
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.dateText} numberOfLines={1}>
+                    {formatTaskTimeField(taskTime)}
+                  </Text>
+                  <Ionicons name="chevron-down" size={18} color={Colors.primary[500]} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Budget */}
+              <View style={styles.inputCard}>
+                <View style={styles.labelRow}>
+                  <Ionicons name="cash" size={18} color={Colors.success[500]} />
+                  <Text style={styles.label}>Budget *</Text>
+                </View>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.currencySymbol}>ETB</Text>
+                  <TextInput
+                    style={[styles.input, styles.currencyInput]}
+                    placeholder="e.g., 500 - 1000"
+                    placeholderTextColor={Colors.neutral[400]}
+                    value={price}
+                    onChangeText={setPrice}
+                    keyboardType="numeric"
+                  />
                 </View>
               </View>
 
-              {/* Price and Location Row */}
-              <View style={styles.row}>
-                <View style={[styles.inputCard, { flex: 1, marginRight: 8 }]}>
-                  <View style={styles.labelRow}>
-                    <Ionicons name="cash" size={18} color={Colors.success[500]} />
-                    <Text style={styles.label}>Budget *</Text>
-                  </View>
-                  <View style={styles.inputContainer}>
-                    <Text style={styles.currencySymbol}>ETB</Text>
-                    <TextInput
-                      style={[styles.input, styles.currencyInput]}
-                      placeholder="e.g., 500 - 1000"
-                      placeholderTextColor={Colors.neutral[400]}
-                      value={price}
-                      onChangeText={setPrice}
-                      keyboardType="numeric"
-                    />
-                  </View>
+              {/* Location */}
+              <View style={styles.inputCard}>
+                <View style={styles.labelRow}>
+                  <Ionicons name="location" size={18} color={Colors.error[500]} />
+                  <Text style={styles.label}>Location *</Text>
                 </View>
-                <View style={[styles.inputCard, { flex: 1, marginLeft: 8 }]}>
-                  <View style={styles.labelRow}>
-                    <Ionicons name="location" size={18} color={Colors.error[500]} />
-                    <Text style={styles.label}>Location *</Text>
-                  </View>
-                  <View style={styles.inputContainer}>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="e.g., Addis Ababa, Bole"
-                      placeholderTextColor={Colors.neutral[400]}
-                      value={location}
-                      onChangeText={setLocation}
-                    />
-                  </View>
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g., Addis Ababa, Bole"
+                    placeholderTextColor={Colors.neutral[400]}
+                    value={location}
+                    onChangeText={setLocation}
+                  />
                 </View>
               </View>
 
@@ -591,168 +603,21 @@ export default function PostTask() {
               </TouchableOpacity>
             </ScrollView>
 
-            {/* Modern Date Picker Modal */}
-            <Modal
+            <TaskDateTimePickerSheet
               visible={showDatePicker}
-              transparent={true}
-              animationType="slide"
-              onRequestClose={() => setShowDatePicker(false)}
-            >
-              <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                  <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>Select Date</Text>
-                    <TouchableOpacity
-                      onPress={() => setShowDatePicker(false)}
-                      style={styles.modalCloseButton}
-                    >
-                      <Ionicons name="close" size={24} color={Colors.neutral[600]} />
-                    </TouchableOpacity>
-                  </View>
-
-                  <View style={styles.datePickerContainer}>
-                    <View style={styles.dateDisplay}>
-                      <Text style={styles.selectedDateText}>
-                        {taskDate.toLocaleDateString('en-US', {
-                          weekday: 'long',
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                        })}
-                      </Text>
-                    </View>
-
-                    <View style={styles.dateControls}>
-                      <TouchableOpacity
-                        style={styles.dateButton}
-                        onPress={() => {
-                          const newDate = new Date(taskDate)
-                          newDate.setDate(newDate.getDate() - 1)
-                          if (newDate >= new Date()) {
-                            setTaskDate(newDate)
-                          }
-                        }}
-                      >
-                        <Ionicons name="chevron-down" size={20} color={Colors.primary[500]} />
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={styles.dateButton}
-                        onPress={() => {
-                          const newDate = new Date(taskDate)
-                          newDate.setDate(newDate.getDate() + 1)
-                          setTaskDate(newDate)
-                        }}
-                      >
-                        <Ionicons name="chevron-up" size={20} color={Colors.primary[500]} />
-                      </TouchableOpacity>
-                    </View>
-
-                    <TouchableOpacity
-                      style={styles.confirmButton}
-                      onPress={() => setShowDatePicker(false)}
-                    >
-                      <Text style={styles.confirmButtonText}>Confirm Date</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            </Modal>
-
-            {/* Modern Time Picker Modal */}
-            <Modal
+              mode="date"
+              value={taskDate}
+              minimumDate={startOfToday()}
+              onConfirm={setTaskDate}
+              onClose={() => setShowDatePicker(false)}
+            />
+            <TaskDateTimePickerSheet
               visible={showTimePicker}
-              transparent={true}
-              animationType="slide"
-              onRequestClose={() => setShowTimePicker(false)}
-            >
-              <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                  <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>Select Time</Text>
-                    <TouchableOpacity
-                      onPress={() => setShowTimePicker(false)}
-                      style={styles.modalCloseButton}
-                    >
-                      <Ionicons name="close" size={24} color={Colors.neutral[600]} />
-                    </TouchableOpacity>
-                  </View>
-
-                  <View style={styles.timePickerContainer}>
-                    <View style={styles.timeDisplay}>
-                      <Text style={styles.selectedTimeText}>
-                        {taskTime.toLocaleTimeString('en-US', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: true,
-                        })}
-                      </Text>
-                    </View>
-
-                    <View style={styles.timeControls}>
-                      <View style={styles.timeControlGroup}>
-                        <Text style={styles.timeLabel}>Hour</Text>
-                        <View style={styles.timeButtons}>
-                          <TouchableOpacity
-                            style={styles.timeButton}
-                            onPress={() => {
-                              const newTime = new Date(taskTime)
-                              newTime.setHours(newTime.getHours() + 1)
-                              setTaskTime(newTime)
-                            }}
-                          >
-                            <Ionicons name="chevron-up" size={20} color={Colors.primary[500]} />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={styles.timeButton}
-                            onPress={() => {
-                              const newTime = new Date(taskTime)
-                              newTime.setHours(newTime.getHours() - 1)
-                              setTaskTime(newTime)
-                            }}
-                          >
-                            <Ionicons name="chevron-down" size={20} color={Colors.primary[500]} />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-
-                      <View style={styles.timeControlGroup}>
-                        <Text style={styles.timeLabel}>Minute</Text>
-                        <View style={styles.timeButtons}>
-                          <TouchableOpacity
-                            style={styles.timeButton}
-                            onPress={() => {
-                              const newTime = new Date(taskTime)
-                              newTime.setMinutes(newTime.getMinutes() + 10)
-                              setTaskTime(newTime)
-                            }}
-                          >
-                            <Ionicons name="chevron-up" size={20} color={Colors.primary[500]} />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={styles.timeButton}
-                            onPress={() => {
-                              const newTime = new Date(taskTime)
-                              newTime.setMinutes(newTime.getMinutes() - 10)
-                              setTaskTime(newTime)
-                            }}
-                          >
-                            <Ionicons name="chevron-down" size={20} color={Colors.primary[500]} />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    </View>
-
-                    <TouchableOpacity
-                      style={styles.confirmButton}
-                      onPress={() => setShowTimePicker(false)}
-                    >
-                      <Text style={styles.confirmButtonText}>Confirm Time</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            </Modal>
+              mode="time"
+              value={taskTime}
+              onConfirm={setTaskTime}
+              onClose={() => setShowTimePicker(false)}
+            />
           </ScrollView>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
@@ -896,9 +761,6 @@ const styles = StyleSheet.create({
     color: Colors.neutral[500],
     textAlign: 'right',
     marginTop: 6,
-  },
-  row: {
-    flexDirection: 'row',
   },
   categoriesGrid: {
     flexDirection: 'row',
@@ -1050,124 +912,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.neutral[600],
     marginTop: 10,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: Colors.background.primary,
-    borderRadius: 20,
-    padding: 24,
-    width: '90%',
-    maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 10,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border.primary,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.neutral[900],
-  },
-  modalCloseButton: {
-    padding: 4,
-  },
-  datePickerContainer: {
-    alignItems: 'center',
-  },
-  dateDisplay: {
-    backgroundColor: Colors.primary[50],
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 24,
-    width: '100%',
-    alignItems: 'center',
-  },
-  selectedDateText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.primary[700],
-    textAlign: 'center',
-  },
-  dateControls: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 24,
-  },
-  dateButton: {
-    backgroundColor: Colors.primary[100],
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 60,
-  },
-  confirmButton: {
-    backgroundColor: Colors.primary[500],
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  confirmButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  timePickerContainer: {
-    alignItems: 'center',
-  },
-  timeDisplay: {
-    backgroundColor: Colors.primary[50],
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 24,
-    width: '100%',
-    alignItems: 'center',
-  },
-  selectedTimeText: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: Colors.primary[700],
-    textAlign: 'center',
-  },
-  timeControls: {
-    flexDirection: 'row',
-    gap: 32,
-    marginBottom: 24,
-  },
-  timeControlGroup: {
-    alignItems: 'center',
-  },
-  timeLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.neutral[600],
-    marginBottom: 12,
-  },
-  timeButtons: {
-    gap: 8,
-  },
-  timeButton: {
-    backgroundColor: Colors.primary[100],
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 50,
   },
 })

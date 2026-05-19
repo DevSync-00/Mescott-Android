@@ -23,6 +23,7 @@ import { Colors } from '../constants/Colors'
 import TextureBackground from '../components/TextureBackground'
 import ChatDetailHeader from '../components/chat/ChatDetailHeader'
 import ChatConversationLayout from '../components/chat/ChatConversationLayout'
+import ChatAttachSheet from '../components/chat/ChatAttachSheet'
 import { useMeasuredLayoutHeight } from '../hooks/useMeasuredLayoutHeight'
 import {
   CHAT_LIST_EXTRA_PADDING,
@@ -44,6 +45,14 @@ import {
   sortGiftedMessagesNewestFirst,
 } from '../lib/chat/mergeGiftedMessages'
 import type { Message } from '../services/ChatService'
+import {
+  CHAT_INITIAL_MESSAGE_LIMIT,
+  CHAT_MESSAGE_PAGE_SIZE,
+  countServerMessages,
+  hasMoreChatMessages,
+  mergeOlderMessageIds,
+  nextMessageOffset,
+} from '../lib/chat/messagePagination'
 
 export default function ChatDetail() {
   const { user, isAuthenticated, loading: isAuthLoading } = useAuth()
@@ -76,6 +85,9 @@ export default function ChatDetail() {
   const [imageViewerVisible, setImageViewerVisible] = useState(false)
   const [viewerImages, setViewerImages] = useState<string[]>([])
   const [viewerInitialIndex, setViewerInitialIndex] = useState(0)
+  const [attachSheetVisible, setAttachSheetVisible] = useState(false)
+  const [loadingEarlier, setLoadingEarlier] = useState(false)
+  const [hasMoreMessages, setHasMoreMessages] = useState(false)
   useFocusEffect(
     useCallback(() => {
       if (!isAuthLoading && !isAuthenticated) {
@@ -124,7 +136,10 @@ export default function ChatDetail() {
         setParticipantAvatarUrl(cachedParticipant.participantAvatarUrl)
       }
 
-      const { cached, fresh } = await ChatService.getChatMessagesFast(resolvedChatId, 50)
+      const { cached, fresh } = await ChatService.getChatMessagesFast(
+        resolvedChatId,
+        CHAT_INITIAL_MESSAGE_LIMIT,
+      )
       messagesPromise = fresh
 
       if (cached.length > 0) {
@@ -159,7 +174,10 @@ export default function ChatDetail() {
       chatIdRef.current = targetChat.id
 
       if (!messagesPromise || targetChat.id !== resolvedChatId) {
-        const fast = await ChatService.getChatMessagesFast(targetChat.id, 50)
+        const fast = await ChatService.getChatMessagesFast(
+          targetChat.id,
+          CHAT_INITIAL_MESSAGE_LIMIT,
+        )
         messagesPromise = fast.fresh
         if (!showedCachedMessages) {
           const { cached } = fast
@@ -176,6 +194,9 @@ export default function ChatDetail() {
       const freshMessages = await messagesPromise
       setMessages((prev) =>
         mergeGiftedWithLocal(mapServerMessages(freshMessages, displayName), prev),
+      )
+      setHasMoreMessages(
+        hasMoreChatMessages(freshMessages.length, CHAT_INITIAL_MESSAGE_LIMIT),
       )
 
       await ChatService.markMessagesAsRead(targetChat.id, user.id)
@@ -334,7 +355,50 @@ export default function ChatDetail() {
     [handleSend, sending, user],
   )
 
-  const pickImage = async () => {
+  const handleLoadEarlier = useCallback(async () => {
+    if (!chat?.id || !user?.id || loadingEarlier || !hasMoreMessages) return
+    setLoadingEarlier(true)
+    try {
+      const offset = nextMessageOffset(countServerMessages(messages))
+      const older = await ChatService.getChatMessages(
+        chat.id,
+        CHAT_MESSAGE_PAGE_SIZE,
+        offset,
+      )
+      const mapped = sortGiftedMessagesNewestFirst(
+        older.map((msg) =>
+          mapMessageToGifted(msg, { userId: user.id, participantName }),
+        ),
+      )
+      setMessages((prev) => mergeOlderMessageIds(prev, mapped))
+      setHasMoreMessages(hasMoreChatMessages(older.length, CHAT_MESSAGE_PAGE_SIZE))
+    } catch (error) {
+      console.error('Load earlier failed', error)
+      showError('Could not load older messages')
+    } finally {
+      setLoadingEarlier(false)
+    }
+  }, [
+    chat?.id,
+    user?.id,
+    loadingEarlier,
+    hasMoreMessages,
+    messages,
+    participantName,
+    showError,
+  ])
+
+  const loadEarlierMessagesProps = useMemo(
+    () => ({
+      isAvailable: hasMoreMessages,
+      isLoading: loadingEarlier,
+      onPress: handleLoadEarlier,
+      label: 'Load earlier messages',
+    }),
+    [hasMoreMessages, loadingEarlier, handleLoadEarlier],
+  )
+
+  const pickImage = useCallback(async () => {
     try {
       setUploadingAttachment(true)
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync()
@@ -367,9 +431,9 @@ export default function ChatDetail() {
     } finally {
       setUploadingAttachment(false)
     }
-  }
+  }, [user, handleSend, showError])
 
-  const pickFile = async () => {
+  const pickFile = useCallback(async () => {
     try {
       setUploadingAttachment(true)
       const res = await FileService.pickDocument({ type: ['*/*'], copyToCacheDirectory: true })
@@ -394,7 +458,37 @@ export default function ChatDetail() {
     } finally {
       setUploadingAttachment(false)
     }
-  }
+  }, [user, handleSend, showError])
+
+  const handleOpenAttachMenu = useCallback(() => {
+    setAttachSheetVisible(true)
+  }, [])
+
+  const otherParticipantId = useMemo(() => {
+    if (!chat || !user?.id) return null
+    return user.id === chat.customer_id ? chat.tasker_id : chat.customer_id
+  }, [chat, user?.id])
+
+  const isOtherParticipantTasker = useMemo(() => {
+    if (!chat || !user?.id) return false
+    return user.id === chat.customer_id
+  }, [chat, user?.id])
+
+  const handleProfilePress = useCallback(() => {
+    if (!chat || !otherParticipantId) return
+    if (isOtherParticipantTasker) {
+      router.push({
+        pathname: '/tasker-profile',
+        params: { taskerId: otherParticipantId, taskId: chat.task_id },
+      })
+      return
+    }
+    if (chat.task_id) {
+      router.push({ pathname: '/task-detail', params: { taskId: chat.task_id } })
+    }
+  }, [chat, otherParticipantId, isOtherParticipantTasker, router])
+
+  const profileLabel = isOtherParticipantTasker ? 'View profile' : 'View task'
 
   const renderBubble = useCallback(
     (props: any) => {
@@ -529,16 +623,14 @@ export default function ChatDetail() {
     () => ({
       onSendMessage: handleComposerSendMessage,
       onTextChange: handleComposerTextChange,
-      onPickImage: pickImage,
-      onPickFile: pickFile,
+      onOpenAttachMenu: handleOpenAttachMenu,
       sending,
       uploadingAttachment,
     }),
     [
       handleComposerSendMessage,
       handleComposerTextChange,
-      pickImage,
-      pickFile,
+      handleOpenAttachMenu,
       sending,
       uploadingAttachment,
     ],
@@ -668,9 +760,21 @@ export default function ChatDetail() {
           participantName={participantName}
           participantAvatarUrl={participantAvatarUrl}
           taskTitle={chat?.task?.title}
+          profileLabel={profileLabel}
           onBack={handleBack}
           onTaskPress={chat?.task_id ? handleTaskPress : undefined}
+          onProfilePress={
+            otherParticipantId || chat?.task_id ? handleProfilePress : undefined
+          }
           onLayout={onHeaderLayout}
+        />
+
+        <ChatAttachSheet
+          visible={attachSheetVisible}
+          onClose={() => setAttachSheetVisible(false)}
+          onPickPhoto={pickImage}
+          onPickDocument={pickFile}
+          disabled={sending || uploadingAttachment}
         />
 
         <ChatConversationLayout composerProps={composerProps}>
@@ -680,6 +784,7 @@ export default function ChatDetail() {
             user={{ _id: user!.id, name: user!.full_name || 'Me', avatar: user?.avatar_url }}
             renderBubble={renderBubble}
             renderSystemMessage={renderSystemMessage}
+            loadEarlierMessagesProps={loadEarlierMessagesProps}
             renderInputToolbar={renderNullInputToolbar}
             renderMessageImage={renderMessageImage}
             renderAvatar={renderAvatar}

@@ -15,8 +15,10 @@ export type ChatDetailHeaderProps = {
   participantName: string
   participantAvatarUrl: string | null
   taskTitle?: string | null
+  profileLabel?: string
   onBack: () => void
   onTaskPress?: () => void
+  onProfilePress?: () => void
   onLayout?: (event: LayoutChangeEvent) => void
 }
 
@@ -24,12 +26,30 @@ function ChatDetailHeaderComponent({
   participantName,
   participantAvatarUrl,
   taskTitle,
+  profileLabel = 'View profile',
   onBack,
   onTaskPress,
+  onProfilePress,
   onLayout,
 }: ChatDetailHeaderProps) {
   const insets = useSafeAreaInsets()
   const hasTask = !!taskTitle?.trim()
+
+  const avatarContent = participantAvatarUrl ? (
+    <Image
+      source={{ uri: participantAvatarUrl }}
+      style={styles.headerAvatar}
+      contentFit="cover"
+      cachePolicy="memory-disk"
+      transition={120}
+    />
+  ) : (
+    <View style={[styles.headerAvatar, styles.headerAvatarPlaceholder]}>
+      <Text style={styles.avatarText}>
+        {participantName?.[0]?.toUpperCase() || '•'}
+      </Text>
+    </View>
+  )
 
   return (
     <View
@@ -69,25 +89,31 @@ function ChatDetailHeaderComponent({
             )}
           </TouchableOpacity>
         )}
-      </View>
-
-      <View style={styles.headerAvatarContainer}>
-        {participantAvatarUrl ? (
-          <Image
-            source={{ uri: participantAvatarUrl }}
-            style={styles.headerAvatar}
-            contentFit="cover"
-            cachePolicy="memory-disk"
-            transition={120}
-          />
-        ) : (
-          <View style={[styles.headerAvatar, styles.headerAvatarPlaceholder]}>
-            <Text style={styles.avatarText}>
-              {participantName?.[0]?.toUpperCase() || '•'}
-            </Text>
-          </View>
+        {onProfilePress && (
+          <TouchableOpacity
+            style={styles.profileLink}
+            onPress={onProfilePress}
+            accessibilityRole="button"
+            accessibilityLabel={profileLabel}
+          >
+            <Ionicons name="person-outline" size={12} color={Colors.neutral[500]} />
+            <Text style={styles.profileLinkText}>{profileLabel}</Text>
+          </TouchableOpacity>
         )}
       </View>
+
+      {onProfilePress ? (
+        <TouchableOpacity
+          style={styles.headerAvatarContainer}
+          onPress={onProfilePress}
+          accessibilityRole="button"
+          accessibilityLabel={profileLabel}
+        >
+          {avatarContent}
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.headerAvatarContainer}>{avatarContent}</View>
+      )}
     </View>
   )
 }
@@ -135,6 +161,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: Colors.primary[600],
+  },
+  profileLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  profileLinkText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.neutral[500],
   },
 })
 

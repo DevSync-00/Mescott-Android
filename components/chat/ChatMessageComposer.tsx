@@ -29,8 +29,7 @@ export type ChatMessageComposerHandle = {
 export type ChatMessageComposerProps = {
   onSendMessage: (text: string) => void
   onTextChange?: (text: string) => void
-  onPickImage: () => void
-  onPickFile: () => void
+  onOpenAttachMenu: () => void
   sending?: boolean
   uploadingAttachment?: boolean
   placeholder?: string
@@ -44,8 +43,7 @@ const ChatMessageComposerComponent = forwardRef<
   {
     onSendMessage,
     onTextChange,
-    onPickImage,
-    onPickFile,
+    onOpenAttachMenu,
     sending = false,
     uploadingAttachment = false,
     placeholder = 'Message...',
@@ -84,26 +82,16 @@ const ChatMessageComposerComponent = forwardRef<
       <View style={styles.toolbar}>
         <TouchableOpacity
           style={styles.iconButton}
-          onPress={onPickImage}
+          onPress={onOpenAttachMenu}
           disabled={uploadingAttachment || sending}
           accessibilityRole="button"
-          accessibilityLabel="Attach photo"
+          accessibilityLabel="Attach file or photo"
         >
           {uploadingAttachment ? (
             <ActivityIndicator size="small" color={Colors.primary[500]} />
           ) : (
-            <Ionicons name="attach" size={24} color={Colors.primary[600]} />
+            <Ionicons name="add-circle" size={28} color={Colors.primary[600]} />
           )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={onPickFile}
-          disabled={uploadingAttachment || sending}
-          accessibilityRole="button"
-          accessibilityLabel="Attach file"
-        >
-          <Ionicons name="document-outline" size={22} color={Colors.primary[600]} />
         </TouchableOpacity>
 
         <TextInput
