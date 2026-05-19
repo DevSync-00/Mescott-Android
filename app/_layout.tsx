@@ -23,14 +23,8 @@ import { ChatService } from '../services/ChatService'
 import { TaskService } from '../services/TaskService'
 import { Colors } from '../constants/Colors'
 
-// Conditionally import KeyboardProvider to handle cases where it might not be available
-let KeyboardProvider: React.ComponentType<{ children: React.ReactNode }> | null = null
-try {
-  const keyboardController = require('react-native-keyboard-controller')
-  KeyboardProvider = keyboardController?.KeyboardProvider || null
-} catch (error) {
-  console.warn('react-native-keyboard-controller not available:', error)
-}
+// KeyboardProvider is owned by react-native-gifted-chat on the chat-detail screen.
+// Avoid wrapping the entire app to prevent double keyboard inset adjustment.
 
 // Keep the native splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync()
@@ -686,13 +680,7 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ErrorBoundary>
-        {KeyboardProvider ? (
-          <KeyboardProvider>{content}</KeyboardProvider>
-        ) : (
-          content
-        )}
-      </ErrorBoundary>
+      <ErrorBoundary>{content}</ErrorBoundary>
     </GestureHandlerRootView>
   )
 }

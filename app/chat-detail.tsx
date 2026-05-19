@@ -1,15 +1,31 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { View, StyleSheet, TouchableOpacity, StatusBar, ActivityIndicator, Linking, Text, Platform } from 'react-native'
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  StatusBar,
+  ActivityIndicator,
+  Linking,
+  Text,
+  Platform,
+} from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
-import { GiftedChat, Bubble, InputToolbar, Send, Actions, Day, MessageImage } from 'react-native-gifted-chat'
+import { GiftedChat, Bubble, Day, MessageImage } from 'react-native-gifted-chat'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { ChatService, Chat } from '../services/ChatService'
 import { RealtimeChatService } from '../services/RealtimeChatService'
 import { Colors } from '../constants/Colors'
 import TextureBackground from '../components/TextureBackground'
+import ChatDetailHeader from '../components/chat/ChatDetailHeader'
+import ChatConversationLayout from '../components/chat/ChatConversationLayout'
+import { useMeasuredLayoutHeight } from '../hooks/useMeasuredLayoutHeight'
+import {
+  CHAT_LIST_EXTRA_PADDING,
+  getChatKeyboardAvoidingProps,
+} from '../lib/chat/keyboardLayout'
 import * as ImagePicker from 'expo-image-picker'
 import { ImageService } from '../services/ImageService'
 import { FileService } from '../services/FileService'
@@ -28,9 +44,9 @@ type GiftedMessage = {
 
 export default function ChatDetail() {
   const { user, isAuthenticated, loading: isAuthLoading } = useAuth()
-  const { showError, showSuccess } = useToast()
+  const { showError } = useToast()
   const router = useRouter()
-  const insets = useSafeAreaInsets()
+  const { height: headerHeight, onLayout: onHeaderLayout } = useMeasuredLayoutHeight()
   const { chatId, taskId, otherUserName } = useLocalSearchParams<{
     chatId: string
     taskId: string
@@ -56,7 +72,6 @@ export default function ChatDetail() {
   const [imageViewerVisible, setImageViewerVisible] = useState(false)
   const [viewerImages, setViewerImages] = useState<string[]>([])
   const [viewerInitialIndex, setViewerInitialIndex] = useState(0)
-
   useFocusEffect(
     useCallback(() => {
       if (!isAuthLoading && !isAuthenticated) {
@@ -175,7 +190,6 @@ export default function ChatDetail() {
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
       if (remoteTypingTimeoutRef.current) clearTimeout(remoteTypingTimeoutRef.current)
       if (typingBroadcastTimeoutRef.current) clearTimeout(typingBroadcastTimeoutRef.current)
-      
       // Unsubscribe from real-time updates
       if (chatIdRef.current && isSubscribed) {
         try {
@@ -301,33 +315,6 @@ export default function ChatDetail() {
     }
   }
 
-  const renderActions = useCallback((props: any) => (
-    <Actions
-      {...props}
-      onPressActionButton={pickImage}
-      icon={() => (
-        uploadingAttachment ? (
-          <ActivityIndicator size="small" color={Colors.primary[500]} />
-        ) : (
-          <Ionicons name="attach" size={24} color={Colors.primary[600]} />
-        )
-      )}
-      containerStyle={{ marginLeft: 4, marginBottom: 2 }}
-    />
-  ), [uploadingAttachment, pickImage])
-
-  const renderSend = useCallback((props: any) => (
-    <Send {...props} disabled={sending}>
-      <View style={styles.sendButton}>
-        {sending ? (
-          <ActivityIndicator color="#fff" size="small" />
-        ) : (
-          <Ionicons name="send" size={18} color="#fff" />
-        )}
-      </View>
-    </Send>
-  ), [sending])
-
   const renderBubble = useCallback((props: any) => {
     const status = props.currentMessage?.status
     const fileUrl = props.currentMessage?.fileUrl
@@ -377,13 +364,73 @@ export default function ChatDetail() {
     )
   }, [])
 
-  const renderInputToolbar = useCallback((props: any) => (
-    <InputToolbar
-      {...props}
-      containerStyle={styles.inputToolbar}
-      primaryStyle={{ alignItems: 'center' }}
-    />
-  ), [])
+  const keyboardAvoidingViewProps = useMemo(
+    () => getChatKeyboardAvoidingProps({ headerHeight, bottomInset: 0 }),
+    [headerHeight],
+  )
+
+  const listContentInset = useMemo(
+    () => ({ paddingTop: CHAT_LIST_EXTRA_PADDING }),
+    [],
+  )
+
+  const handleComposerTextChange = useCallback(
+    (text: string) => {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
+      setIsTyping(!!text)
+      typingTimeoutRef.current = setTimeout(() => setIsTyping(false), 1200)
+      if (chat?.id && user?.id) {
+        RealtimeChatService.sendTyping(chat.id, user.id, true).catch(() => {})
+        if (typingBroadcastTimeoutRef.current) clearTimeout(typingBroadcastTimeoutRef.current)
+        typingBroadcastTimeoutRef.current = setTimeout(() => {
+          RealtimeChatService.sendTyping(chat.id!, user.id!, false).catch(() => {})
+        }, 1200)
+      }
+    },
+    [chat?.id, user?.id],
+  )
+
+  const handleComposerSendMessage = useCallback(
+    (text: string) => {
+      const trimmed = text.trim()
+      if (!trimmed || !user?.id) return
+
+      const draft: GiftedMessage = {
+        _id: `temp-${Date.now()}`,
+        text: trimmed,
+        createdAt: new Date(),
+        user: { _id: user.id, name: user.full_name || 'Me', avatar: user?.avatar_url ?? null },
+      }
+      handleSend([draft])
+    },
+    [user, handleSend],
+  )
+
+  /** Stable reference — prevents GiftedChat from remounting the toolbar on each keystroke. */
+  const renderNullInputToolbar = useCallback(() => null, [])
+
+  const composerProps = useMemo(
+    () => ({
+      onSendMessage: handleComposerSendMessage,
+      onTextChange: handleComposerTextChange,
+      onPickImage: pickImage,
+      onPickFile: pickFile,
+      sending,
+      uploadingAttachment,
+    }),
+    [
+      handleComposerSendMessage,
+      handleComposerTextChange,
+      pickImage,
+      pickFile,
+      sending,
+      uploadingAttachment,
+    ],
+  )
+
+  const handleBack = useCallback(() => {
+    router.replace('/chats')
+  }, [router])
 
   const renderMessageImage = useCallback((props: any) => {
     const imageUri = props.currentMessage?.image
@@ -480,86 +527,45 @@ export default function ChatDetail() {
     <TextureBackground>
       <SafeAreaView style={styles.container} edges={['left', 'right']}>
         <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
-        <View style={[styles.header, { paddingTop: 8 + insets.top }]}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/chats')}>
-            <Ionicons name="arrow-back" size={24} color={Colors.neutral[800]} />
-          </TouchableOpacity>
-          <View style={styles.userInfo}>
-            <Text style={styles.name} numberOfLines={1}>
-              {participantName}
-            </Text>
-          </View>
-          <View style={styles.headerAvatarContainer}>
-            {participantAvatarUrl ? (
-              <Image
-                source={{ uri: participantAvatarUrl }}
-                style={styles.headerAvatar}
-                contentFit="cover"
-                cachePolicy="memory-disk"
-                transition={120}
-              />
-            ) : (
-              <View style={[styles.headerAvatar, { backgroundColor: Colors.primary[100] }]}>
-                <Text style={styles.avatarText}>
-                  {participantName?.[0]?.toUpperCase() || '•'}
-                </Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        <GiftedChat
-          messages={messages as any}
-          onSend={(msgs) => handleSend(msgs as any)}
-          user={{ _id: user!.id, name: user!.full_name || 'Me', avatar: user?.avatar_url }}
-          renderBubble={renderBubble}
-          renderSend={renderSend}
-          renderActions={renderActions}
-          renderInputToolbar={renderInputToolbar}
-          renderMessageImage={renderMessageImage}
-          renderAvatar={renderAvatar}
-          renderChatFooter={renderChatFooter}
-          scrollToBottom
-          scrollToBottomComponent={renderScrollToBottom}
-          showUserAvatar
-          renderDay={(props) => <Day {...props} textStyle={{ color: Colors.neutral[500] }} />}
-          onPressActionButton={pickFile}
-          onInputTextChanged={(text: string) => {
-            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
-            setIsTyping(!!text)
-            typingTimeoutRef.current = setTimeout(() => setIsTyping(false), 1200)
-            if (chat?.id && user?.id) {
-              RealtimeChatService.sendTyping(chat.id, user.id, true).catch(() => {})
-              if (typingBroadcastTimeoutRef.current) clearTimeout(typingBroadcastTimeoutRef.current)
-              typingBroadcastTimeoutRef.current = setTimeout(() => {
-                RealtimeChatService.sendTyping(chat.id!, user.id!, false).catch(() => {})
-              }, 1200)
-            }
-          }}
-          placeholder="Message..."
-          timeTextStyle={{
-            left: { color: Colors.neutral[500] },
-            right: { color: '#E5ECFF' },
-          }}
-          messagesContainerStyle={{ backgroundColor: '#F8FAFF' }}
-          keyboardAvoidingViewProps={{
-            keyboardVerticalOffset: Platform.select({
-              ios: insets.top + 60, // Header height + safe area
-              android: insets.bottom, // Account for navigation bar in edge-to-edge
-            }),
-            behavior: Platform.select({ ios: 'padding', android: 'padding' }),
-          }}
-          listViewProps={{
-            keyboardShouldPersistTaps: 'handled',
-            // Performance optimizations for FlatList
-            removeClippedSubviews: Platform.OS === 'android',
-            maxToRenderPerBatch: 10,
-            updateCellsBatchingPeriod: 50,
-            initialNumToRender: 15,
-            windowSize: 10,
-            getItemLayout: undefined, // Can be optimized if messages have fixed height
-          }}
+        <ChatDetailHeader
+          participantName={participantName}
+          participantAvatarUrl={participantAvatarUrl}
+          onBack={handleBack}
+          onLayout={onHeaderLayout}
         />
+
+        <ChatConversationLayout composerProps={composerProps}>
+          <GiftedChat
+            messages={messages as any}
+            onSend={(msgs) => handleSend(msgs as any)}
+            user={{ _id: user!.id, name: user!.full_name || 'Me', avatar: user?.avatar_url }}
+            renderBubble={renderBubble}
+            renderInputToolbar={renderNullInputToolbar}
+            renderMessageImage={renderMessageImage}
+            renderAvatar={renderAvatar}
+            renderChatFooter={renderChatFooter}
+            scrollToBottom
+            scrollToBottomComponent={renderScrollToBottom}
+            showUserAvatar
+            keyboardAvoidingViewProps={keyboardAvoidingViewProps}
+            renderDay={(props) => <Day {...props} textStyle={{ color: Colors.neutral[500] }} />}
+            timeTextStyle={{
+              left: { color: Colors.neutral[500] },
+              right: { color: '#E5ECFF' },
+            }}
+            messagesContainerStyle={styles.messagesContainer}
+            listViewProps={{
+              keyboardShouldPersistTaps: 'handled',
+              keyboardDismissMode: 'on-drag',
+              contentContainerStyle: listContentInset,
+              removeClippedSubviews: Platform.OS === 'android',
+              maxToRenderPerBatch: 10,
+              updateCellsBatchingPeriod: 50,
+              initialNumToRender: 15,
+              windowSize: 10,
+            }}
+          />
+        </ChatConversationLayout>
 
         {/* Full Screen Image Viewer for Chat Images */}
         <FullScreenImageViewer
@@ -576,41 +582,7 @@ export default function ChatDetail() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.neutral[200],
-  },
-  backButton: { padding: 8 },
-  userInfo: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  headerAvatarContainer: { width: 40, height: 40, marginLeft: 8 },
-  headerAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.primary[500],
-  },
-  avatarText: { color: Colors.primary[600], fontWeight: '700' },
-  name: { fontSize: 16, fontWeight: '700', color: Colors.neutral[900] },
-  inputToolbar: {
-    borderTopColor: Colors.neutral[200],
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    paddingBottom: 8,
-  },
-  sendButton: {
-    backgroundColor: Colors.primary[500],
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-    marginRight: 4,
-  },
+  messagesContainer: { backgroundColor: '#F8FAFF' },
   statusRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
