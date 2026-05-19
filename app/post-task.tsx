@@ -607,7 +607,7 @@ export default function PostTask() {
               visible={showDatePicker}
               mode="date"
               value={taskDate}
-              minimumDate={startOfToday()}
+              minimumDate={isEdit ? undefined : startOfToday()}
               onConfirm={setTaskDate}
               onClose={() => setShowDatePicker(false)}
             />
