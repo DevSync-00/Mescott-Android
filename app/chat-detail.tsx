@@ -53,6 +53,11 @@ import {
   mergeOlderMessageIds,
   nextMessageOffset,
 } from '../lib/chat/messagePagination'
+import {
+  CHAT_MESSAGE_IMAGE_LABEL,
+  CHAT_RETRY_MESSAGE_HINT,
+  CHAT_SCROLL_BOTTOM_LABEL,
+} from '../lib/chat/accessibility'
 
 export default function ChatDetail() {
   const { user, isAuthenticated, loading: isAuthLoading } = useAuth()
@@ -75,7 +80,7 @@ export default function ChatDetail() {
   const [sending, setSending] = useState(false)
   const [isSubscribed, setIsSubscribed] = useState(false)
   const [uploadingAttachment, setUploadingAttachment] = useState(false)
-  const [isTyping, setIsTyping] = useState(false)
+  const [, setIsTyping] = useState(false)
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [remoteTyping, setRemoteTyping] = useState(false)
   const remoteTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -535,6 +540,7 @@ export default function ChatDetail() {
               onPress={() => current && retryFailedMessage(current)}
               accessibilityRole="button"
               accessibilityLabel="Retry sending message"
+              accessibilityHint={CHAT_RETRY_MESSAGE_HINT}
             >
               {bubble}
             </TouchableOpacity>
@@ -679,6 +685,8 @@ export default function ChatDetail() {
             setImageViewerVisible(true)
           }
         }}
+        accessibilityRole="button"
+        accessibilityLabel={CHAT_MESSAGE_IMAGE_LABEL}
       >
         <MessageImage
           {...props}
@@ -689,7 +697,11 @@ export default function ChatDetail() {
   }, [messages])
 
   const renderScrollToBottom = useCallback(() => (
-    <View style={styles.scrollToBottom}>
+    <View
+      style={styles.scrollToBottom}
+      accessibilityRole="button"
+      accessibilityLabel={CHAT_SCROLL_BOTTOM_LABEL}
+    >
       <Ionicons name="chevron-down" size={20} color="#fff" />
     </View>
   ), [])
@@ -697,24 +709,18 @@ export default function ChatDetail() {
   const renderChatFooter = useCallback(() => {
     if (uploadingAttachment) {
       return (
-        <View style={styles.footerRow}>
+        <View
+          style={styles.footerRow}
+          accessibilityLiveRegion="polite"
+          accessibilityLabel="Uploading attachment"
+        >
           <ActivityIndicator size="small" color={Colors.primary[500]} />
           <Text style={styles.footerText}>Uploading attachment...</Text>
         </View>
       )
     }
-    if (remoteTyping) {
-      return (
-        <View style={styles.footerRow}>
-          <View style={styles.typingDot} />
-          <View style={styles.typingDot} />
-          <View style={styles.typingDot} />
-          <Text style={styles.footerText}>{participantName} is typing...</Text>
-        </View>
-      )
-    }
     return null
-  }, [uploadingAttachment, remoteTyping, participantName])
+  }, [uploadingAttachment])
 
   const renderAvatar = useCallback((props: any) => {
     const uri = props.currentMessage?.user?.avatar || participantAvatarUrl
@@ -742,7 +748,11 @@ export default function ChatDetail() {
   if (isAuthLoading || (loading && messages.length === 0)) {
     return (
       <TextureBackground>
-        <SafeAreaView style={styles.loadingContainer} edges={['left', 'right']}>
+        <SafeAreaView
+          style={styles.loadingContainer}
+          edges={['left', 'right']}
+          accessibilityLabel="Loading conversation"
+        >
           <StatusBar barStyle="dark-content" translucent />
           <ActivityIndicator size="large" color={Colors.primary[500]} />
         </SafeAreaView>
@@ -789,6 +799,7 @@ export default function ChatDetail() {
             renderMessageImage={renderMessageImage}
             renderAvatar={renderAvatar}
             renderChatFooter={renderChatFooter}
+            isTyping={remoteTyping}
             scrollToBottom
             scrollToBottomComponent={renderScrollToBottom}
             showUserAvatar

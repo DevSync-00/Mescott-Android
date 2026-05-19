@@ -32,6 +32,11 @@ import {
   getTaskStatusColor,
   getTaskStatusLabel,
 } from '../lib/chat/taskContext'
+import {
+  buildConversationRowLabel,
+  CHAT_LIST_ROW_HINT,
+  CHAT_SEARCH_LABEL,
+} from '../lib/chat/accessibility'
 import ChatsFilterBar, { type ChatsInboxFilter } from '../components/chat/ChatsFilterBar'
 import ChatsEmptyState from '../components/chat/ChatsEmptyState'
 
@@ -375,6 +380,13 @@ export default function Chats() {
         () => formatLastMessageTime(item.last_message_at),
         [item.last_message_at]
       )
+      const participantName = otherParticipant?.full_name || 'Unknown User'
+      const accessibilityLabel = buildConversationRowLabel({
+        participantName,
+        lastMessage,
+        unreadCount,
+        taskTitle: item.task?.title,
+      })
 
       return (
         <TouchableOpacity
@@ -382,6 +394,9 @@ export default function Chats() {
           onPress={onPress}
           onLongPress={onLongPress}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={accessibilityLabel}
+          accessibilityHint={CHAT_LIST_ROW_HINT}
         >
           <View style={styles.avatarContainer}>
             {otherParticipant?.avatar_url ? (
@@ -405,7 +420,7 @@ export default function Chats() {
           <View style={styles.chatContent}>
             <View style={styles.chatHeader}>
               <Text style={[styles.participantName, hasUnread && styles.unreadText]} numberOfLines={1}>
-                {otherParticipant?.full_name || 'Unknown User'}
+                {participantName}
               </Text>
               <Text style={styles.lastMessageTime}>{lastMessageTime}</Text>
             </View>
@@ -514,7 +529,9 @@ export default function Chats() {
         <View style={[styles.headerWrapper, { paddingTop: 8 + insets.top }]}>
           <View style={styles.header}>
             <View style={styles.headerContent}>
-              <Text style={styles.headerTitle}>Messages</Text>
+              <Text style={styles.headerTitle} accessibilityRole="header">
+                Messages
+              </Text>
             </View>
           </View>
         </View>
@@ -532,12 +549,16 @@ export default function Chats() {
               value={searchQuery}
               onChangeText={setSearchQuery}
               returnKeyType="search"
+              accessibilityLabel={CHAT_SEARCH_LABEL}
+              accessibilityRole="search"
             />
             {searchQuery.length > 0 && (
-              <TouchableOpacity 
-                onPress={() => setSearchQuery('')} 
+              <TouchableOpacity
+                onPress={() => setSearchQuery('')}
                 style={styles.clearButton}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="Clear search"
               >
                 <Ionicons name="close-circle" size={18} color={Colors.neutral[400]} />
               </TouchableOpacity>
@@ -559,6 +580,7 @@ export default function Chats() {
             variant={emptyVariant}
             isTasker={isTasker}
             onPrimaryAction={handleEmptyPrimaryAction}
+            primaryActionLabel={isTasker ? 'Browse available tasks' : 'Post a task'}
           />
         ) : (
           <FlatList
@@ -584,11 +606,7 @@ export default function Chats() {
             updateCellsBatchingPeriod={50}
             windowSize={10}
             initialNumToRender={10}
-            getItemLayout={(data, index) => ({
-              length: 96,
-              offset: 96 * index,
-              index,
-            })}
+            accessibilityRole="list"
           />
         )}
 

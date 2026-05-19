@@ -20,6 +20,7 @@ import {
   CHAT_COMPOSER_MAX_HEIGHT,
   CHAT_COMPOSER_MIN_HEIGHT,
 } from '../../lib/chat/keyboardLayout'
+import { CHAT_ATTACH_HINT, CHAT_SEND_HINT } from '../../lib/chat/accessibility'
 
 export type ChatMessageComposerHandle = {
   clear: () => void
@@ -86,6 +87,7 @@ const ChatMessageComposerComponent = forwardRef<
           disabled={uploadingAttachment || sending}
           accessibilityRole="button"
           accessibilityLabel="Attach file or photo"
+          accessibilityHint={CHAT_ATTACH_HINT}
         >
           {uploadingAttachment ? (
             <ActivityIndicator size="small" color={Colors.primary[500]} />
@@ -101,6 +103,8 @@ const ChatMessageComposerComponent = forwardRef<
           onChangeText={handleChangeText}
           placeholder={placeholder}
           placeholderTextColor={Colors.neutral[400]}
+          accessibilityLabel="Message text"
+          accessibilityHint="Type your message here"
           multiline
           maxLength={4000}
           editable={!sending && !uploadingAttachment}
@@ -116,6 +120,8 @@ const ChatMessageComposerComponent = forwardRef<
           disabled={!canSend}
           accessibilityRole="button"
           accessibilityLabel="Send message"
+          accessibilityHint={CHAT_SEND_HINT}
+          accessibilityState={{ disabled: !canSend }}
         >
           {sending ? (
             <ActivityIndicator color="#fff" size="small" />

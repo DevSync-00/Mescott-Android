@@ -45,6 +45,7 @@ function FilterChip({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
+      accessibilityHint={active ? undefined : `Show ${label.toLowerCase()} conversations`}
     >
       <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{label}</Text>
       {typeof count === 'number' && count > 0 && (

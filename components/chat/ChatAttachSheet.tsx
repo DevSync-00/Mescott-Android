@@ -44,6 +44,7 @@ function ChatAttachSheetComponent({
       transparent
       animationType="fade"
       onRequestClose={onClose}
+      accessibilityViewIsModal
     >
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable

@@ -6,12 +6,14 @@ type ChatsEmptyStateProps = {
   variant: 'no-chats' | 'no-search' | 'no-unread'
   isTasker: boolean
   onPrimaryAction: () => void
+  primaryActionLabel?: string
 }
 
 function ChatsEmptyStateComponent({
   variant,
   isTasker,
   onPrimaryAction,
+  primaryActionLabel,
 }: ChatsEmptyStateProps) {
   if (variant === 'no-search') {
     return (
@@ -33,7 +35,7 @@ function ChatsEmptyStateComponent({
     )
   }
 
-  const primaryLabel = isTasker ? 'Browse available tasks' : 'Post a task'
+  const primaryLabel = primaryActionLabel ?? (isTasker ? 'Browse available tasks' : 'Post a task')
   const subtitle = isTasker
     ? 'Apply to tasks to start chatting with customers.'
     : 'Post a task and accept an application to open your first chat.'
@@ -47,6 +49,7 @@ function ChatsEmptyStateComponent({
         style={styles.ctaButton}
         onPress={onPrimaryAction}
         accessibilityRole="button"
+        accessibilityLabel={primaryLabel}
       >
         <Ionicons
           name={isTasker ? 'briefcase-outline' : 'add-circle-outline'}
