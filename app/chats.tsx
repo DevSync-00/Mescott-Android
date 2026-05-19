@@ -16,6 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
+import { useToast } from '../contexts/ToastContext'
 import { ChatService, Chat, Message } from '../services/ChatService'
 import { useChatUnread } from '../contexts/ChatUnreadContext'
 import {
@@ -31,17 +32,26 @@ import {
   getTaskStatusColor,
   getTaskStatusLabel,
 } from '../lib/chat/taskContext'
+import ChatsFilterBar, { type ChatsInboxFilter } from '../components/chat/ChatsFilterBar'
+import ChatsEmptyState from '../components/chat/ChatsEmptyState'
 
 export default function Chats() {
   const { isAuthenticated, isLoading, user } = useAuth()
+  const { showToast, showError } = useToast()
   const insets = useSafeAreaInsets()
   const router = useRouter()
   const [chats, setChats] = useState<Chat[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [filteredChats, setFilteredChats] = useState<Chat[]>([])
-  const { activeChatId, refreshTotalUnread } = useChatUnread()
+  const [inboxFilter, setInboxFilter] = useState<ChatsInboxFilter>('all')
+  const { activeChatId, refreshTotalUnread, totalUnreadCount } = useChatUnread()
+  const pendingDeleteRef = useRef<{
+    chat: Chat
+    timeoutId: ReturnType<typeof setTimeout>
+  } | null>(null)
+
+  const isTasker = user?.current_mode === 'tasker'
 
   // Cache timestamp calculations for better performance
   const timestampCache = useRef<Map<string, number>>(new Map())
@@ -248,24 +258,99 @@ export default function Chats() {
     [user?.id],
   )
 
-  // Memoized filtered chats for better performance
-  const filteredChatsMemo = useMemo(() => {
-    if (!searchQuery.trim()) return chats
-    const query = searchQuery.toLowerCase()
-    return chats.filter((chat) => {
-      const otherParticipant = getOtherParticipant(chat)
-      const participantName = otherParticipant?.full_name || 'Unknown User'
-      const taskTitle = chat.task?.title || 'Task Discussion'
-      return (
-        participantName.toLowerCase().includes(query) ||
-        taskTitle.toLowerCase().includes(query)
+  const displayChats = useMemo(() => {
+    let list = chats
+    if (inboxFilter === 'unread') {
+      list = list.filter((chat) => (chat.unread_count || 0) > 0)
+    }
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      list = list.filter((chat) => {
+        const otherParticipant = getOtherParticipant(chat)
+        const participantName = otherParticipant?.full_name || 'Unknown User'
+        const taskTitle = chat.task?.title || 'Task Discussion'
+        return (
+          participantName.toLowerCase().includes(query) ||
+          taskTitle.toLowerCase().includes(query)
+        )
+      })
+    }
+    return list
+  }, [chats, inboxFilter, searchQuery, getOtherParticipant])
+
+  const emptyVariant = useMemo(() => {
+    if (searchQuery.trim()) return 'no-search' as const
+    if (inboxFilter === 'unread') return 'no-unread' as const
+    return 'no-chats' as const
+  }, [searchQuery, inboxFilter])
+
+  const handleEmptyPrimaryAction = useCallback(() => {
+    if (isTasker) {
+      router.push('/jobs')
+    } else {
+      router.push('/post-task')
+    }
+  }, [isTasker, router])
+
+  const finalizeChatDelete = useCallback(
+    async (chatId: string) => {
+      const ok = await ChatService.deleteChatAndMessages(chatId, user?.id || '')
+      if (!ok) {
+        showError('Could not delete conversation. Please try again.')
+        loadChats(true).catch(() => {})
+      }
+    },
+    [user?.id, showError, loadChats],
+  )
+
+  const handleDeleteChat = useCallback(
+    (item: Chat) => {
+      showConfirmation(
+        'Delete this conversation?',
+        'All messages will be removed. You can undo within 5 seconds after confirming.',
+        () => {
+          if (pendingDeleteRef.current) {
+            clearTimeout(pendingDeleteRef.current.timeoutId)
+            pendingDeleteRef.current = null
+          }
+
+          setChats((prev) => prev.filter((c) => c.id !== item.id))
+
+          const timeoutId = setTimeout(() => {
+            pendingDeleteRef.current = null
+            finalizeChatDelete(item.id).catch(() => {})
+          }, 5000)
+
+          pendingDeleteRef.current = { chat: item, timeoutId }
+
+          showToast('Conversation deleted', 'info', 5000, {
+            label: 'Undo',
+            onPress: () => {
+              if (pendingDeleteRef.current?.chat.id !== item.id) return
+              clearTimeout(pendingDeleteRef.current.timeoutId)
+              pendingDeleteRef.current = null
+              setChats((prev) => sortChatsByActivity([item, ...prev]))
+            },
+          })
+        },
+        undefined,
+        'Delete',
+        'Cancel',
+        'warning',
       )
-    })
-  }, [searchQuery, chats, getOtherParticipant])
+    },
+    [finalizeChatDelete, showToast, sortChatsByActivity],
+  )
 
   useEffect(() => {
-    setFilteredChats(filteredChatsMemo)
-  }, [filteredChatsMemo])
+    return () => {
+      if (pendingDeleteRef.current) {
+        clearTimeout(pendingDeleteRef.current.timeoutId)
+        const { chat } = pendingDeleteRef.current
+        finalizeChatDelete(chat.id).catch(() => {})
+      }
+    }
+  }, [finalizeChatDelete])
 
   // Preload messages for top chats when list loads
   useEffect(() => {
@@ -392,31 +477,11 @@ export default function Chats() {
         <ChatItem
           item={item}
           onPress={() => handleChatSelect(item.id)}
-          onLongPress={() => {
-            showConfirmation(
-              'Delete conversation',
-              'This will delete all messages for this chat. Continue?',
-              async () => {
-                try {
-                  const ok = await ChatService.deleteChatAndMessages(item.id, user?.id || '')
-                  if (ok) {
-                    setChats((prev) => prev.filter((c) => c.id !== item.id))
-                    setFilteredChats((prev) => prev.filter((c) => c.id !== item.id))
-                  }
-                } catch (e) {
-                  console.error('Delete chat failed', e)
-                }
-              },
-              undefined,
-              'Delete',
-              'Cancel',
-              'warning'
-            )
-          }}
+          onLongPress={() => handleDeleteChat(item)}
         />
       )
     },
-    [handleChatSelect, user?.id],
+    [handleChatSelect, handleDeleteChat],
   )
 
   if (isLoading) {
@@ -480,24 +545,24 @@ export default function Chats() {
           </View>
         </View>
 
+        <ChatsFilterBar
+          value={inboxFilter}
+          unreadCount={totalUnreadCount}
+          onChange={setInboxFilter}
+        />
+
         {/* Chat List */}
         {loading ? (
           <SkeletonList count={5} />
-        ) : filteredChats.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="chatbubbles-outline" size={64} color={Colors.neutral[300]} />
-            <Text style={styles.emptyTitle}>
-              {searchQuery ? 'No matching conversations' : 'No messages yet'}
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              {searchQuery
-                ? 'Try adjusting your search terms'
-                : 'Start a conversation by accepting a task application'}
-            </Text>
-          </View>
+        ) : displayChats.length === 0 ? (
+          <ChatsEmptyState
+            variant={emptyVariant}
+            isTasker={isTasker}
+            onPrimaryAction={handleEmptyPrimaryAction}
+          />
         ) : (
           <FlatList
-            data={filteredChats}
+            data={displayChats}
             keyExtractor={(item) => item.id}
             renderItem={renderChat}
             style={styles.chatsList}

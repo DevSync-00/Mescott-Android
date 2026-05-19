@@ -545,7 +545,11 @@ export default function ChatDetail() {
   )
 
   const handleBack = useCallback(() => {
-    router.replace('/chats')
+    if (router.canGoBack()) {
+      router.back()
+    } else {
+      router.replace('/chats')
+    }
   }, [router])
 
   const handleTaskPress = useCallback(() => {
