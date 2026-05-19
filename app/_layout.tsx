@@ -9,6 +9,7 @@ import * as SplashScreen from 'expo-splash-screen'
 import { AuthProvider, useAuth } from '../contexts/SimpleAuthContext'
 import { LanguageProvider } from '../contexts/LanguageContext'
 import { NotificationProvider } from '../contexts/NotificationContext'
+import { ChatUnreadProvider, useChatUnread } from '../contexts/ChatUnreadContext'
 import { ToastProvider } from '../contexts/ToastContext'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import CustomAlert from '../components/CustomAlert'
@@ -45,6 +46,7 @@ if (typeof SplashScreen.setOptions === 'function') {
 
 function TabNavigator() {
   const { user, isAuthenticated } = useAuth()
+  const { totalUnreadCount } = useChatUnread()
   const pathname = usePathname()
   const insets = useSafeAreaInsets()
 
@@ -168,6 +170,12 @@ function TabNavigator() {
         name="chats"
         options={{
           title: 'Chat',
+          tabBarBadge:
+            totalUnreadCount > 0
+              ? totalUnreadCount > 99
+                ? '99+'
+                : totalUnreadCount
+              : undefined,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="chatbubbles" size={size} color={color} />
           ),
@@ -628,7 +636,9 @@ function AppContent() {
             </Text>
           </View>
         )}
-        <TabNavigator />
+        <ChatUnreadProvider>
+          <TabNavigator />
+        </ChatUnreadProvider>
         <CustomAlert
           visible={alertState.visible}
           title={alertState.title}

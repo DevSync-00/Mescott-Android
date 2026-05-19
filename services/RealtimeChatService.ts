@@ -1,7 +1,13 @@
 import { supabase } from '../lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { ChatService, Chat, Message } from './ChatService'
+import { emitChatInboxChanged } from '../lib/chat/chatEvents'
 export type { Chat }
+
+export type InboxRealtimeHandlers = {
+  onChatUpdated?: (chat: Record<string, unknown>) => void
+  onNewMessage?: (message: Record<string, unknown>) => void
+}
 
 export interface RealtimeMessage extends Message {
   sender_name?: string
@@ -17,6 +23,9 @@ type Subscriber = {
 export class RealtimeChatService {
   private static channels: Map<string, RealtimeChannel> = new Map()
   private static subscribers: Map<string, Set<Subscriber>> = new Map()
+  private static inboxChannel: RealtimeChannel | null = null
+  private static inboxUserId: string | null = null
+  private static inboxHandlers: InboxRealtimeHandlers = {}
   private static profileCache: Map<
     string,
     { id: string; full_name: string; avatar_url: string | null; phone: string }
@@ -228,6 +237,103 @@ export class RealtimeChatService {
     }
   }
 
+  /** Live updates for the messages list (chat row updates + new messages). */
+  static async subscribeToUserInbox(
+    userId: string,
+    handlers: InboxRealtimeHandlers,
+  ): Promise<void> {
+    this.inboxHandlers = handlers
+
+    if (this.inboxChannel && this.inboxUserId === userId) {
+      return
+    }
+
+    if (this.inboxChannel) {
+      try {
+        await supabase.removeChannel(this.inboxChannel)
+      } catch {
+        // ignore
+      }
+      this.inboxChannel = null
+    }
+
+    this.inboxUserId = userId
+
+    const dispatchChatUpdated = (row: Record<string, unknown>) => {
+      if (!row?.id) return
+      handlers.onChatUpdated?.(row)
+      emitChatInboxChanged({
+        type: 'chat_updated',
+        chat: {
+          id: String(row.id),
+          last_message_at: row.last_message_at as string | null | undefined,
+          last_message_text: row.last_message_text as string | null | undefined,
+          last_message_sender_id: row.last_message_sender_id as string | null | undefined,
+          updated_at: row.updated_at as string | undefined,
+        },
+      })
+    }
+
+    const dispatchNewMessage = (row: Record<string, unknown>) => {
+      if (!row?.chat_id || !row?.sender_id) return
+      handlers.onNewMessage?.(row)
+      emitChatInboxChanged({
+        type: 'new_message',
+        chatId: String(row.chat_id),
+        senderId: String(row.sender_id),
+        message: String(row.message ?? ''),
+        messageType: String(row.message_type ?? 'text'),
+        createdAt: String(row.created_at ?? new Date().toISOString()),
+      })
+    }
+
+    this.inboxChannel = supabase
+      .channel(`inbox:${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'chats',
+          filter: `customer_id=eq.${userId}`,
+        },
+        (payload) => dispatchChatUpdated(payload.new as Record<string, unknown>),
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'chats',
+          filter: `tasker_id=eq.${userId}`,
+        },
+        (payload) => dispatchChatUpdated(payload.new as Record<string, unknown>),
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages_new',
+        },
+        (payload) => dispatchNewMessage(payload.new as Record<string, unknown>),
+      )
+      .subscribe()
+  }
+
+  static unsubscribeFromUserInbox(): void {
+    if (this.inboxChannel) {
+      try {
+        supabase.removeChannel(this.inboxChannel)
+      } catch {
+        // ignore
+      }
+    }
+    this.inboxChannel = null
+    this.inboxUserId = null
+    this.inboxHandlers = {}
+  }
+
   // Unsubscribe all chats
   static unsubscribeFromAllChats(): void {
     for (const channel of this.channels.values()) {
@@ -241,6 +347,7 @@ export class RealtimeChatService {
     for (const t of this.flushTimers.values()) clearTimeout(t)
     this.flushTimers.clear()
     this.messageBuffers.clear()
+    this.unsubscribeFromUserInbox()
   }
 
   // Lightweight wrappers that delegate to ChatService (unchanged)

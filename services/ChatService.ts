@@ -502,6 +502,10 @@ export class ChatService {
     )
   }
 
+  static invalidateUserChatsCache(userId: string): void {
+    this.userChatsCache.delete(userId)
+  }
+
   // Mark messages as read
   static async markMessagesAsRead(chatId: string, userId: string): Promise<boolean> {
     try {
@@ -515,6 +519,7 @@ export class ChatService {
         .neq('sender_id', userId) // Don't mark own messages as read
 
       if (error) throw error
+      this.invalidateUserChatsCache(userId)
       return true
     } catch (error) {
       console.error('Error marking messages as read:', error)

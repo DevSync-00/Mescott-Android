@@ -12,9 +12,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'
-import { GiftedChat, Bubble, Day, MessageImage } from 'react-native-gifted-chat'
+import { GiftedChat, Bubble, Day, MessageImage, SystemMessage } from 'react-native-gifted-chat'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { useToast } from '../contexts/ToastContext'
+import { useChatUnread } from '../contexts/ChatUnreadContext'
+import { emitChatRead } from '../lib/chat/chatEvents'
 import { ChatService, Chat } from '../services/ChatService'
 import { RealtimeChatService } from '../services/RealtimeChatService'
 import { Colors } from '../constants/Colors'
@@ -31,20 +33,22 @@ import { ImageService } from '../services/ImageService'
 import { FileService } from '../services/FileService'
 import { Image } from 'expo-image'
 import FullScreenImageViewer from '../components/FullScreenImageViewer'
-
-type GiftedMessage = {
-  _id: string
-  text: string
-  createdAt: Date
-  user: { _id: string; name?: string; avatar?: string | null }
-  image?: string
-  fileUrl?: string
-  status?: 'sending' | 'sent' | 'read'
-}
+import {
+  mapMessageToGifted,
+  giftedFromOutgoingDraft,
+  type GiftedChatMessage,
+} from '../lib/chat/messageMapper'
+import {
+  mergeGiftedWithLocal,
+  replaceOptimisticMessage,
+  sortGiftedMessagesNewestFirst,
+} from '../lib/chat/mergeGiftedMessages'
+import type { Message } from '../services/ChatService'
 
 export default function ChatDetail() {
   const { user, isAuthenticated, loading: isAuthLoading } = useAuth()
   const { showError } = useToast()
+  const { setActiveChatId, refreshTotalUnread } = useChatUnread()
   const router = useRouter()
   const { height: headerHeight, onLayout: onHeaderLayout } = useMeasuredLayoutHeight()
   const { chatId, taskId, otherUserName } = useLocalSearchParams<{
@@ -55,7 +59,7 @@ export default function ChatDetail() {
   }>()
 
   const [chat, setChat] = useState<Chat | null>(null)
-  const [messages, setMessages] = useState<GiftedMessage[]>([])
+  const [messages, setMessages] = useState<GiftedChatMessage[]>([])
   const [participantName, setParticipantName] = useState<string>(otherUserName || '...')
   const [participantAvatarUrl, setParticipantAvatarUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -80,17 +84,65 @@ export default function ChatDetail() {
     }, [isAuthenticated, isAuthLoading, router]),
   )
 
+  useFocusEffect(
+    useCallback(() => {
+      const id = (typeof chatId === 'string' ? chatId : null) || chatIdRef.current
+      if (id) setActiveChatId(id)
+      return () => setActiveChatId(null)
+    }, [chatId, setActiveChatId]),
+  )
+
   useEffect(() => {
     loadChat()
   }, [chatId, user?.id])
 
+  const mapServerMessages = useCallback(
+    (serverMessages: Message[], nameOverride?: string) =>
+      sortGiftedMessagesNewestFirst(
+        serverMessages.map((msg) =>
+          mapMessageToGifted(msg, {
+            userId: user!.id,
+            participantName: nameOverride ?? participantName,
+          }),
+        ),
+      ),
+    [user, participantName],
+  )
+
   const loadChat = async () => {
     if (!user?.id) return
     userIdRef.current = user.id
-    try {
+
+    const resolvedChatId = typeof chatId === 'string' ? chatId : null
+    let messagesPromise: Promise<Message[]> | null = null
+    let showedCachedMessages = false
+
+    if (resolvedChatId) {
+      const cachedParticipant = ChatService.getCachedParticipant(resolvedChatId)
+      if (cachedParticipant) {
+        setParticipantName(cachedParticipant.participantName)
+        setParticipantAvatarUrl(cachedParticipant.participantAvatarUrl)
+      }
+
+      const { cached, fresh } = await ChatService.getChatMessagesFast(resolvedChatId, 50)
+      messagesPromise = fresh
+
+      if (cached.length > 0) {
+        setMessages(mapServerMessages(cached, cachedParticipant?.participantName))
+        setLoading(false)
+        showedCachedMessages = true
+      } else {
+        setLoading(true)
+      }
+
+      chatIdRef.current = resolvedChatId
+    } else {
       setLoading(true)
-      const targetChat = chatId
-        ? await ChatService.getChatById(chatId)
+    }
+
+    try {
+      const targetChat = resolvedChatId
+        ? await ChatService.getChatById(resolvedChatId)
         : taskId
           ? await ChatService.getOrCreateChat(taskId, user.id, 'temp-tasker-id')
           : null
@@ -100,20 +152,40 @@ export default function ChatDetail() {
 
       const other =
         user.id === targetChat.customer_id ? targetChat.tasker : targetChat.customer
-      setParticipantName(other?.full_name || otherUserName || '...')
+      const displayName = other?.full_name || otherUserName || '...'
+      setParticipantName(displayName)
       setParticipantAvatarUrl(other?.avatar_url || null)
-      ChatService.cacheParticipant(targetChat.id, other?.full_name || '', other?.avatar_url || null)
+      ChatService.cacheParticipant(targetChat.id, displayName, other?.avatar_url || null)
       chatIdRef.current = targetChat.id
 
-      const messagesResult = await ChatService.getChatMessagesFast(targetChat.id, 50)
-      const fresh = messagesResult?.fresh ? await messagesResult.fresh : []
-      setMessages(fresh.map(mapToGifted))
+      if (!messagesPromise || targetChat.id !== resolvedChatId) {
+        const fast = await ChatService.getChatMessagesFast(targetChat.id, 50)
+        messagesPromise = fast.fresh
+        if (!showedCachedMessages) {
+          const { cached } = fast
+          if (cached.length > 0) {
+            setMessages(mapServerMessages(cached, displayName))
+            setLoading(false)
+            showedCachedMessages = true
+          }
+        }
+      }
+
+      await subscribe(targetChat.id)
+
+      const freshMessages = await messagesPromise
+      setMessages((prev) =>
+        mergeGiftedWithLocal(mapServerMessages(freshMessages, displayName), prev),
+      )
 
       await ChatService.markMessagesAsRead(targetChat.id, user.id)
-      subscribe(targetChat.id)
+      emitChatRead(targetChat.id)
+      refreshTotalUnread().catch(() => {})
     } catch (error) {
       console.error('Load chat failed', error)
-      showError('Failed to load chat')
+      if (!showedCachedMessages) {
+        showError('Failed to load chat')
+      }
     } finally {
       setLoading(false)
     }
@@ -125,27 +197,30 @@ export default function ChatDetail() {
       await RealtimeChatService.subscribeToChat(id, {
         onMessage: (message) => {
           setMessages((prev) => {
-            // Prevent duplicate messages by checking if message already exists
-            const existingIndex = prev.findIndex((m) => m._id === message.id)
+            const mapped = mapMessageToGifted(message as Message, {
+              userId: user!.id,
+              participantName,
+            })
+            const existingIndex = prev.findIndex((m) => String(m._id) === String(mapped._id))
             if (existingIndex >= 0) {
-              // Update existing message instead of adding duplicate
               const updated = [...prev]
-              const mapped = mapToGifted(message)
               updated[existingIndex] = { ...updated[existingIndex], ...mapped }
-              // Sort by createdAt descending (newest first)
-              return updated.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+              return sortGiftedMessagesNewestFirst(updated)
             }
-            // Only add if message doesn't exist
-            const mapped = mapToGifted(message)
-            const next = [...prev, mapped]
-            // Sort by createdAt descending (newest first)
-            return next.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+            return sortGiftedMessagesNewestFirst([mapped, ...prev])
           })
           // Mark as read if message is from other user
           if (message.sender_id !== user?.id && user?.id) {
-            ChatService.markMessagesAsRead(id, user.id).catch((err: any) => {
-              console.error('Failed to mark message as read:', err)
-            })
+            ChatService.markMessagesAsRead(id, user.id)
+              .then((ok) => {
+                if (ok) {
+                  emitChatRead(id)
+                  refreshTotalUnread().catch(() => {})
+                }
+              })
+              .catch((err: unknown) => {
+                console.error('Failed to mark message as read:', err)
+              })
           }
         },
         onTyping: (senderId, typing) => {
@@ -163,25 +238,6 @@ export default function ChatDetail() {
       showError('Failed to connect to chat')
     }
   }
-
-  const mapToGifted = (msg: any): GiftedMessage => ({
-    _id: msg.id,
-    text:
-      msg.message_type === 'file'
-        ? '📎 ' + (msg.message?.split('/').pop() || 'File')
-        : msg.message_type === 'image'
-          ? ''
-          : msg.message || '',
-    createdAt: new Date(msg.created_at),
-    user: {
-      _id: msg.sender_id,
-      name: msg.sender?.full_name || participantName || 'User',
-      avatar: msg.sender?.avatar_url || undefined,
-    },
-    image: msg.message_type === 'image' ? msg.message : undefined,
-    fileUrl: msg.message_type === 'file' ? msg.message : undefined,
-    status: msg.is_read ? 'read' : 'sent',
-  })
 
   // Cleanup subscriptions and timers on unmount
   useEffect(() => {
@@ -202,56 +258,81 @@ export default function ChatDetail() {
     }
   }, [isSubscribed])
 
-  const handleSend = async (outMessages: GiftedMessage[] = []) => {
-    if (!user?.id || !chat?.id || sending) return
-    const outgoing = outMessages[0]
-    if (!outgoing) return
+  const handleSend = useCallback(
+    async (outMessages: GiftedChatMessage[] = []) => {
+      if (!user?.id || !chat?.id || sending) return
+      const outgoing = outMessages[0]
+      if (!outgoing) return
 
-    setSending(true)
-    const tempId = outgoing._id || `temp-${Date.now()}-${Math.random()}`
-    const optimisticMessage = { ...outgoing, _id: tempId, status: 'sending' as const }
-    
-    // Add optimistic message immediately for better UX
-    setMessages((prev) => {
-      const appended = [...prev, optimisticMessage]
-      // Sort by createdAt descending (newest first)
-      return appended.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-    })
-    
-    try {
       const messageType = outgoing.image ? 'image' : outgoing.fileUrl ? 'file' : 'text'
       const content = outgoing.image || outgoing.fileUrl || outgoing.text
-      
-      if (!content) {
-        throw new Error('Message content is empty')
-      }
+      if (!content) return
 
-      const result = await ChatService.sendMessage(chat.id, user.id, content, messageType as any)
-      if (!result) throw new Error('send failed')
-      
-      // Remove optimistic message and reload with server response
-      setMessages((prev) => {
-        const filtered = prev.filter((m) => m._id !== tempId)
-        // The real message will come through the subscription
-        return filtered
-      })
-      
-      // Optionally refresh to get the actual message with correct ID
-      // The subscription should handle this, but we can do a quick refresh
-      const { fresh } = await ChatService.getChatMessagesFast(chat.id)
-      const latest = fresh ? await fresh : []
-      const mapped = latest.map(mapToGifted)
-      // Sort by createdAt descending (newest first)
-      setMessages(mapped.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()))
-    } catch (error) {
-      console.error('Send failed', error)
-      // Remove failed optimistic message
-      setMessages((prev) => prev.filter((m) => m._id !== tempId))
-      showError('Message failed to send. Please try again.')
-    } finally {
-      setSending(false)
-    }
-  }
+      setSending(true)
+      const tempId = String(outgoing._id || `temp-${Date.now()}`)
+      const optimisticMessage = giftedFromOutgoingDraft(
+        {
+          ...outgoing,
+          _id: tempId,
+          user: {
+            _id: user.id,
+            name: user.full_name || 'Me',
+            avatar: user.avatar_url,
+          },
+        },
+        'sending',
+      )
+
+      setMessages((prev) => sortGiftedMessagesNewestFirst([optimisticMessage, ...prev]))
+
+      try {
+        const result = await ChatService.sendMessage(chat.id, user.id, content, messageType)
+        if (!result) throw new Error('send failed')
+
+        const confirmed = mapMessageToGifted(result, {
+          userId: user.id,
+          participantName,
+          statusOverride: String(result.id).startsWith('offline-') ? 'pending' : 'sent',
+        })
+
+        setMessages((prev) => replaceOptimisticMessage(prev, tempId, confirmed))
+      } catch (error) {
+        console.error('Send failed', error)
+        setMessages((prev) =>
+          prev.map((m) =>
+            String(m._id) === tempId ? { ...m, status: 'failed' as const } : m,
+          ),
+        )
+        showError('Message failed to send. Tap the message to retry.')
+      } finally {
+        setSending(false)
+      }
+    },
+    [user, chat?.id, sending, participantName, showError],
+  )
+
+  const retryFailedMessage = useCallback(
+    (failed: GiftedChatMessage) => {
+      if (!failed.pendingPayload || sending) return
+      setMessages((prev) => prev.filter((m) => String(m._id) !== String(failed._id)))
+
+      const { text, image, fileUrl } = failed.pendingPayload
+      const draft: GiftedChatMessage = {
+        _id: `temp-${Date.now()}`,
+        text: text || '',
+        createdAt: new Date(),
+        user: {
+          _id: user!.id,
+          name: user!.full_name || 'Me',
+          avatar: user?.avatar_url,
+        },
+        image,
+        fileUrl,
+      }
+      handleSend([draft])
+    },
+    [handleSend, sending, user],
+  )
 
   const pickImage = async () => {
     try {
@@ -268,7 +349,7 @@ export default function ChatDetail() {
       if (!result.canceled && result.assets[0]) {
         const upload = await ImageService.uploadImage(result.assets[0].uri, 'chat-images')
         if (upload.success && upload.url) {
-          const draft: GiftedMessage = {
+          const draft: GiftedChatMessage = {
             _id: `temp-${Date.now()}`,
             text: '',
             createdAt: new Date(),
@@ -295,7 +376,7 @@ export default function ChatDetail() {
       if (!res.canceled && 'uri' in res) {
         const upload = await FileService.uploadFile((res as any).uri, 'chat-attachments')
         if (upload.success && upload.url) {
-          const draft: GiftedMessage = {
+          const draft: GiftedChatMessage = {
             _id: `temp-${Date.now()}`,
             text: '📎 ' + ((upload.url.split('/').pop() as string) || 'File'),
             createdAt: new Date(),
@@ -315,11 +396,15 @@ export default function ChatDetail() {
     }
   }
 
-  const renderBubble = useCallback((props: any) => {
-    const status = props.currentMessage?.status
-    const fileUrl = props.currentMessage?.fileUrl
-    return (
-      <View>
+  const renderBubble = useCallback(
+    (props: any) => {
+      const current = props.currentMessage as GiftedChatMessage | undefined
+      const status = current?.status
+      const fileUrl = current?.fileUrl
+      const isFailed = status === 'failed'
+      const isPending = status === 'pending'
+
+      const bubble = (
         <Bubble
           {...props}
           wrapperStyle={{
@@ -331,9 +416,10 @@ export default function ChatDetail() {
               paddingHorizontal: 2,
             },
             right: {
-              backgroundColor: Colors.primary[500],
+              backgroundColor: isFailed ? Colors.error[500] : Colors.primary[500],
               borderRadius: 16,
               paddingHorizontal: 2,
+              opacity: isPending ? 0.85 : 1,
             },
           }}
           textStyle={{
@@ -345,24 +431,54 @@ export default function ChatDetail() {
             right: { marginBottom: 6 },
           }}
         />
-        {fileUrl && (
-          <TouchableOpacity style={styles.fileRow} onPress={() => Linking.openURL(fileUrl)}>
-            <Ionicons name="document" size={16} color={Colors.primary[600]} />
-            <Text style={styles.fileText} numberOfLines={1}>
-              {fileUrl.split('/').pop() || 'File'}
-            </Text>
-          </TouchableOpacity>
-        )}
-        {status && props.position === 'right' && (
-          <View style={styles.statusRow}>
-            {status === 'sending' && <ActivityIndicator size={12} color="#fff" />}
-            {status === 'sent' && <Ionicons name="checkmark" size={14} color="#fff" />}
-            {status === 'read' && <Ionicons name="checkmark-done" size={14} color="#C7F0FF" />}
-          </View>
-        )}
-      </View>
-    )
-  }, [])
+      )
+
+      return (
+        <View>
+          {isFailed ? (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => current && retryFailedMessage(current)}
+              accessibilityRole="button"
+              accessibilityLabel="Retry sending message"
+            >
+              {bubble}
+            </TouchableOpacity>
+          ) : (
+            bubble
+          )}
+          {fileUrl && (
+            <TouchableOpacity style={styles.fileRow} onPress={() => Linking.openURL(fileUrl)}>
+              <Ionicons name="document" size={16} color={Colors.primary[600]} />
+              <Text style={styles.fileText} numberOfLines={1}>
+                {fileUrl.split('/').pop() || 'File'}
+              </Text>
+            </TouchableOpacity>
+          )}
+          {status && props.position === 'right' && (
+            <View style={styles.statusRow}>
+              {status === 'sending' && <ActivityIndicator size={12} color="#fff" />}
+              {status === 'pending' && (
+                <>
+                  <Ionicons name="time-outline" size={14} color="#fff" />
+                  <Text style={styles.statusHint}>Pending</Text>
+                </>
+              )}
+              {status === 'failed' && (
+                <>
+                  <Ionicons name="alert-circle" size={14} color="#fff" />
+                  <Text style={styles.statusHint}>Tap to retry</Text>
+                </>
+              )}
+              {status === 'sent' && <Ionicons name="checkmark" size={14} color="#fff" />}
+              {status === 'read' && <Ionicons name="checkmark-done" size={14} color="#C7F0FF" />}
+            </View>
+          )}
+        </View>
+      )
+    },
+    [retryFailedMessage],
+  )
 
   const keyboardAvoidingViewProps = useMemo(
     () => getChatKeyboardAvoidingProps({ headerHeight, bottomInset: 0 }),
@@ -395,7 +511,7 @@ export default function ChatDetail() {
       const trimmed = text.trim()
       if (!trimmed || !user?.id) return
 
-      const draft: GiftedMessage = {
+      const draft: GiftedChatMessage = {
         _id: `temp-${Date.now()}`,
         text: trimmed,
         createdAt: new Date(),
@@ -431,6 +547,23 @@ export default function ChatDetail() {
   const handleBack = useCallback(() => {
     router.replace('/chats')
   }, [router])
+
+  const handleTaskPress = useCallback(() => {
+    if (!chat?.task_id) return
+    router.push({ pathname: '/task-detail', params: { taskId: chat.task_id } })
+  }, [chat?.task_id, router])
+
+  const renderSystemMessage = useCallback((props: any) => {
+    return (
+      <View style={styles.systemMessageWrap}>
+        <SystemMessage
+          {...props}
+          textStyle={styles.systemMessageText}
+          containerStyle={styles.systemMessageContainer}
+        />
+      </View>
+    )
+  }, [])
 
   const renderMessageImage = useCallback((props: any) => {
     const imageUri = props.currentMessage?.image
@@ -510,7 +643,7 @@ export default function ChatDetail() {
     )
   }, [participantAvatarUrl])
 
-  if (isAuthLoading || loading) {
+  if (isAuthLoading || (loading && messages.length === 0)) {
     return (
       <TextureBackground>
         <SafeAreaView style={styles.loadingContainer} edges={['left', 'right']}>
@@ -530,7 +663,9 @@ export default function ChatDetail() {
         <ChatDetailHeader
           participantName={participantName}
           participantAvatarUrl={participantAvatarUrl}
+          taskTitle={chat?.task?.title}
           onBack={handleBack}
+          onTaskPress={chat?.task_id ? handleTaskPress : undefined}
           onLayout={onHeaderLayout}
         />
 
@@ -540,6 +675,7 @@ export default function ChatDetail() {
             onSend={(msgs) => handleSend(msgs as any)}
             user={{ _id: user!.id, name: user!.full_name || 'Me', avatar: user?.avatar_url }}
             renderBubble={renderBubble}
+            renderSystemMessage={renderSystemMessage}
             renderInputToolbar={renderNullInputToolbar}
             renderMessageImage={renderMessageImage}
             renderAvatar={renderAvatar}
@@ -583,11 +719,38 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   messagesContainer: { backgroundColor: '#F8FAFF' },
+  systemMessageWrap: {
+    alignItems: 'center',
+    marginVertical: 8,
+    paddingHorizontal: 24,
+  },
+  systemMessageContainer: {
+    backgroundColor: Colors.neutral[100],
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.neutral[200],
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    maxWidth: '92%',
+  },
+  systemMessageText: {
+    fontSize: 13,
+    color: Colors.neutral[600],
+    textAlign: 'center',
+    fontWeight: '500',
+  },
   statusRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    alignItems: 'center',
     paddingRight: 6,
     marginTop: 2,
+    gap: 4,
+  },
+  statusHint: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
   },
   fileRow: {
     flexDirection: 'row',

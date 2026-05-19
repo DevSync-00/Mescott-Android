@@ -9,7 +9,6 @@ import {
   TextInput,
   StatusBar,
   Platform,
-  DeviceEventEmitter,
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Image } from 'expo-image'
@@ -17,13 +16,21 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
-import { RealtimeChatService } from '../services/RealtimeChatService'
-import { ChatService, Chat } from '../services/ChatService'
+import { ChatService, Chat, Message } from '../services/ChatService'
+import { useChatUnread } from '../contexts/ChatUnreadContext'
+import {
+  onChatInboxChanged,
+  type ChatInboxChangedPayload,
+} from '../lib/chat/chatEvents'
 import { Colors } from '../constants/Colors'
 import { SkeletonList } from '../components/SkeletonLoader'
 import { showConfirmation } from '../utils/alertHelper'
 import TextureBackground from '../components/TextureBackground'
-import { supabase } from '../lib/supabase'
+import {
+  formatChatListPreview,
+  getTaskStatusColor,
+  getTaskStatusLabel,
+} from '../lib/chat/taskContext'
 
 export default function Chats() {
   const { isAuthenticated, isLoading, user } = useAuth()
@@ -34,9 +41,8 @@ export default function Chats() {
   const [refreshing, setRefreshing] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [filteredChats, setFilteredChats] = useState<Chat[]>([])
-  const [clearedChats, setClearedChats] = useState<Set<string>>(new Set())
-  const CLEARED_KEY = user ? `cleared_unread_${user.id}` : 'cleared_unread'
-  
+  const { activeChatId, refreshTotalUnread } = useChatUnread()
+
   // Cache timestamp calculations for better performance
   const timestampCache = useRef<Map<string, number>>(new Map())
   const getTimestamp = useCallback((chat: Chat) => {
@@ -54,28 +60,96 @@ export default function Chats() {
     return timestampCache.current.get(key) || 0
   }, [])
 
-  const loadChats = useCallback(async () => {
-    if (!user?.id) return
+  const sortChatsByActivity = useCallback(
+    (list: Chat[]) => [...list].sort((a, b) => getTimestamp(b) - getTimestamp(a)),
+    [getTimestamp],
+  )
 
-    try {
-      // Only show loading on initial load, not on refresh
-      if (chats.length === 0) {
-        setLoading(true)
+  const loadChats = useCallback(
+    async (forceRefresh = false) => {
+      if (!user?.id) return
+
+      try {
+        if (chats.length === 0) {
+          setLoading(true)
+        }
+        const userChats = await ChatService.getUserChats(user.id, forceRefresh)
+        setChats(sortChatsByActivity(userChats))
+      } catch (error) {
+        console.error('Error loading chats:', error)
+      } finally {
+        setLoading(false)
       }
-      const userChats = await RealtimeChatService.getUserChats(user.id)
-      // Sort by most recent activity using cached timestamps
-      const sorted = [...userChats].sort((a, b) => {
-        return getTimestamp(b) - getTimestamp(a) // Most recent first
-      })
-      // Apply client-side suppression for chats the user has opened
-      const suppressed = sorted.map((c) => (clearedChats.has(c.id) ? { ...c, unread_count: 0 } : c))
-      setChats(suppressed)
-    } catch (error) {
-      console.error('Error loading chats:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [user, clearedChats, chats.length, getTimestamp])
+    },
+    [user, chats.length, sortChatsByActivity],
+  )
+
+  const applyInboxChange = useCallback(
+    (payload: ChatInboxChangedPayload) => {
+      if (payload.type === 'read') {
+        setChats((prev) =>
+          prev.map((c) => (c.id === payload.chatId ? { ...c, unread_count: 0 } : c)),
+        )
+        return
+      }
+
+      if (payload.type === 'chat_updated') {
+        const { chat } = payload
+        setChats((prev) => {
+          const idx = prev.findIndex((c) => c.id === chat.id)
+          if (idx < 0) return prev
+          const next = [...prev]
+          next[idx] = { ...next[idx], ...chat }
+          return sortChatsByActivity(next)
+        })
+        return
+      }
+
+      if (payload.type === 'new_message') {
+        const { chatId, senderId, message, messageType, createdAt } = payload
+        setChats((prev) => {
+          const idx = prev.findIndex((c) => c.id === chatId)
+          if (idx < 0) return prev
+
+          const current = prev[idx]
+          const fromOther = !!user?.id && senderId !== user.id
+          const isActive = activeChatId === chatId
+
+          const updated: Chat = {
+            ...current,
+            last_message_at: createdAt,
+            last_message_text: message,
+            last_message_sender_id: senderId,
+            last_message: {
+              id: `rt-${createdAt}`,
+              chat_id: chatId,
+              sender_id: senderId,
+              message,
+              message_type: (
+                ['text', 'image', 'file', 'system'].includes(messageType)
+                  ? messageType
+                  : 'text'
+              ) as Message['message_type'],
+              is_read: !fromOther || isActive,
+              created_at: createdAt,
+              updated_at: createdAt,
+            },
+            unread_count:
+              fromOther && !isActive
+                ? (current.unread_count || 0) + 1
+                : isActive
+                  ? 0
+                  : current.unread_count || 0,
+          }
+
+          const next = prev.filter((_, i) => i !== idx)
+          next.unshift(updated)
+          return next
+        })
+      }
+    },
+    [user?.id, activeChatId, sortChatsByActivity],
+  )
 
   const getOtherParticipant = useCallback(
     (chat: Chat) => {
@@ -104,48 +178,24 @@ export default function Chats() {
     }
   }, [isAuthenticated, loadChats])
 
-  // Load persisted cleared chats
+  // Remove legacy client-side unread suppression (server is source of truth)
   useEffect(() => {
-    ;(async () => {
-      if (!user?.id) return
-      try {
-        const stored = await AsyncStorage.getItem(`cleared_unread_${user.id}`)
-        if (stored) {
-          const ids: string[] = JSON.parse(stored)
-          setClearedChats(new Set(ids))
-        }
-      } catch {}
-    })()
+    if (!user?.id) return
+    AsyncStorage.removeItem(`cleared_unread_${user.id}`).catch(() => {})
   }, [user?.id])
 
-  // React to read events from chat detail
   useEffect(() => {
-    const sub = DeviceEventEmitter.addListener('chat:read', (payload: any) => {
-      const id = payload?.chatId
-      if (!id) return
-      setChats((prev) => prev.map((c) => (c.id === id ? { ...c, unread_count: 0 } : c)))
-      setFilteredChats((prev) => prev.map((c) => (c.id === id ? { ...c, unread_count: 0 } : c)))
-      setClearedChats((prev) => new Set([...Array.from(prev), id]))
-    })
+    const sub = onChatInboxChanged(applyInboxChange)
     return () => sub.remove()
-  }, [])
+  }, [applyInboxChange])
 
-  // When cleared set changes, re-apply suppression to current lists
-  useEffect(() => {
-    if (clearedChats.size === 0) return
-    setChats((prev) => prev.map((c) => (clearedChats.has(c.id) ? { ...c, unread_count: 0 } : c)))
-    setFilteredChats((prev) =>
-      prev.map((c) => (clearedChats.has(c.id) ? { ...c, unread_count: 0 } : c)),
-    )
-  }, [clearedChats])
-
-  // Keep list fresh when returning from detail
   useFocusEffect(
     React.useCallback(() => {
       if (isAuthenticated) {
-        loadChats()
+        loadChats(true)
+        refreshTotalUnread().catch(() => {})
       }
-    }, [isAuthenticated, loadChats]),
+    }, [isAuthenticated, loadChats, refreshTotalUnread]),
   )
 
 
@@ -160,27 +210,17 @@ export default function Chats() {
       // Preload messages BEFORE navigation for instant display
       ChatService.preloadChatMessages(chatId).catch(() => {})
 
-      // Optimistically clear unread badge for immediate feedback
       setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, unread_count: 0 } : c)))
-      setFilteredChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, unread_count: 0 } : c)))
-      setClearedChats((prev) => {
-        const next = new Set([...Array.from(prev), chatId])
-        const clearedKey = user ? `cleared_unread_${user.id}` : 'cleared_unread'
-        AsyncStorage.setItem(clearedKey, JSON.stringify(Array.from(next))).catch(() => {})
-        return next
-      })
 
-      // Navigate immediately to chats detail (not replace, so back button works)
       router.push(`/chat-detail?chatId=${chatId}`)
 
       if (user?.id) {
-        // Mark as read in background (non-blocking)
-        RealtimeChatService.markMessagesAsRead(chatId, user.id).catch(() => {})
-        // Reload chats in background without blocking navigation
-        loadChats().catch(() => {})
+        ChatService.markMessagesAsRead(chatId, user.id)
+          .then(() => refreshTotalUnread())
+          .catch(() => {})
       }
     },
-    [user, router, loadChats],
+    [user, router, refreshTotalUnread],
   )
 
 
@@ -203,29 +243,10 @@ export default function Chats() {
     }
   }
 
-  const getLastMessagePreview = (chat: Chat) => {
-    const last = chat.last_message
-    const type = last?.message_type
-    const messageText = last?.message || chat.last_message_text || ''
-
-    const label =
-      type === 'image'
-        ? '📷 Photo'
-        : type === 'file'
-          ? `📎 ${(messageText.split('/').pop() || 'File')}`
-          : type === 'system'
-            ? 'ℹ️ System'
-            : messageText
-
-    if (label && label.trim()) {
-      return label.length > 70 ? `${label.slice(0, 70)}…` : label
-    }
-
-    if ((chat.unread_count || 0) > 0) {
-      return 'New message'
-    }
-    return 'Start a conversation'
-  }
+  const getLastMessagePreview = useCallback(
+    (chat: Chat) => formatChatListPreview(chat, user?.id || ''),
+    [user?.id],
+  )
 
   // Memoized filtered chats for better performance
   const filteredChatsMemo = useMemo(() => {
@@ -262,8 +283,8 @@ export default function Chats() {
   const ChatItem = memo(
     ({ item, onPress, onLongPress }: { item: Chat; onPress: () => void; onLongPress: () => void }) => {
       const otherParticipant = getOtherParticipant(item)
-      const effectiveUnread = clearedChats.has(item.id) ? 0 : item.unread_count || 0
-      const hasUnread = effectiveUnread > 0
+      const unreadCount = item.unread_count || 0
+      const hasUnread = unreadCount > 0
       const lastMessage = getLastMessagePreview(item)
       const lastMessageTime = useMemo(
         () => formatLastMessageTime(item.last_message_at),
@@ -311,18 +332,40 @@ export default function Chats() {
               {hasUnread && (
                 <View style={styles.unreadCount}>
                   <Text style={styles.unreadCountText}>
-                    {effectiveUnread > 99 ? '99+' : effectiveUnread}
+                    {unreadCount > 99 ? '99+' : unreadCount}
                   </Text>
                 </View>
               )}
             </View>
 
             {item.task && (
-              <View style={styles.taskInfo}>
-                <Ionicons name="briefcase-outline" size={10} color={Colors.neutral[400]} />
-                <Text style={styles.taskTitle} numberOfLines={1}>
-                  {item.task.title}
-                </Text>
+              <View style={styles.taskContextRow}>
+                <View style={styles.taskTitleRow}>
+                  <Ionicons name="briefcase-outline" size={11} color={Colors.primary[500]} />
+                  <Text
+                    style={[styles.taskTitleStrong, hasUnread && styles.unreadText]}
+                    numberOfLines={1}
+                  >
+                    {item.task.title}
+                  </Text>
+                </View>
+                {item.task.status ? (
+                  <View
+                    style={[
+                      styles.taskStatusPill,
+                      { backgroundColor: getTaskStatusColor(item.task.status) + '18' },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.taskStatusText,
+                        { color: getTaskStatusColor(item.task.status) },
+                      ]}
+                    >
+                      {getTaskStatusLabel(item.task.status)}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
             )}
           </View>
@@ -334,7 +377,10 @@ export default function Chats() {
         prevProps.item.id === nextProps.item.id &&
         prevProps.item.unread_count === nextProps.item.unread_count &&
         prevProps.item.last_message_at === nextProps.item.last_message_at &&
-        prevProps.item.last_message_text === nextProps.item.last_message_text
+        prevProps.item.last_message_text === nextProps.item.last_message_text &&
+        prevProps.item.last_message_sender_id === nextProps.item.last_message_sender_id &&
+        prevProps.item.task?.status === nextProps.item.task?.status &&
+        prevProps.item.task?.title === nextProps.item.task?.title
       )
     }
   )
@@ -698,16 +744,34 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
-  taskInfo: {
+  taskContextRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    marginTop: 2,
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 4,
   },
-  taskTitle: {
-    fontSize: 10,
-    color: Colors.neutral[400],
+  taskTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     flex: 1,
+    minWidth: 0,
+  },
+  taskTitleStrong: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.neutral[600],
+    flex: 1,
+  },
+  taskStatusPill: {
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  taskStatusText: {
+    fontSize: 10,
+    fontWeight: '700',
   },
   emptyState: {
     flex: 1,
