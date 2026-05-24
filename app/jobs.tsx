@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   GestureResponderEvent,
   Platform,
   FlatList,
+  StatusBar,
 } from 'react-native'
 import Animated, {
   useSharedValue,
@@ -19,13 +20,11 @@ import Animated, {
   interpolate,
 } from 'react-native-reanimated'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
-import { StatusBar } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import { TaskService, Task } from '../services/TaskService'
-import { TaskApplicationService } from '../services/TaskApplicationService'
 import { ChatService } from '../services/ChatService'
 import { SearchService, SearchFilters } from '../services/SearchService'
 import { PaymentService, Payment } from '../services/PaymentService'
@@ -270,31 +269,15 @@ export default function Jobs() {
     }
   })
 
-  if (!isAuthenticated) {
-    return null
-  }
-
   const handlePayNow = async (task: Task) => {
     if (!user || !task.id) return
 
-    // Find the pending payment for this task
     const pendingPayment = pendingPayments.find((p) => p.task_id === task.id)
 
     if (!pendingPayment) {
       Alert.alert('Error', 'No pending payment found for this task')
       return
     }
-
-    // Get customer info for Chapa payment
-    const customerInfo = {
-      email: user.profile?.email || 'customer@mescott.com',
-      firstName: user.name?.split(' ')[0] || 'Customer',
-      lastName: user.name?.split(' ').slice(1).join(' ') || 'User',
-      phone: user.phone || '+251911234567',
-    }
-
-    console.log('Customer Info for Payment:', customerInfo)
-    console.log('User Data:', { email: user.profile?.email, name: user.name, phone: user.phone })
 
     setSelectedPayment(pendingPayment)
     setShowPaymentModal(true)
@@ -340,8 +323,11 @@ export default function Jobs() {
   )
 
   const hasPendingPayment = (task: Task) => {
-    const hasPayment = pendingPayments.some((p) => p.task_id === task.id)
-    return hasPayment
+    return pendingPayments.some((p) => p.task_id === task.id)
+  }
+
+  if (!isAuthenticated) {
+    return null
   }
 
   const handleAdvancedSearch = async (filters: SearchFilters) => {
@@ -697,8 +683,7 @@ export default function Jobs() {
               }
               renderItem={({ item: task }) => {
                 const isFavorite = favoriteTasks.has(task.id)
-                const hasApplied = appliedTasks.has(task.id)
-                
+
                 return (
                   <TouchableOpacity
                     style={[styles.taskCard, viewMode === 'compact' && styles.taskCardCompact]}

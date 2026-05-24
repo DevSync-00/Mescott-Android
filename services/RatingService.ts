@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { handleError } from '../utils/errorHandler'
 
-const REVIEWS_TABLE = 'task_reviews'
+const RATINGS_TABLE = 'ratings'
 
 export interface Rating {
   id: string
@@ -59,47 +59,94 @@ export interface ReviewPermission {
 }
 
 export class RatingService {
-  private static mapReview(record: any): Review {
+  private static mapRatingToReview(
+    record: Rating,
+    reviewType: Review['review_type'],
+    taskTitle?: string,
+  ): Review {
+    const isCustomerReview = reviewType === 'customer_to_tasker'
     return {
       id: record.id,
       task_id: record.task_id,
-      reviewer_id: record.reviewer_id,
-      reviewee_id: record.reviewee_id,
-      review_type: record.review_type,
+      reviewer_id: isCustomerReview ? record.customer_id : record.technician_id,
+      reviewee_id: isCustomerReview ? record.technician_id : record.customer_id,
+      review_type: reviewType,
       rating: record.rating,
-      comment: record.comment,
-      is_anonymous: record.is_anonymous ?? false,
-      is_public: record.is_public ?? true,
+      comment: record.review || '',
+      is_anonymous: false,
+      is_public: true,
       created_at: record.created_at,
       updated_at: record.updated_at,
-      reviewer_name: record.reviewer?.full_name,
-      task_title: record.task?.title,
+      task_title: taskTitle,
     }
+  }
+
+  private static async resolveUserIds(
+    customerProfileId: string,
+    technicianProfileId: string,
+  ): Promise<{ customerUserId: string; technicianUserId: string }> {
+    const { data: profiles, error } = await supabase
+      .from('profiles')
+      .select('id, user_id')
+      .in('id', [customerProfileId, technicianProfileId])
+
+    if (error) throw error
+
+    const customerUserId =
+      profiles?.find((p) => p.id === customerProfileId)?.user_id || ''
+    const technicianUserId =
+      profiles?.find((p) => p.id === technicianProfileId)?.user_id || ''
+
+    return { customerUserId, technicianUserId }
   }
 
   static async createReview(review: CreateReviewInput): Promise<Review | null> {
     try {
+      const isCustomerReview = review.review_type === 'customer_to_tasker'
+      const customerId = isCustomerReview ? review.reviewer_id : review.reviewee_id
+      const technicianId = isCustomerReview ? review.reviewee_id : review.reviewer_id
+
+      const { customerUserId, technicianUserId } = await this.resolveUserIds(
+        customerId,
+        technicianId,
+      )
+
       const { data, error } = await supabase
-        .from(REVIEWS_TABLE)
-        .insert([{
-          task_id: review.task_id,
-          reviewer_id: review.reviewer_id,
-          reviewee_id: review.reviewee_id,
-          review_type: review.review_type,
-          rating: review.rating,
-          comment: review.comment,
-          is_anonymous: review.is_anonymous ?? false,
-          is_public: review.is_public ?? true,
-        }])
-        .select(`
-          *,
-          reviewer:reviewer_id(full_name),
-          task:task_id(title)
-        `)
+        .from(RATINGS_TABLE)
+        .insert([
+          {
+            task_id: review.task_id,
+            customer_id: customerId,
+            technician_id: technicianId,
+            rating: review.rating,
+            review: review.comment,
+            customer_user_id: customerUserId || null,
+            technician_user_id: technicianUserId || null,
+          },
+        ])
+        .select()
         .single()
 
       if (error) throw error
-      return this.mapReview(data)
+
+      const taskUpdate: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      }
+      if (isCustomerReview) {
+        taskUpdate.customer_rating = review.rating
+        taskUpdate.customer_review = review.comment
+      } else {
+        taskUpdate.tasker_rating = review.rating
+        taskUpdate.tasker_review = review.comment
+      }
+
+      await supabase.from('tasks').update(taskUpdate).eq('id', review.task_id)
+
+      if (isCustomerReview) {
+        await this.updateTechnicianProfileRating(technicianId)
+      }
+
+      return this.mapRatingToReview(data, review.review_type)
     } catch (error) {
       const appError = handleError(error, 'createReview')
       console.error('Error creating review:', appError)
@@ -107,24 +154,25 @@ export class RatingService {
     }
   }
 
-  static async updateReview(reviewId: string, updates: Partial<Pick<Review, 'rating' | 'comment' | 'is_anonymous'>>): Promise<Review | null> {
+  static async updateReview(
+    reviewId: string,
+    updates: Partial<Pick<Review, 'rating' | 'comment' | 'is_anonymous'>>,
+    reviewType: Review['review_type'] = 'customer_to_tasker',
+  ): Promise<Review | null> {
     try {
       const { data, error } = await supabase
-        .from(REVIEWS_TABLE)
+        .from(RATINGS_TABLE)
         .update({
-          ...updates,
+          ...(updates.rating !== undefined ? { rating: updates.rating } : {}),
+          ...(updates.comment !== undefined ? { review: updates.comment } : {}),
           updated_at: new Date().toISOString(),
         })
         .eq('id', reviewId)
-        .select(`
-          *,
-          reviewer:reviewer_id(full_name),
-          task:task_id(title)
-        `)
+        .select()
         .single()
 
       if (error) throw error
-      return this.mapReview(data)
+      return this.mapRatingToReview(data, reviewType)
     } catch (error) {
       const appError = handleError(error, 'updateReview')
       console.error('Error updating review:', appError)
@@ -134,10 +182,7 @@ export class RatingService {
 
   static async deleteReview(reviewId: string): Promise<boolean> {
     try {
-      const { error } = await supabase
-        .from(REVIEWS_TABLE)
-        .delete()
-        .eq('id', reviewId)
+      const { error } = await supabase.from(RATINGS_TABLE).delete().eq('id', reviewId)
 
       if (error) throw error
       return true
@@ -152,24 +197,21 @@ export class RatingService {
     taskId: string,
     reviewerId: string,
     revieweeId: string,
-    reviewType: Review['review_type']
+    reviewType: Review['review_type'],
   ): Promise<Review | null> {
     try {
-      const { data, error } = await supabase
-        .from(REVIEWS_TABLE)
-        .select(`
-          *,
-          reviewer:reviewer_id(full_name),
-          task:task_id(title)
-        `)
-        .eq('task_id', taskId)
-        .eq('reviewer_id', reviewerId)
-        .eq('reviewee_id', revieweeId)
-        .eq('review_type', reviewType)
-        .maybeSingle()
+      let query = supabase.from(RATINGS_TABLE).select('*').eq('task_id', taskId)
+
+      if (reviewType === 'customer_to_tasker') {
+        query = query.eq('customer_id', reviewerId).eq('technician_id', revieweeId)
+      } else {
+        query = query.eq('technician_id', reviewerId).eq('customer_id', revieweeId)
+      }
+
+      const { data, error } = await query.maybeSingle()
 
       if (error) throw error
-      return data ? this.mapReview(data) : null
+      return data ? this.mapRatingToReview(data, reviewType) : null
     } catch (error) {
       const appError = handleError(error, 'getReviewByTaskAndUsers')
       console.error('Error fetching review:', appError)
@@ -180,17 +222,13 @@ export class RatingService {
   static async getUserReviews(userId: string): Promise<Review[]> {
     try {
       const { data, error } = await supabase
-        .from(REVIEWS_TABLE)
-        .select(`
-          *,
-          reviewer:reviewer_id(full_name),
-          task:task_id(title)
-        `)
-        .eq('reviewee_id', userId)
+        .from(RATINGS_TABLE)
+        .select('*')
+        .eq('technician_id', userId)
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      return (data || []).map(this.mapReview)
+      return (data || []).map((row) => this.mapRatingToReview(row, 'customer_to_tasker'))
     } catch (error) {
       const appError = handleError(error, 'getUserReviews')
       console.error('Error getting user reviews:', appError)
@@ -201,9 +239,9 @@ export class RatingService {
   static async getUserAverageRating(userId: string): Promise<{ average: number; count: number }> {
     try {
       const { data, error } = await supabase
-        .from(REVIEWS_TABLE)
+        .from(RATINGS_TABLE)
         .select('rating')
-        .eq('reviewee_id', userId)
+        .eq('technician_id', userId)
 
       if (error) throw error
       if (!data || data.length === 0) {

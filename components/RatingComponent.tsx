@@ -104,11 +104,15 @@ export default function RatingComponent({
     try {
       if (existingReview) {
         // Update existing review
-        const updatedReview = await RatingService.updateReview(existingReview.id, {
-          rating,
-          comment: comment.trim(),
-          is_anonymous: isAnonymous
-        })
+        const updatedReview = await RatingService.updateReview(
+          existingReview.id,
+          {
+            rating,
+            comment: comment.trim(),
+            is_anonymous: isAnonymous,
+          },
+          reviewType,
+        )
 
         if (updatedReview) {
           setExistingReview(updatedReview)
