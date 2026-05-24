@@ -156,6 +156,15 @@ export class ChapaPaymentService {
       
       console.warn(`Using known working email for Chapa: ${validEmail}`)
 
+      const returnUrl = CHAPA_CONFIG.getReturnUrl(txRef)
+      if (!returnUrl.startsWith('https://')) {
+        throw new Error(
+          'Chapa requires an HTTPS return URL. Set EXPO_PUBLIC_API_URL in .env and restart Expo with: npx expo start --clear',
+        )
+      }
+
+      console.log('Chapa return_url:', returnUrl)
+
       // Prepare Chapa payment request
       const paymentRequest: ChapaPaymentRequest = {
         amount: calculation.totalAmount.toString(),
@@ -166,7 +175,7 @@ export class ChapaPaymentService {
         phone_number: customerInfo.phone.replace(/\s+/g, ''), // Remove spaces from phone
         tx_ref: txRef,
         callback_url: CHAPA_CONFIG.webhookUrl,
-        return_url: CHAPA_CONFIG.getReturnUrl(txRef),
+        return_url: returnUrl,
         customization: {
           title: CHAPA_CONFIG.companyName,
           description: 'Payment for task completion',

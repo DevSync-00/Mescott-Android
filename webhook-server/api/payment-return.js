@@ -1,6 +1,6 @@
 /**
  * Chapa return_url handler — instant redirect into the Mescott app.
- * Chapa only accepts HTTPS URLs; this page immediately opens mescott://payment-success.
+ * Flat file path ensures Vercel deploys this as GET /api/payment-return
  */
 module.exports = (req, res) => {
   const txRef =
