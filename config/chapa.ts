@@ -40,7 +40,7 @@ export const CHAPA_CONFIG = {
     if (isProduction) {
       throw new Error('EXPO_PUBLIC_API_URL must be set in production')
     }
-    return 'https://mchapaw-n0utcbuab-bereket-birhanu-kinfus-projects.vercel.app/api/webhook'
+    return 'https://mchapaw.vercel.app/api/webhook'
   })(),
   // Chapa requires HTTPS return_url; our server instantly redirects into the app
   appScheme: 'mescott',
@@ -50,7 +50,7 @@ export const CHAPA_CONFIG = {
       if (isProduction) {
         throw new Error('EXPO_PUBLIC_API_URL must be set in production')
       }
-      return `https://mchapaw-n0utcbuab-bereket-birhanu-kinfus-projects.vercel.app/api/payment-return?tx_ref=${encodeURIComponent(txRef)}`
+      return `https://mchapaw.vercel.app/api/payment-return?tx_ref=${encodeURIComponent(txRef)}`
     }
     return `${base.replace(/\/$/, '')}/api/payment-return?tx_ref=${encodeURIComponent(txRef)}`
   },
