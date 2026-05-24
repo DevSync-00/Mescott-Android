@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Linking,
   Dimensions,
+  AppState,
+  AppStateStatus,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { PaymentService, Payment, PaymentCalculation } from '../services/PaymentService'
@@ -43,13 +45,72 @@ function ChapaPaymentModal({
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null)
   const [txRef, setTxRef] = useState<string | null>(null)
   const [breakdown, setBreakdown] = useState<PaymentCalculation | null>(null)
-  const [paymentStatus, setPaymentStatus] = useState<string>('pending')
+  const [paymentStatus, setPaymentStatus] = useState<'pending' | 'completed' | 'failed'>('pending')
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const isPollingRef = useRef(false)
+  const hasShownFailedAlertRef = useRef(false)
 
   useEffect(() => {
     if (visible && payment && customerInfo) {
+      setPaymentStatus('pending')
+      hasShownFailedAlertRef.current = false
       initializePayment()
     }
+    if (!visible) {
+      stopPaymentStatusPolling()
+      setPaymentStatus('pending')
+      hasShownFailedAlertRef.current = false
+    }
   }, [visible, payment, customerInfo])
+
+  const stopPaymentStatusPolling = () => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current)
+      pollIntervalRef.current = null
+    }
+    isPollingRef.current = false
+  }
+
+  const showPaymentFailed = () => {
+    setPaymentStatus('failed')
+    if (!hasShownFailedAlertRef.current) {
+      hasShownFailedAlertRef.current = true
+      Alert.alert(
+        'Payment Failed',
+        'Your payment could not be processed. Please try again.',
+        [{ text: 'OK' }],
+      )
+    }
+  }
+
+  const checkPaymentStatus = async () => {
+    if (!txRef) return
+
+    try {
+      const status = await PaymentService.verifyChapaPayment(txRef)
+      if (!status) return
+
+      if (status.status === 'completed') {
+        stopPaymentStatusPolling()
+        setPaymentStatus('completed')
+        await PaymentService.processChapaPayment(txRef)
+        Alert.alert('Payment Successful!', 'Your payment has been processed successfully.', [
+          {
+            text: 'OK',
+            onPress: () => {
+              onPaymentSuccess(payment)
+              onClose()
+            },
+          },
+        ])
+      } else if (status.status === 'failed') {
+        stopPaymentStatusPolling()
+        showPaymentFailed()
+      }
+    } catch (error) {
+      console.error('Error checking payment status:', error)
+    }
+  }
 
   const initializePayment = async () => {
     if (!payment || !customerInfo) return
@@ -107,6 +168,12 @@ function ChapaPaymentModal({
     try {
       setProcessing(true)
 
+      if (paymentStatus === 'failed') {
+        hasShownFailedAlertRef.current = false
+        setPaymentStatus('pending')
+        stopPaymentStatusPolling()
+      }
+
       // Open Chapa checkout in browser
       const supported = await Linking.canOpenURL(checkoutUrl)
       if (supported) {
@@ -126,45 +193,33 @@ function ChapaPaymentModal({
   }
 
   const startPaymentStatusPolling = () => {
-    if (!txRef) return
+    if (!txRef || isPollingRef.current) return
 
-    const pollInterval = setInterval(async () => {
-      try {
-        const status = await PaymentService.verifyChapaPayment(txRef!)
-        if (status) {
-          setPaymentStatus(status.status)
+    isPollingRef.current = true
+    void checkPaymentStatus()
 
-          if (status.status === 'completed') {
-            clearInterval(pollInterval)
-            await PaymentService.processChapaPayment(txRef!)
-            Alert.alert('Payment Successful!', 'Your payment has been processed successfully.', [
-              {
-                text: 'OK',
-                onPress: () => {
-                  onPaymentSuccess(payment) // Pass payment info which contains task_id
-                  onClose()
-                },
-              },
-            ])
-          } else if (status.status === 'failed' || status.status === 'cancelled') {
-            clearInterval(pollInterval)
-            Alert.alert(
-              'Payment Failed',
-              'Your payment could not be processed. Please try again.',
-              [{ text: 'OK' }],
-            )
-          }
-        }
-      } catch (error) {
-        console.error('Error checking payment status:', error)
-      }
-    }, 3000) // Check every 3 seconds
+    pollIntervalRef.current = setInterval(() => {
+      void checkPaymentStatus()
+    }, 3000)
 
-    // Stop polling after 10 minutes
     setTimeout(() => {
-      clearInterval(pollInterval)
+      stopPaymentStatusPolling()
     }, 600000)
   }
+
+  useEffect(() => {
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      if (nextState === 'active' && isPollingRef.current && txRef) {
+        void checkPaymentStatus()
+      }
+    }
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange)
+    return () => {
+      subscription.remove()
+      stopPaymentStatusPolling()
+    }
+  }, [txRef])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ET', {
@@ -263,21 +318,57 @@ function ChapaPaymentModal({
 
           {/* Payment Status */}
           {paymentStatus !== 'pending' && (
-            <View style={styles.statusCard}>
+            <View
+              style={[
+                styles.statusCard,
+                paymentStatus === 'failed' && styles.statusCardFailed,
+                paymentStatus === 'completed' && styles.statusCardSuccess,
+              ]}
+            >
               <View style={styles.statusHeader}>
                 <Ionicons
-                  name={paymentStatus === 'completed' ? 'checkmark-circle' : 'time'}
+                  name={
+                    paymentStatus === 'completed'
+                      ? 'checkmark-circle'
+                      : paymentStatus === 'failed'
+                        ? 'close-circle'
+                        : 'time'
+                  }
                   size={20}
-                  color={paymentStatus === 'completed' ? Colors.success[500] : Colors.warning[500]}
+                  color={
+                    paymentStatus === 'completed'
+                      ? Colors.success[500]
+                      : paymentStatus === 'failed'
+                        ? Colors.error[500]
+                        : Colors.warning[500]
+                  }
                 />
-                <Text style={styles.statusTitle}>
-                  {paymentStatus === 'completed' ? 'Payment Completed' : 'Processing Payment...'}
+                <Text
+                  style={[
+                    styles.statusTitle,
+                    paymentStatus === 'failed' && styles.statusTitleFailed,
+                    paymentStatus === 'completed' && styles.statusTitleSuccess,
+                  ]}
+                >
+                  {paymentStatus === 'completed'
+                    ? 'Payment Completed'
+                    : paymentStatus === 'failed'
+                      ? 'Payment Failed'
+                      : 'Processing Payment...'}
                 </Text>
               </View>
-              <Text style={styles.statusDescription}>
+              <Text
+                style={[
+                  styles.statusDescription,
+                  paymentStatus === 'failed' && styles.statusDescriptionFailed,
+                  paymentStatus === 'completed' && styles.statusDescriptionSuccess,
+                ]}
+              >
                 {paymentStatus === 'completed'
                   ? 'Your payment has been successfully processed.'
-                  : 'Please wait while we process your payment.'}
+                  : paymentStatus === 'failed'
+                    ? 'Your payment could not be processed. Please try again.'
+                    : 'Please wait while we process your payment.'}
               </Text>
             </View>
           )}
@@ -305,15 +396,24 @@ function ChapaPaymentModal({
               </View>
             ) : (
               <TouchableOpacity
-                style={styles.payButton}
+                style={[
+                  styles.payButton,
+                  paymentStatus === 'failed' && styles.payButtonRetry,
+                ]}
                 onPress={handlePayment}
                 disabled={!checkoutUrl || paymentStatus === 'completed'}
               >
-                <Ionicons name="card" size={20} color="#fff" />
+                <Ionicons
+                  name={paymentStatus === 'failed' ? 'refresh' : 'card'}
+                  size={20}
+                  color="#fff"
+                />
                 <Text style={styles.payButtonText}>
                   {paymentStatus === 'completed'
                     ? 'Payment Completed'
-                    : `Pay ${formatCurrency(breakdown?.breakdown.total || payment.amount)}`}
+                    : paymentStatus === 'failed'
+                      ? 'Try Again'
+                      : `Pay ${formatCurrency(breakdown?.breakdown.total || payment.amount)}`}
                 </Text>
               </TouchableOpacity>
             )}
@@ -474,6 +574,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.warning[200],
   },
+  statusCardFailed: {
+    backgroundColor: Colors.error[50],
+    borderLeftColor: Colors.error[500],
+    borderColor: Colors.error[200],
+  },
+  statusCardSuccess: {
+    backgroundColor: Colors.success[50],
+    borderLeftColor: Colors.success[500],
+    borderColor: Colors.success[200],
+  },
   statusHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -485,10 +595,25 @@ const styles = StyleSheet.create({
     color: Colors.warning[700],
     marginLeft: 8,
   },
+  statusTitleFailed: {
+    color: Colors.error[700],
+  },
+  statusTitleSuccess: {
+    color: Colors.success[700],
+  },
   statusDescription: {
     fontSize: 12,
     color: Colors.warning[600],
     lineHeight: 18,
+  },
+  statusDescriptionFailed: {
+    color: Colors.error[600],
+  },
+  statusDescriptionSuccess: {
+    color: Colors.success[600],
+  },
+  payButtonRetry: {
+    backgroundColor: Colors.error[500],
   },
   securityNotice: {
     flexDirection: 'row',

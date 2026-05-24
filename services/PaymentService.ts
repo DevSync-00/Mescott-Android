@@ -504,14 +504,14 @@ export class PaymentService {
     }
   }
 
-  // Verify Chapa payment status
+  // Verify Chapa payment status (Chapa API + local transaction record)
   static async verifyChapaPayment(txRef: string): Promise<{
-    status: string
+    status: 'completed' | 'failed' | 'pending'
     amount: number
     breakdown: any
   } | null> {
     try {
-      return await ChapaPaymentService.getPaymentStatus(txRef)
+      return await ChapaPaymentService.resolvePaymentStatus(txRef)
     } catch (error) {
       const appError = handleError(error, 'verifyChapaPayment')
       console.error('Error verifying Chapa payment:', appError)
