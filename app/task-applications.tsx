@@ -17,24 +17,34 @@ import { useAuth } from '../contexts/SimpleAuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { TaskApplicationService, TaskApplication } from '../services/TaskApplicationService'
 import { Colors } from '../constants/Colors'
+import { formatETB } from '../lib/formatCurrency'
 import { showConfirmation, showSuccessAlert } from '../utils/alertHelper'
 
 export default function TaskApplications() {
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isLoading } = useAuth()
   const { showError, showSuccess } = useToast()
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { taskId } = useLocalSearchParams()
+  const { taskId: taskIdParam } = useLocalSearchParams<{ taskId?: string | string[] }>()
+  const resolvedTaskId =
+    typeof taskIdParam === 'string'
+      ? taskIdParam
+      : Array.isArray(taskIdParam)
+        ? taskIdParam[0]
+        : undefined
   const [applications, setApplications] = useState<TaskApplication[]>([])
   const [loading, setLoading] = useState(true)
   const [processingApplication, setProcessingApplication] = useState<string | null>(null)
 
   const loadApplications = useCallback(async () => {
-    if (!taskId || typeof taskId !== 'string') return
+    if (!resolvedTaskId) {
+      setLoading(false)
+      return
+    }
 
     try {
       setLoading(true)
-      const data = await TaskApplicationService.getTaskApplications(taskId)
+      const data = await TaskApplicationService.getTaskApplications(resolvedTaskId)
       setApplications(data)
     } catch (error) {
       console.error('Error loading applications:', error)
@@ -42,7 +52,12 @@ export default function TaskApplications() {
     } finally {
       setLoading(false)
     }
-  }, [taskId])
+  }, [resolvedTaskId, showError])
+
+  useEffect(() => {
+    if (isLoading) return
+    void loadApplications()
+  }, [isLoading, loadApplications])
 
   const handleAcceptApplication = async (applicationId: string) => {
     showConfirmation(
@@ -52,7 +67,7 @@ export default function TaskApplications() {
         setProcessingApplication(applicationId)
         try {
           const success = await TaskApplicationService.acceptApplication(
-            taskId as string,
+            resolvedTaskId as string,
             applicationId,
           )
           if (success) {
@@ -112,7 +127,7 @@ export default function TaskApplications() {
   const handleViewProfile = (taskerId: string) => {
     router.push({
       pathname: '/tasker-profile',
-      params: { taskerId, taskId: taskId, returnRoute: 'task-applications' },
+      params: { taskerId, taskId: resolvedTaskId, returnRoute: 'task-applications' },
     })
   }
 
@@ -247,7 +262,9 @@ export default function TaskApplications() {
                 {application.proposed_price && (
                   <View style={styles.budgetContainer}>
                     <Text style={styles.budgetLabel}>Proposed Price:</Text>
-                    <Text style={styles.budgetAmount}>${application.proposed_price}</Text>
+                    <Text style={styles.budgetAmount}>
+                      {formatETB(application.proposed_price)}
+                    </Text>
                   </View>
                 )}
 

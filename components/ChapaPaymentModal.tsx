@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import { PaymentService, Payment, PaymentCalculation } from '../services/PaymentService'
 import { Colors } from '../constants/Colors'
+import { formatETB } from '../lib/formatCurrency'
 import BottomSheet, { BottomSheetRef } from './BottomSheet'
 
 const { width } = Dimensions.get('window')
@@ -233,14 +234,6 @@ function ChapaPaymentModal({
     }
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-ET', {
-      style: 'currency',
-      currency: 'ETB',
-      minimumFractionDigits: 2,
-    }).format(amount)
-  }
-
   if (!payment) return null
 
   return (
@@ -284,18 +277,18 @@ function ChapaPaymentModal({
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Subtotal:</Text>
                   <Text style={styles.summaryValue}>
-                    {formatCurrency(breakdown.breakdown.subtotal)}
+                    {formatETB(breakdown.breakdown.subtotal)}
                   </Text>
                 </View>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>VAT (15%):</Text>
-                  <Text style={styles.summaryValue}>{formatCurrency(breakdown.breakdown.vat)}</Text>
+                  <Text style={styles.summaryValue}>{formatETB(breakdown.breakdown.vat)}</Text>
                 </View>
                 <View style={styles.divider} />
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Total Amount:</Text>
                   <Text style={styles.summaryAmount}>
-                    {formatCurrency(breakdown.breakdown.total)}
+                    {formatETB(breakdown.breakdown.total)}
                   </Text>
                 </View>
               </>
@@ -425,7 +418,7 @@ function ChapaPaymentModal({
                     ? 'Payment Completed'
                     : paymentStatus === 'failed'
                       ? 'Try Again'
-                      : `Pay ${formatCurrency(breakdown?.breakdown.total || payment.amount)}`}
+                      : `Pay ${formatETB(breakdown?.breakdown.total || payment.amount)}`}
                 </Text>
               </TouchableOpacity>
             )}
