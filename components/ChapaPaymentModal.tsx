@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import {
   View,
   Text,
@@ -8,9 +8,9 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
-  Dimensions,
   AppState,
   AppStateStatus,
+  Dimensions,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { PaymentService, Payment, PaymentCalculation } from '../services/PaymentService'
@@ -40,38 +40,29 @@ function ChapaPaymentModal({
   customerInfo,
 }: ChapaPaymentModalProps) {
   const bottomSheetRef = useRef<BottomSheetRef>(null)
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [loading, setLoading] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null)
   const [txRef, setTxRef] = useState<string | null>(null)
   const [breakdown, setBreakdown] = useState<PaymentCalculation | null>(null)
   const [paymentStatus, setPaymentStatus] = useState<'pending' | 'completed' | 'failed'>('pending')
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const isPollingRef = useRef(false)
   const hasShownFailedAlertRef = useRef(false)
 
-  useEffect(() => {
-    if (visible && payment && customerInfo) {
-      setPaymentStatus('pending')
-      hasShownFailedAlertRef.current = false
-      initializePayment()
-    }
-    if (!visible) {
-      stopPaymentStatusPolling()
-      setPaymentStatus('pending')
-      hasShownFailedAlertRef.current = false
-    }
-  }, [visible, payment, customerInfo])
-
-  const stopPaymentStatusPolling = () => {
+  const stopPaymentStatusPolling = useCallback(() => {
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current)
       pollIntervalRef.current = null
     }
     isPollingRef.current = false
-  }
+  }, [])
 
-  const showPaymentFailed = () => {
+  useEffect(() => {
+    return () => stopPaymentStatusPolling()
+  }, [stopPaymentStatusPolling])
+
+  const showPaymentFailed = useCallback(() => {
     setPaymentStatus('failed')
     if (!hasShownFailedAlertRef.current) {
       hasShownFailedAlertRef.current = true
@@ -81,9 +72,29 @@ function ChapaPaymentModal({
         [{ text: 'OK' }],
       )
     }
-  }
+  }, [])
 
-  const checkPaymentStatus = async () => {
+  const handlePaymentComplete = useCallback(async () => {
+    if (!txRef) return
+
+    stopPaymentStatusPolling()
+    setPaymentStatus('completed')
+
+    const success = await PaymentService.processChapaPayment(txRef)
+    if (success) {
+      Alert.alert('Payment Successful!', 'Your payment has been processed successfully.', [
+        {
+          text: 'OK',
+          onPress: () => {
+            onPaymentSuccess(payment)
+            onClose()
+          },
+        },
+      ])
+    }
+  }, [txRef, stopPaymentStatusPolling, payment, onPaymentSuccess, onClose])
+
+  const checkPaymentStatus = useCallback(async () => {
     if (!txRef) return
 
     try {
@@ -91,18 +102,7 @@ function ChapaPaymentModal({
       if (!status) return
 
       if (status.status === 'completed') {
-        stopPaymentStatusPolling()
-        setPaymentStatus('completed')
-        await PaymentService.processChapaPayment(txRef)
-        Alert.alert('Payment Successful!', 'Your payment has been processed successfully.', [
-          {
-            text: 'OK',
-            onPress: () => {
-              onPaymentSuccess(payment)
-              onClose()
-            },
-          },
-        ])
+        await handlePaymentComplete()
       } else if (status.status === 'failed') {
         stopPaymentStatusPolling()
         showPaymentFailed()
@@ -110,7 +110,34 @@ function ChapaPaymentModal({
     } catch (error) {
       console.error('Error checking payment status:', error)
     }
-  }
+  }, [txRef, handlePaymentComplete, stopPaymentStatusPolling, showPaymentFailed])
+
+  const startPaymentStatusPolling = useCallback(() => {
+    if (!txRef || isPollingRef.current) return
+
+    isPollingRef.current = true
+    void checkPaymentStatus()
+
+    pollIntervalRef.current = setInterval(() => {
+      void checkPaymentStatus()
+    }, 3000)
+
+    setTimeout(() => {
+      stopPaymentStatusPolling()
+    }, 600000)
+  }, [txRef, checkPaymentStatus, stopPaymentStatusPolling])
+
+  useEffect(() => {
+    if (!txRef) return
+
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState === 'active' && isPollingRef.current && txRef) {
+        void checkPaymentStatus()
+      }
+    })
+
+    return () => subscription.remove()
+  }, [txRef, checkPaymentStatus])
 
   const initializePayment = async () => {
     if (!payment || !customerInfo) return
@@ -159,6 +186,20 @@ function ChapaPaymentModal({
     }
   }
 
+  useEffect(() => {
+    if (visible && payment && customerInfo) {
+      setPaymentStatus('pending')
+      hasShownFailedAlertRef.current = false
+      initializePayment()
+    }
+    if (!visible) {
+      stopPaymentStatusPolling()
+      setPaymentStatus('pending')
+      hasShownFailedAlertRef.current = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, payment, customerInfo])
+
   const handlePayment = async () => {
     if (!checkoutUrl) {
       Alert.alert('Error', 'Payment URL not available')
@@ -191,35 +232,6 @@ function ChapaPaymentModal({
       setProcessing(false)
     }
   }
-
-  const startPaymentStatusPolling = () => {
-    if (!txRef || isPollingRef.current) return
-
-    isPollingRef.current = true
-    void checkPaymentStatus()
-
-    pollIntervalRef.current = setInterval(() => {
-      void checkPaymentStatus()
-    }, 3000)
-
-    setTimeout(() => {
-      stopPaymentStatusPolling()
-    }, 600000)
-  }
-
-  useEffect(() => {
-    const handleAppStateChange = (nextState: AppStateStatus) => {
-      if (nextState === 'active' && isPollingRef.current && txRef) {
-        void checkPaymentStatus()
-      }
-    }
-
-    const subscription = AppState.addEventListener('change', handleAppStateChange)
-    return () => {
-      subscription.remove()
-      stopPaymentStatusPolling()
-    }
-  }, [txRef])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ET', {

@@ -36,12 +36,26 @@ export const CHAPA_CONFIG = {
   platformFeeRate: 0.05,
 
   baseUrl: 'https://api.chapa.co/v1',
-  webhookUrl: EXPO_PUBLIC_API_URL
-    ? `${EXPO_PUBLIC_API_URL}/api/webhook`
-    : 'https://mchapaw-n0utcbuab-bereket-birhanu-kinfus-projects.vercel.app/api/webhook',
-  returnUrl: EXPO_PUBLIC_APP_URL
-    ? `${EXPO_PUBLIC_APP_URL}/payment-success`
-    : 'https://mescott.com/payment-success',
+  webhookUrl: EXPO_PUBLIC_API_URL ? `${EXPO_PUBLIC_API_URL}/api/webhook` : (() => {
+    if (isProduction) {
+      throw new Error('EXPO_PUBLIC_API_URL must be set in production')
+    }
+    return 'https://mchapaw-n0utcbuab-bereket-birhanu-kinfus-projects.vercel.app/api/webhook'
+  })(),
+  // Chapa requires HTTPS return_url; our server instantly redirects into the app
+  appScheme: 'mescott',
+  getReturnUrl: (txRef: string) => {
+    const base = EXPO_PUBLIC_API_URL || EXPO_PUBLIC_APP_URL
+    if (!base) {
+      if (isProduction) {
+        throw new Error('EXPO_PUBLIC_API_URL must be set in production')
+      }
+      return `https://mchapaw-n0utcbuab-bereket-birhanu-kinfus-projects.vercel.app/api/payment-return?tx_ref=${encodeURIComponent(txRef)}`
+    }
+    return `${base.replace(/\/$/, '')}/api/payment-return?tx_ref=${encodeURIComponent(txRef)}`
+  },
+  getAppDeepLink: (txRef: string) =>
+    `mescott://payment-success?tx_ref=${encodeURIComponent(txRef)}`,
 }
 
 export default CHAPA_CONFIG

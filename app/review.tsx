@@ -81,7 +81,12 @@ export default function ReviewScreen() {
         is_public: true,
       }
 
-      await RatingService.createReview(reviewData)
+      const result = await RatingService.createReview(reviewData)
+
+      if (!result) {
+        showError('Failed to submit review. Please try again.')
+        return
+      }
 
       showSuccessAlert(
         'Success',

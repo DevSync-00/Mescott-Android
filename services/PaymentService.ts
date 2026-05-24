@@ -522,68 +522,64 @@ export class PaymentService {
   // Process Chapa payment (called after successful payment)
   static async processChapaPayment(txRef: string): Promise<boolean> {
     try {
-      // Verify payment with Chapa
       const verification = await ChapaPaymentService.verifyPayment(txRef)
       if (!verification || verification.data.status !== 'success') {
         throw new Error('Payment verification failed')
       }
 
-      // Update payment status in database
+      const { data: chapaTransaction, error: fetchError } = await supabase
+        .from('transactions')
+        .select('task_id, user_id, amount, metadata')
+        .eq('metadata->>tx_ref', txRef)
+        .single()
+
+      if (fetchError || !chapaTransaction?.task_id) {
+        throw new Error('Payment transaction not found')
+      }
+
+      const taskId = chapaTransaction.task_id
+
+      // Mark the Chapa transaction as completed (preserve existing metadata)
       const { error: updateError } = await supabase
         .from('transactions')
         .update({
           status: 'completed',
           updated_at: new Date().toISOString(),
           metadata: {
+            ...chapaTransaction.metadata,
             chapa_verification: verification.data,
-            payment_gateway: 'chapa'
-          }
+            payment_gateway: 'chapa',
+          },
         })
         .eq('metadata->>tx_ref', txRef)
 
       if (updateError) throw updateError
 
-      // Update task payment status
-      const { data: transaction } = await supabase
+      // Mark any other pending task_payment records for this task as completed
+      await supabase
         .from('transactions')
-        .select('task_id')
-        .eq('metadata->>tx_ref', txRef)
-        .single()
+        .update({
+          status: 'completed',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('task_id', taskId)
+        .eq('type', 'task_payment')
+        .eq('status', 'pending')
 
-      if (transaction?.task_id) {
-        await supabase
-          .from('tasks')
-          .update({
-            payment_status: 'completed',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', transaction.task_id)
-      }
+      await supabase
+        .from('tasks')
+        .update({
+          payment_status: 'completed',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', taskId)
 
-      // Update task payment status
-      const { data: payment } = await supabase
-        .from('transactions')
-        .select('task_id, user_id, amount')
-        .eq('metadata->>tx_ref', txRef)
-        .single()
-
-      if (payment?.task_id) {
-        await supabase
-          .from('tasks')
-          .update({
-            payment_status: 'completed',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', payment.task_id)
-
-        // Send success notification
-        await UnifiedNotificationService.notifyPaymentProcessed(
-          payment.user_id,
-          payment.amount,
-          'Task Payment',
-          'success'
-        )
-      }
+      await UnifiedNotificationService.notifyPaymentProcessed(
+        chapaTransaction.user_id,
+        chapaTransaction.amount,
+        'Task Payment',
+        'success',
+      )
 
       return true
     } catch (error) {

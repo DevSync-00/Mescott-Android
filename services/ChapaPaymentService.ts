@@ -147,6 +147,15 @@ export class ChapaPaymentService {
       // Chapa rejects many user emails; use a stable fallback when profile email is missing/invalid
       const validEmail = 'test@gmail.com'
 
+      const returnUrl = CHAPA_CONFIG.getReturnUrl(txRef)
+      if (!returnUrl.startsWith('https://')) {
+        throw new Error(
+          'Chapa requires an HTTPS return URL. Set EXPO_PUBLIC_API_URL in .env and restart Expo with: npx expo start --clear',
+        )
+      }
+
+      console.log('Chapa return_url:', returnUrl)
+
       // Prepare Chapa payment request
       const paymentRequest: ChapaPaymentRequest = {
         amount: calculation.totalAmount.toString(),
@@ -156,8 +165,8 @@ export class ChapaPaymentService {
         last_name: customerInfo.lastName.trim(),
         phone_number: customerInfo.phone.replace(/\s+/g, ''), // Remove spaces from phone
         tx_ref: txRef,
-        callback_url: 'https://mchapaw-n0utcbuab-bereket-birhanu-kinfus-projects.vercel.app/api/webhook',
-        return_url: 'https://mescott.com/payment-success',
+        callback_url: CHAPA_CONFIG.webhookUrl,
+        return_url: returnUrl,
         customization: {
           title: CHAPA_CONFIG.companyName,
           description: 'Payment for task completion',
@@ -240,13 +249,18 @@ export class ChapaPaymentService {
 
       if (result.status !== 'success') {
         console.error('Chapa Error Details:', result)
-        
-        // Handle specific validation errors
-        if (result.message?.email) {
-          throw new Error(`Chapa validation failed: ${result.message.email.join(', ')}`)
+
+        const msg = result.message
+        if (typeof msg === 'object' && msg !== null) {
+          const parts = Object.entries(msg).flatMap(([field, errors]) =>
+            Array.isArray(errors)
+              ? errors.map((e) => `${field}: ${e}`)
+              : [`${field}: ${String(errors)}`],
+          )
+          throw new Error(`Chapa validation failed: ${parts.join('; ')}`)
         }
-        
-        throw new Error(`Chapa payment failed: ${result.message?.email || result.message || 'Unknown error'}`)
+
+        throw new Error(`Chapa payment failed: ${msg || 'Unknown error'}`)
       }
 
       const checkoutUrl = result.data?.checkout_url
