@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
+  AppState,
   Dimensions,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
@@ -38,6 +39,7 @@ function ChapaPaymentModal({
   customerInfo,
 }: ChapaPaymentModalProps) {
   const bottomSheetRef = useRef<BottomSheetRef>(null)
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [loading, setLoading] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null)
@@ -125,46 +127,85 @@ function ChapaPaymentModal({
     }
   }
 
-  const startPaymentStatusPolling = () => {
+  const stopPolling = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current)
+      pollIntervalRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => stopPolling()
+  }, [stopPolling])
+
+  const handlePaymentComplete = useCallback(async () => {
     if (!txRef) return
 
-    const pollInterval = setInterval(async () => {
-      try {
-        const status = await PaymentService.verifyChapaPayment(txRef!)
-        if (status) {
-          setPaymentStatus(status.status)
+    stopPolling()
+    setPaymentStatus('completed')
 
-          if (status.status === 'completed') {
-            clearInterval(pollInterval)
-            await PaymentService.processChapaPayment(txRef!)
-            Alert.alert('Payment Successful!', 'Your payment has been processed successfully.', [
-              {
-                text: 'OK',
-                onPress: () => {
-                  onPaymentSuccess(payment) // Pass payment info which contains task_id
-                  onClose()
-                },
-              },
-            ])
-          } else if (status.status === 'failed' || status.status === 'cancelled') {
-            clearInterval(pollInterval)
-            Alert.alert(
-              'Payment Failed',
-              'Your payment could not be processed. Please try again.',
-              [{ text: 'OK' }],
-            )
-          }
-        }
-      } catch (error) {
-        console.error('Error checking payment status:', error)
+    const success = await PaymentService.processChapaPayment(txRef)
+    if (success) {
+      Alert.alert('Payment Successful!', 'Your payment has been processed successfully.', [
+        {
+          text: 'OK',
+          onPress: () => {
+            onPaymentSuccess(payment)
+            onClose()
+          },
+        },
+      ])
+    }
+  }, [txRef, stopPolling, payment, onPaymentSuccess, onClose])
+
+  const checkPaymentStatus = useCallback(async () => {
+    if (!txRef) return
+
+    try {
+      const status = await PaymentService.verifyChapaPayment(txRef)
+      if (!status) return
+
+      setPaymentStatus(status.status)
+
+      if (status.status === 'completed') {
+        await handlePaymentComplete()
+      } else if (status.status === 'failed' || status.status === 'cancelled') {
+        stopPolling()
+        Alert.alert(
+          'Payment Failed',
+          'Your payment could not be processed. Please try again.',
+          [{ text: 'OK' }],
+        )
       }
-    }, 3000) // Check every 3 seconds
+    } catch (error) {
+      console.error('Error checking payment status:', error)
+    }
+  }, [txRef, handlePaymentComplete, stopPolling])
 
-    // Stop polling after 10 minutes
+  const startPaymentStatusPolling = useCallback(() => {
+    if (!txRef) return
+
+    stopPolling()
+    checkPaymentStatus()
+
+    pollIntervalRef.current = setInterval(checkPaymentStatus, 3000)
+
     setTimeout(() => {
-      clearInterval(pollInterval)
+      stopPolling()
     }, 600000)
-  }
+  }, [txRef, checkPaymentStatus, stopPolling])
+
+  useEffect(() => {
+    if (!txRef) return
+
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active' && pollIntervalRef.current) {
+        checkPaymentStatus()
+      }
+    })
+
+    return () => subscription.remove()
+  }, [txRef, checkPaymentStatus])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ET', {
