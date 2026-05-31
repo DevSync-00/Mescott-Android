@@ -156,8 +156,9 @@ export default function ApplyTask() {
               <Text style={styles.label}>Your Proposed Price *</Text>
               <View style={styles.inputContainer}>
                 <Ionicons name="cash-outline" size={20} color={Colors.neutral[400]} />
+                <Text style={styles.currencySymbol}>ETB</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, styles.priceInput]}
                   placeholder="Enter your price"
                   placeholderTextColor={Colors.neutral[400]}
                   value={proposedPrice}
@@ -341,6 +342,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.neutral[900],
     marginLeft: 12,
+  },
+  priceInput: {
+    marginLeft: 8,
+  },
+  currencySymbol: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.success[600],
+    backgroundColor: Colors.success[50],
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginLeft: 8,
   },
   textArea: {
     height: 120,

@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import { WalletTransaction } from '../services/WalletService'
 import { Colors } from '../constants/Colors'
+import { formatETB } from '../lib/formatCurrency'
 
 interface WalletComponentProps {
   wallet: any
@@ -33,14 +34,6 @@ export default function WalletComponent({
       await onRefresh()
       setRefreshing(false)
     }
-  }
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-ET', {
-      style: 'currency',
-      currency: 'ETB',
-      minimumFractionDigits: 2,
-    }).format(amount)
   }
 
   const formatDate = (dateString: string) => {
@@ -130,7 +123,7 @@ export default function WalletComponent({
           <Ionicons name="wallet" size={24} color={Colors.primary[500]} />
           <Text style={styles.balanceTitle}>Wallet Balance</Text>
         </View>
-        <Text style={styles.balanceAmount}>{formatCurrency(wallet?.balance || 0)}</Text>
+        <Text style={styles.balanceAmount}>{formatETB(wallet?.balance || 0)}</Text>
         <Text style={styles.balanceSubtitle}>Available for withdrawal</Text>
       </View>
 
@@ -138,7 +131,7 @@ export default function WalletComponent({
       <View style={styles.statsGrid}>
         <View style={styles.statCard}>
           <Ionicons name="trending-up" size={20} color={Colors.success[500]} />
-          <Text style={styles.statValue}>{formatCurrency(stats.totalEarnings)}</Text>
+          <Text style={styles.statValue}>{formatETB(stats.totalEarnings)}</Text>
           <Text style={styles.statLabel}>Total Earnings</Text>
         </View>
         <View style={styles.statCard}>
@@ -148,12 +141,12 @@ export default function WalletComponent({
         </View>
         <View style={styles.statCard}>
           <Ionicons name="arrow-up" size={20} color={Colors.warning[500]} />
-          <Text style={styles.statValue}>{formatCurrency(stats.totalWithdrawals)}</Text>
+          <Text style={styles.statValue}>{formatETB(stats.totalWithdrawals)}</Text>
           <Text style={styles.statLabel}>Total Withdrawals</Text>
         </View>
         <View style={styles.statCard}>
           <Ionicons name="calendar" size={20} color={Colors.info[500]} />
-          <Text style={styles.statValue}>{formatCurrency(stats.thisMonthEarnings)}</Text>
+          <Text style={styles.statValue}>{formatETB(stats.thisMonthEarnings)}</Text>
           <Text style={styles.statLabel}>This Month</Text>
         </View>
       </View>
@@ -222,7 +215,7 @@ export default function WalletComponent({
                     ]}
                   >
                     {transaction.type === 'deposit' ? '+' : '-'}
-                    {formatCurrency(transaction.amount)}
+                    {formatETB(transaction.amount)}
                   </Text>
                   <Text style={styles.transactionStatus}>
                     {transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1)}

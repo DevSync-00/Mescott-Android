@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "webhook-server/api/**/*.js", "use": "@vercel/node" },
+    { "src": "webhook-server/public/**", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/api/payment-return", "dest": "/webhook-server/api/payment-return.js" },
+    { "src": "/api/webhook", "dest": "/webhook-server/api/webhook/index.js" },
+    { "src": "/api/test", "dest": "/webhook-server/api/test/index.js" },
+    { "src": "/api/(.*)", "dest": "/webhook-server/api/$1.js" },
+    { "src": "/", "dest": "/webhook-server/api/index.js" },
+    { "src": "/(.*)", "dest": "/webhook-server/public/$1" }
+  ]
+}

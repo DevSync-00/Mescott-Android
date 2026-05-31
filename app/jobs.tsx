@@ -25,6 +25,7 @@ import { useRouter, useFocusEffect } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import { TaskService, Task } from '../services/TaskService'
+import { getTaskStatusColor, getTaskStatusLabel } from '../lib/chat/taskContext'
 import { ChatService } from '../services/ChatService'
 import { SearchService, SearchFilters } from '../services/SearchService'
 import { PaymentService, Payment } from '../services/PaymentService'
@@ -442,40 +443,6 @@ export default function Jobs() {
       }
     })
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return Colors.warning[500]
-      case 'assigned':
-        return Colors.primary[500]
-      case 'in_progress':
-        return Colors.primary[500]
-      case 'completed':
-        return Colors.success[500]
-      case 'cancelled':
-        return Colors.error[500]
-      default:
-        return Colors.neutral[500]
-    }
-  }
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return 'Pending'
-      case 'assigned':
-        return 'Assigned'
-      case 'in_progress':
-        return 'In Progress'
-      case 'completed':
-        return 'Completed'
-      case 'cancelled':
-        return 'Cancelled'
-      default:
-        return 'Unknown'
-    }
-  }
-
   const formatUrgency = (urgency?: string) => {
     if (!urgency) return ''
     const map: Record<string, string> = {
@@ -832,16 +799,16 @@ export default function Jobs() {
                             <View
                               style={[
                                 styles.statusTag,
-                                { backgroundColor: getStatusColor(task.status) + '15' },
+                                { backgroundColor: getTaskStatusColor(task.status) + '15' },
                               ]}
                             >
                               <Text
                                 style={[
                                   styles.statusTagText,
-                                  { color: getStatusColor(task.status) },
+                                  { color: getTaskStatusColor(task.status) },
                                 ]}
                               >
-                                {getStatusLabel(task.status)}
+                                {getTaskStatusLabel(task.status)}
                               </Text>
                             </View>
                           )}

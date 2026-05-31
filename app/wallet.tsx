@@ -17,6 +17,7 @@ import { PaymentMethodService, PaymentMethod } from '../services/PaymentMethodSe
 import { WalletService, Wallet as WalletType, WalletStats } from '../services/WalletService'
 import WithdrawalModal from '../components/WithdrawalModal'
 import { Colors } from '../constants/Colors'
+import { formatETB } from '../lib/formatCurrency'
 import { SkeletonList } from '../components/SkeletonLoader'
 import { showSuccessAlert, showInfoAlert } from '../utils/alertHelper'
 
@@ -95,13 +96,6 @@ export default function WalletScreen() {
     }
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-ET', {
-      style: 'currency',
-      currency: 'ETB',
-    }).format(amount)
-  }
-
   // Check if user is in tasker mode
   if (user?.current_mode !== 'tasker' && user?.role !== 'tasker' && user?.role !== 'both') {
     return (
@@ -175,7 +169,7 @@ export default function WalletScreen() {
             <Ionicons name="wallet" size={24} color={Colors.primary[500]} />
             <Text style={styles.balanceTitle}>Wallet Balance</Text>
           </View>
-          <Text style={styles.balanceAmount}>{formatCurrency(wallet?.balance || 0)}</Text>
+          <Text style={styles.balanceAmount}>{formatETB(wallet?.balance || 0)}</Text>
           <Text style={styles.balanceSubtitle}>Available for withdrawal</Text>
         </View>
 
@@ -183,7 +177,7 @@ export default function WalletScreen() {
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
             <Ionicons name="trending-up" size={20} color={Colors.success[500]} />
-            <Text style={styles.statValue}>{formatCurrency(walletStats?.totalEarnings || 0)}</Text>
+            <Text style={styles.statValue}>{formatETB(walletStats?.totalEarnings || 0)}</Text>
             <Text style={styles.statLabel}>Total Earnings</Text>
           </View>
           <View style={styles.statCard}>
@@ -194,14 +188,14 @@ export default function WalletScreen() {
           <View style={styles.statCard}>
             <Ionicons name="arrow-up" size={20} color={Colors.warning[500]} />
             <Text style={styles.statValue}>
-              {formatCurrency(walletStats?.totalWithdrawals || 0)}
+              {formatETB(walletStats?.totalWithdrawals || 0)}
             </Text>
             <Text style={styles.statLabel}>Total Withdrawals</Text>
           </View>
           <View style={styles.statCard}>
             <Ionicons name="calendar" size={20} color={Colors.primary[500]} />
             <Text style={styles.statValue}>
-              {formatCurrency(walletStats?.thisMonthEarnings || 0)}
+              {formatETB(walletStats?.thisMonthEarnings || 0)}
             </Text>
             <Text style={styles.statLabel}>This Month</Text>
           </View>

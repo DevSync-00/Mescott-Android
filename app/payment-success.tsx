@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useToast } from '../contexts/ToastContext'
 import { PaymentService } from '../services/PaymentService'
 import { Colors } from '../constants/Colors'
+import { formatETB } from '../lib/formatCurrency'
 import SkeletonLoader from '../components/SkeletonLoader'
 
 export default function PaymentSuccessScreen() {
@@ -51,14 +52,6 @@ export default function PaymentSuccessScreen() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [txRef, verifyPayment])
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-ET', {
-      style: 'currency',
-      currency: 'ETB',
-      minimumFractionDigits: 2,
-    }).format(amount)
-  }
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -142,7 +135,7 @@ export default function PaymentSuccessScreen() {
 
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Amount:</Text>
-              <Text style={styles.detailValue}>{formatCurrency(paymentStatus.amount)}</Text>
+              <Text style={styles.detailValue}>{formatETB(paymentStatus.amount)}</Text>
             </View>
 
             <View style={styles.detailRow}>
@@ -165,28 +158,28 @@ export default function PaymentSuccessScreen() {
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Subtotal:</Text>
                   <Text style={styles.detailValue}>
-                    {formatCurrency(paymentStatus.breakdown.subtotal)}
+                    {formatETB(paymentStatus.breakdown.subtotal)}
                   </Text>
                 </View>
 
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>VAT (15%):</Text>
                   <Text style={styles.detailValue}>
-                    {formatCurrency(paymentStatus.breakdown.vat)}
+                    {formatETB(paymentStatus.breakdown.vat)}
                   </Text>
                 </View>
 
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Platform Fee (5%):</Text>
                   <Text style={styles.detailValue}>
-                    {formatCurrency(paymentStatus.breakdown.platformFee)}
+                    {formatETB(paymentStatus.breakdown.platformFee)}
                   </Text>
                 </View>
 
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Total:</Text>
                   <Text style={[styles.detailValue, styles.totalAmount]}>
-                    {formatCurrency(paymentStatus.breakdown.total)}
+                    {formatETB(paymentStatus.breakdown.total)}
                   </Text>
                 </View>
               </>

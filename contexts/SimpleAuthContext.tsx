@@ -1,5 +1,5 @@
 // simpleauthcontext.tsx
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SimpleUserProfile } from '../types/SimpleUserProfile';
@@ -25,6 +25,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<SimpleUserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const initDoneRef = useRef(false);
 
   const isAuthenticated = !!user;
   
@@ -78,53 +79,43 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const handleProfileLoadError = async (error: unknown, context: string) => {
+    console.error(`Error loading profile (${context}):`, error);
+    if (isRefreshTokenError(error)) {
+      console.log('Invalid refresh token detected, clearing session');
+      await clearInvalidSession();
+    } else {
+      setUser(null);
+    }
+  };
+
   // Init auth state
   useEffect(() => {
     init();
-    
-    // Listen for auth state changes
+
+    // Never await Supabase calls directly in this callback — it deadlocks getSession/init.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      try {
-        console.log('Auth state changed:', event, session?.user?.id);
-        
-        if (event === 'SIGNED_OUT') {
-          setUser(null);
-        } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-          try {
-            await loadUserProfile(session.user.id);
-          } catch (error: any) {
-            console.error('Error loading profile after token refresh:', error);
-            // Check if it's a refresh token error
-            if (isRefreshTokenError(error)) {
-              console.log('Invalid refresh token detected in TOKEN_REFRESHED event, clearing session');
-              await clearInvalidSession();
-            } else {
-              setUser(null);
-            }
-          }
-        } else if (event === 'SIGNED_IN' && session?.user) {
-          try {
-            await loadUserProfile(session.user.id);
-          } catch (error: any) {
-            console.error('Error loading profile after sign in:', error);
-            // Check if it's a refresh token error
-            if (isRefreshTokenError(error)) {
-              console.log('Invalid refresh token detected in SIGNED_IN event, clearing session');
-              await clearInvalidSession();
-            } else {
-              setUser(null);
-            }
-          }
-        }
-      } catch (error: any) {
-        console.error('Error in auth state change handler:', error);
-        // Check if it's a refresh token error
-        if (isRefreshTokenError(error)) {
-          console.log('Invalid refresh token detected in auth state change handler, clearing session');
-          await clearInvalidSession();
-        }
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state changed:', event, session?.user?.id);
+
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        return;
+      }
+
+      // INITIAL_SESSION and the first SIGNED_IN are handled by init()
+      if (!initDoneRef.current) return;
+
+      if (
+        (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') &&
+        session?.user
+      ) {
+        setTimeout(() => {
+          loadUserProfile(session.user!.id).catch((error) =>
+            handleProfileLoadError(error, event)
+          );
+        }, 0);
       }
     });
 
@@ -178,6 +169,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       setUser(null);
     } finally {
+      initDoneRef.current = true;
       setLoading(false);
     }
   };

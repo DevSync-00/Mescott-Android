@@ -504,36 +504,14 @@ export class PaymentService {
     }
   }
 
-  // Verify Chapa payment status via Chapa API (with DB fallback for breakdown)
+  // Verify Chapa payment status (Chapa API + local transaction record)
   static async verifyChapaPayment(txRef: string): Promise<{
-    status: string
+    status: 'completed' | 'failed' | 'pending'
     amount: number
     breakdown: any
   } | null> {
     try {
-      const verification = await ChapaPaymentService.verifyPayment(txRef)
-
-      if (verification?.data) {
-        const chapaStatus = verification.data.status
-        let status: string
-        if (chapaStatus === 'success') {
-          status = 'completed'
-        } else if (chapaStatus === 'failed' || chapaStatus === 'cancelled') {
-          status = 'failed'
-        } else {
-          status = 'pending'
-        }
-
-        const dbRecord = await ChapaPaymentService.getPaymentStatus(txRef)
-
-        return {
-          status,
-          amount: verification.data.amount,
-          breakdown: dbRecord?.breakdown,
-        }
-      }
-
-      return await ChapaPaymentService.getPaymentStatus(txRef)
+      return await ChapaPaymentService.resolvePaymentStatus(txRef)
     } catch (error) {
       const appError = handleError(error, 'verifyChapaPayment')
       console.error('Error verifying Chapa payment:', appError)
