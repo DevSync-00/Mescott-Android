@@ -31,7 +31,7 @@ const CONTACT_METHODS: ContactMethod[] = [
     type: 'email',
     title: 'Email Support',
     subtitle: 'Get help via email',
-    value: 'support@mescott.com',
+    value: 'support@mescott.co',
     icon: 'mail-outline',
     color: Colors.primary[500],
   },

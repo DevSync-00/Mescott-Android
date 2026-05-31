@@ -116,9 +116,9 @@ export default function TermsOfService() {
           <Text style={styles.sectionTitle}>12. Contact Information</Text>
           <Text style={styles.sectionText}>
             If you have any questions about these Terms of Service, please contact us at:{'\n'}
-            Email: support@mescott.com{'\n'}
+            Email: support@mescott.co{'\n'}
             Phone: +251-911-234-567{'\n'}
-            Website: https://mescott.com{'\n'}
+            Website: https://mescott.co{'\n'}
             Address: Addis Ababa, Ethiopia
           </Text>
         </View>

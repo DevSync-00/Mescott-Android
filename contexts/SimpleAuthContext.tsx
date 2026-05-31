@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SimpleUserProfile } from '../types/SimpleUserProfile';
 import { ProfileSyncService } from '../services/ProfileSyncService';
+import { requestTelegramSession, verifyTelegramCode } from '../services/TelegramAuthService';
 
 interface AuthContextType {
   user: SimpleUserProfile | null;
@@ -12,6 +13,8 @@ interface AuthContextType {
   isLoading: boolean; // Add this for backward compatibility
   sendVerificationCode: (phone: string) => Promise<{ success: boolean; message: string }>;
   verifyPhoneCode: (phone: string, code: string) => Promise<{ success: boolean; message: string; isNewUser?: boolean }>;
+  startTelegramVerification: (phone: string) => Promise<{ success: boolean; message: string; sessionToken?: string; deepLink?: string }>;
+  verifyTelegramOtp: (phone: string, code: string, sessionToken: string) => Promise<{ success: boolean; message: string; isNewUser?: boolean }>;
   logout: () => Promise<void>;
   refreshUserProfile: () => Promise<void>;
   switchMode: () => Promise<void>;
@@ -231,6 +234,98 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return { success: true, message: 'Verification code sent' };
   };
 
+  const ensureProfileAfterAuth = async (authUserId: string, normalized: string) => {
+    let isNewUser = false;
+    const { data: existingProfile, error: checkError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', authUserId)
+      .maybeSingle();
+
+    if (checkError) {
+      console.error('Error checking user existence during sign-in:', checkError);
+      await supabase.auth.signOut();
+      setUser(null);
+      return { success: false as const, message: 'Error verifying user. Please try again.' };
+    }
+
+    if (!existingProfile) {
+      const usernameSeed = normalized.replace(/\D/g, '').slice(-4) || '0000';
+      const { error: createError } = await supabase
+        .from('profiles')
+        .insert({
+          user_id: authUserId,
+          full_name: '',
+          username: `user-${usernameSeed}`,
+          phone: normalized,
+          role: 'customer',
+          current_mode: 'customer',
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('Profile creation error:', createError);
+        return { success: false as const, message: createError.message };
+      }
+      isNewUser = true;
+    }
+
+    await loadUserProfile(authUserId);
+    return {
+      success: true as const,
+      message: isNewUser ? 'Signed in. Please complete your profile.' : 'Signed in successfully',
+      isNewUser,
+    };
+  };
+
+  const startTelegramVerification = async (phone: string) => {
+    const normalized = normalizePhone(phone);
+    const result = await requestTelegramSession(normalized, 'sign_in');
+    if (!result.ok || !result.sessionToken || !result.deepLink) {
+      return { success: false, message: result.error || 'Could not start Telegram verification' };
+    }
+    return {
+      success: true,
+      message: 'Open Telegram and tap Start, then enter the code here',
+      sessionToken: result.sessionToken,
+      deepLink: result.deepLink,
+    };
+  };
+
+  const verifyTelegramOtp = async (phone: string, code: string, sessionToken: string) => {
+    try {
+      const normalized = normalizePhone(phone);
+      const result = await verifyTelegramCode(normalized, code, sessionToken);
+
+      if (!result.ok || !result.session) {
+        return { success: false, message: result.error || 'Verification failed' };
+      }
+
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: result.session.access_token,
+        refresh_token: result.session.refresh_token,
+      });
+
+      if (sessionError) {
+        return { success: false, message: sessionError.message };
+      }
+
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
+
+      if (!authUser) {
+        return { success: false, message: 'Verification failed' };
+      }
+
+      return ensureProfileAfterAuth(authUser.id, normalized);
+    } catch (error) {
+      console.error('Unexpected error in verifyTelegramOtp:', error);
+      return { success: false, message: 'An unexpected error occurred. Please try again.' };
+    }
+  };
+
   const verifyPhoneCode = async (phone: string, code: string) => {
     try {
       const normalized = normalizePhone(phone);
@@ -249,53 +344,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const authUser = data.user;
       console.log('OTP verified successfully for user:', authUser.id);
 
-      // Login-only flow: if profile missing, auto-create minimal profile
-      let isNewUser = false;
       try {
-        const { data: existingProfile, error: checkError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', authUser.id)
-          .maybeSingle();
-
-        if (checkError) {
-          console.error('Error checking user existence during sign-in:', checkError);
-          await supabase.auth.signOut();
-          setUser(null);
-          return { success: false, message: 'Error verifying user. Please try again.' };
-        }
-
-        if (!existingProfile) {
-          console.log('No profile found, creating a minimal profile for OTP login');
-          const usernameSeed = normalized.replace(/\D/g, '').slice(-4) || '0000';
-          const { data: profile, error: createError } = await supabase
-            .from('profiles')
-            .insert({
-              user_id: authUser.id,
-              full_name: '',
-              username: `user-${usernameSeed}`,
-              phone: normalized,
-              role: 'customer',
-              current_mode: 'customer',
-            })
-            .select()
-            .single();
-
-          if (createError) {
-            console.error('Profile creation error:', createError);
-            return { success: false, message: createError.message };
-          }
-
-          console.log('Minimal profile created:', profile?.id);
-          isNewUser = true;
-        }
-
-        await loadUserProfile(authUser.id);
-        return {
-          success: true,
-          message: isNewUser ? 'Signed in. Please complete your profile.' : 'Signed in successfully',
-          isNewUser,
-        };
+        return await ensureProfileAfterAuth(authUser.id, normalized);
       } catch (profileError) {
         console.error('Profile handling error during sign-in:', profileError);
         await supabase.auth.signOut();
@@ -376,6 +426,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     isLoading: loading, // Add this for backward compatibility
     sendVerificationCode,
     verifyPhoneCode,
+    startTelegramVerification,
+    verifyTelegramOtp,
     logout,
     refreshUserProfile,
     switchMode,

@@ -9,6 +9,8 @@ declare namespace NodeJS {
     EXPO_PUBLIC_CHAPA_WEBHOOK_SECRET?: string;
     EXPO_PUBLIC_API_URL?: string;
     EXPO_PUBLIC_APP_URL?: string;
+    EXPO_PUBLIC_WEBHOOK_API_URL?: string;
+    EXPO_PUBLIC_TELEGRAM_BOT_USERNAME?: string;
     NODE_ENV?: string;
   }
 }

@@ -204,7 +204,7 @@ export default function HelpScreen() {
   const [expandedFAQ, setExpandedFAQ] = useState<string | null>(null)
 
   const handleContactSupport = () => {
-    Linking.openURL('mailto:support@mescott.com?subject=Help Request')
+    Linking.openURL('mailto:support@mescott.co?subject=Help Request')
   }
 
   const handleCallSupport = () => {

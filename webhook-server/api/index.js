@@ -4,8 +4,13 @@ module.exports = (req, res) => {
     ok: true,
     service: 'Mescott webhook server',
     endpoints: {
-      webhook: 'POST /api/webhook',
+      chapaWebhook: 'POST /api/webhook',
       paymentReturn: 'GET /api/payment-return?tx_ref=YOUR_TX_REF',
+      telegramWebhook: 'POST /api/webhooks/telegram',
+      telegramRequestSession: 'POST /api/telegram-request-session',
+      telegramVerify: 'POST /api/telegram-verify',
+      telegramSend: 'POST /api/telegram/send',
+      telegramMessages: 'GET /api/telegram/messages?senderId=TELEGRAM_USER_ID',
       test: 'GET /api/test',
     },
   })

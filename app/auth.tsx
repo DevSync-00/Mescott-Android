@@ -11,6 +11,7 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
   Platform,
+  Linking,
 } from 'react-native'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import { Image } from 'expo-image'
@@ -37,7 +38,16 @@ export default function Auth() {
     flag: 'https://flagcdn.com/w80/et.png',
   })
   const [countryPickerVisible, setCountryPickerVisible] = useState(false)
-  const { sendVerificationCode, verifyPhoneCode, isAuthenticated, loading: isLoading } = useAuth()
+  const [verificationMethod, setVerificationMethod] = useState<'sms' | 'telegram'>('sms')
+  const [telegramSessionToken, setTelegramSessionToken] = useState<string | null>(null)
+  const {
+    sendVerificationCode,
+    verifyPhoneCode,
+    startTelegramVerification,
+    verifyTelegramOtp,
+    isAuthenticated,
+    loading: isLoading,
+  } = useAuth()
   const { showSuccess, showError } = useToast()
   const fadeAnim = useRef(new Animated.Value(0)).current
   const slideAnim = useRef(new Animated.Value(16)).current
@@ -94,6 +104,8 @@ export default function Auth() {
       setIsCodeSent(false)
       setLoading(false)
       setCountdown(0)
+      setVerificationMethod('sms')
+      setTelegramSessionToken(null)
     }
   }, [isAuthenticated])
 
@@ -145,6 +157,8 @@ export default function Auth() {
     }
 
     setLoading(true)
+    setVerificationMethod('sms')
+    setTelegramSessionToken(null)
 
     try {
       const result = await sendVerificationCode(formattedPhone)
@@ -164,6 +178,43 @@ export default function Auth() {
     }
   }
 
+  const handleTelegramVerify = async () => {
+    if (!phoneNumber.trim()) {
+      showError('Please enter your phone number')
+      return
+    }
+
+    const formattedPhone = cleanPhoneNumber(phoneNumber)
+    const digitsOnly = formattedPhone.replace(/\D/g, '')
+    if (digitsOnly.length < 7) {
+      showError('Please enter a valid phone number')
+      return
+    }
+
+    setLoading(true)
+    setVerificationMethod('telegram')
+
+    try {
+      const result = await startTelegramVerification(formattedPhone)
+
+      if (!result.success || !result.deepLink || !result.sessionToken) {
+        showError(result.message)
+        return
+      }
+
+      setTelegramSessionToken(result.sessionToken)
+      setIsCodeSent(true)
+      startCountdown()
+
+      await Linking.openURL(result.deepLink)
+      showSuccess('Tap Start in Telegram, then enter the 6-digit code here')
+    } catch (error: any) {
+      showError(error.message || 'Failed to open Telegram verification')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleVerifyCode = async () => {
     if (verificationCode.length !== 6) {
       showError('Please enter the 6-digit verification code')
@@ -173,7 +224,10 @@ export default function Auth() {
     setLoading(true)
     try {
       const formattedPhone = cleanPhoneNumber(phoneNumber)
-      const result = await verifyPhoneCode(formattedPhone, verificationCode)
+      const result =
+        verificationMethod === 'telegram' && telegramSessionToken
+          ? await verifyTelegramOtp(formattedPhone, verificationCode, telegramSessionToken)
+          : await verifyPhoneCode(formattedPhone, verificationCode)
 
       if (result.success) {
         showSuccess(result.message || 'Verification successful!')
@@ -196,6 +250,10 @@ export default function Auth() {
 
   const handleResendCode = async () => {
     if (countdown === 0) {
+      if (verificationMethod === 'telegram') {
+        await handleTelegramVerify()
+        return
+      }
       setLoading(true)
       try {
         const formattedPhone = cleanPhoneNumber(phoneNumber)
@@ -321,7 +379,19 @@ export default function Auth() {
                       disabled={loading}
                       activeOpacity={0.85}
                     >
-                      <Text style={styles.buttonText}>{loading ? 'Sending...' : 'CONTINUE'}</Text>
+                      <Text style={styles.buttonText}>{loading ? 'Sending...' : 'CONTINUE WITH SMS'}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.telegramButton, loading && styles.buttonDisabled]}
+                      onPress={handleTelegramVerify}
+                      disabled={loading}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="paper-plane" size={20} color="#0088CC" style={styles.telegramIcon} />
+                      <Text style={styles.telegramButtonText}>
+                        {loading ? 'Opening...' : 'VERIFY WITH TELEGRAM'}
+                      </Text>
                     </TouchableOpacity>
                   </>
                 ) : (
@@ -330,6 +400,8 @@ export default function Auth() {
                       onPress={() => {
                         setIsCodeSent(false)
                         setVerificationCode('')
+                        setTelegramSessionToken(null)
+                        setVerificationMethod('sms')
                       }}
                       style={styles.changeNumberButton}
                       activeOpacity={0.7}
@@ -339,7 +411,11 @@ export default function Auth() {
                     </TouchableOpacity>
 
                     <Text style={styles.title}>OTP Verification</Text>
-                    <Text style={styles.subtitle}>Enter the OTP verification code</Text>
+                    <Text style={styles.subtitle}>
+                      {verificationMethod === 'telegram'
+                        ? 'Enter the 6-digit code from the Mescott Telegram bot'
+                        : 'Enter the OTP verification code'}
+                    </Text>
 
                     <View>
                       <TextInput
@@ -547,6 +623,26 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 8,
+  },
+  telegramButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E8F4FC',
+    borderRadius: 24,
+    paddingVertical: 16,
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: '#0088CC',
+  },
+  telegramIcon: {
+    marginRight: 8,
+  },
+  telegramButtonText: {
+    color: '#0088CC',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   buttonDisabled: {
     opacity: 0.6,
