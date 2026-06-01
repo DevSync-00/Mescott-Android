@@ -43,7 +43,6 @@ function buildDeepLink(sessionToken: string, purpose: 'sign_in' | 'sign_up') {
   return `https://t.me/${bot}?start=${prefix}_${sessionToken}`
 }
 
-/** Fallback when api.mescott.co has not been redeployed with Telegram routes */
 async function requestTelegramSessionViaSupabase(
   phone: string,
   purpose: 'sign_in' | 'sign_up',
@@ -54,11 +53,14 @@ async function requestTelegramSessionViaSupabase(
   })
 
   if (error) {
-    if (error.message?.includes('does not exist')) {
+    if (
+      error.message?.includes('does not exist') ||
+      error.message?.includes('Could not find the function')
+    ) {
       return {
         ok: false,
         error:
-          'Telegram is not set up in the database. Run webhook-server/sql/telegram_tables.sql and telegram_session_rpc.sql in Supabase.',
+          'Run webhook-server/sql/telegram_session_rpc.sql in Supabase SQL Editor, then try again.',
       }
     }
     return { ok: false, error: error.message }
@@ -77,85 +79,96 @@ async function requestTelegramSessionViaSupabase(
   }
 }
 
-async function postWebhookApi<T extends { ok?: boolean; error?: string }>(
-  path: string,
+async function postJson<T extends { ok?: boolean; error?: string }>(
+  url: string,
   body: Record<string, unknown>,
 ): Promise<{ result: T & { ok: boolean; error?: string }; status: number }> {
-  const urls = [
-    mescottApiUrl(path),
-    ...(path.includes('telegram-request')
-      ? [mescottApiUrl(MESCOTT_API_PATHS.telegramRequestSessionNested)]
-      : path.includes('telegram-verify')
-        ? [mescottApiUrl(MESCOTT_API_PATHS.telegramVerifyNested)]
-        : []),
-  ]
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
 
-  let lastStatus = 0
-  let lastError = 'Request failed'
+  const status = response.status
+  const { data, rawText } = await parseApiJson<T>(response)
 
-  for (const url of urls) {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-
-    lastStatus = response.status
-    const { data, rawText } = await parseApiJson<T>(response)
-
-    if (!data) {
-      lastError =
-        response.status === 404
-          ? 'API route missing on server'
-          : `Server error (${response.status})`
-      if (response.status === 404) continue
-      return {
-        result: { ok: false, error: lastError } as T & { ok: boolean; error?: string },
-        status: response.status,
-      }
+  if (!data) {
+    return {
+      result: {
+        ok: false,
+        error:
+          status === 404
+            ? 'API route missing'
+            : `Server error (${status})`,
+      } as T & { ok: boolean; error?: string },
+      status,
     }
-
-    if (!response.ok || data.ok === false) {
-      return {
-        result: {
-          ...data,
-          ok: false,
-          error: data.error || `Request failed (${response.status})`,
-        } as T & { ok: boolean; error?: string },
-        status: response.status,
-      }
-    }
-
-    return { result: { ...data, ok: true } as T & { ok: boolean }, status: response.status }
   }
 
-  return {
-    result: { ok: false, error: lastError } as T & { ok: boolean; error?: string },
-    status: lastStatus,
+  if (!response.ok || data.ok === false) {
+    const successShape = data as T & { success?: boolean }
+    if (successShape.success === true && status === 200) {
+      return { result: { ...data, ok: true } as T & { ok: boolean }, status }
+    }
+    return {
+      result: {
+        ...data,
+        ok: false,
+        error: data.error || `Request failed (${status})`,
+      } as T & { ok: boolean; error?: string },
+      status,
+    }
   }
+
+  return { result: { ...data, ok: true } as T & { ok: boolean }, status }
+}
+
+async function postWithFallbacks<T extends { ok?: boolean; error?: string }>(
+  paths: string[],
+  body: Record<string, unknown>,
+): Promise<{ result: T & { ok: boolean; error?: string }; status: number }> {
+  let last = {
+    result: { ok: false, error: 'Request failed' } as T & { ok: boolean; error?: string },
+    status: 0,
+  }
+
+  for (const path of paths) {
+    last = await postJson<T>(mescottApiUrl(path), body)
+    if (last.result.ok) return last
+    if (last.status !== 404) return last
+  }
+
+  return last
 }
 
 export async function requestTelegramSession(
   phone: string,
   purpose: 'sign_in' | 'sign_up' = 'sign_in',
 ): Promise<TelegramSessionResponse> {
-  const { result, status } = await postWebhookApi<TelegramSessionResponse>(
-    MESCOTT_API_PATHS.telegramRequestSession,
+  // 1) Supabase — works without new Vercel routes
+  const viaDb = await requestTelegramSessionViaSupabase(phone, purpose)
+  if (viaDb.ok) return viaDb
+
+  // 2) Dedicated API routes (after full redeploy)
+  const viaApi = await postWithFallbacks<TelegramSessionResponse>(
+    [
+      MESCOTT_API_PATHS.telegramRequestSession,
+      MESCOTT_API_PATHS.telegramRequestSessionNested,
+    ],
     { phone, purpose },
   )
+  if (viaApi.result.ok) return viaApi.result
 
-  if (result.ok) return result
-
-  if (status === 404) {
-    const fallback = await requestTelegramSessionViaSupabase(phone, purpose)
-    if (fallback.ok) return fallback
-  }
+  // 3) Existing /api/webhook multiplexer (after webhook/index.js redeploy)
+  const viaWebhook = await postJson<TelegramSessionResponse>(
+    mescottApiUrl(MESCOTT_API_PATHS.chapaWebhook),
+    { mescott_action: 'telegram-request-session', phone, purpose },
+  )
+  if (viaWebhook.result.ok) return viaWebhook.result
 
   return {
     ok: false,
-    error:
-      result.error ||
-      'Telegram API not found. Redeploy webhook-server: cd webhook-server && npx vercel login && npx vercel --prod',
+    error: viaDb.error || viaWebhook.result.error || viaApi.result.error || 'Could not start Telegram verification',
   }
 }
 
@@ -164,23 +177,25 @@ export async function verifyTelegramCode(
   code: string,
   sessionToken: string,
 ): Promise<TelegramVerifyResponse> {
-  const { result, status } = await postWebhookApi<TelegramVerifyResponse>(
-    MESCOTT_API_PATHS.telegramVerify,
-    { phone, code, sessionToken },
+  const body = { phone, code, sessionToken }
+
+  const viaApi = await postWithFallbacks<TelegramVerifyResponse>(
+    [MESCOTT_API_PATHS.telegramVerify, MESCOTT_API_PATHS.telegramVerifyNested],
+    body,
   )
+  if (viaApi.result.ok) return viaApi.result
 
-  if (result.ok) return result
-
-  if (status === 404) {
-    return {
-      ok: false,
-      error:
-        'Verify API not deployed yet. Run in terminal: cd webhook-server, then npx vercel login, then npx vercel --prod',
-    }
-  }
+  const viaWebhook = await postJson<TelegramVerifyResponse>(
+    mescottApiUrl(MESCOTT_API_PATHS.chapaWebhook),
+    { mescott_action: 'telegram-verify', ...body },
+  )
+  if (viaWebhook.result.ok) return viaWebhook.result
 
   return {
     ok: false,
-    error: result.error || 'Verification failed',
+    error:
+      viaWebhook.result.error ||
+      viaApi.result.error ||
+      'Verification API not live. Redeploy webhook-server and set SUPABASE_SERVICE_ROLE_KEY on Vercel.',
   }
 }

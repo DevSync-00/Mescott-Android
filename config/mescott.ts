@@ -47,8 +47,8 @@ export const MESCOTT_API_PATHS = {
   telegramWebhook: '/api/webhooks/telegram',
   telegramRequestSession: '/api/telegram-request-session',
   telegramVerify: '/api/telegram-verify',
-  telegramRouter: '/api/telegram?action=request-session',
-  telegramVerifyRouter: '/api/telegram?action=verify',
+  /** Telegram via existing Chapa webhook route (until dedicated routes deploy) */
+  telegramViaWebhook: '/api/webhook',
   telegramRequestSessionNested: '/api/telegram/request-session',
   telegramVerifyNested: '/api/telegram/verify',
   telegramSend: '/api/telegram/send',

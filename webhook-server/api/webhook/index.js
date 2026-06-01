@@ -165,12 +165,21 @@ export default async function handler(req, res) {
   // Handle POST requests (webhook)
   if (req.method === 'POST') {
     try {
-      const payload = req.body;
+      const payload = req.body || {};
+
+      // Mobile app Telegram auth (uses existing /api/webhook route on Vercel)
+      if (payload.mescott_action === 'telegram-request-session') {
+        return require('../telegram/request-session')(req, res);
+      }
+      if (payload.mescott_action === 'telegram-verify') {
+        return require('../telegram/verify')(req, res);
+      }
+
       const signature = req.headers['chapa-signature'] || req.headers['x-chapa-signature'];
       const webhookSecret = process.env.CHAPA_WEBHOOK_SECRET;
-    if (!webhookSecret) {
-      throw new Error('CHAPA_WEBHOOK_SECRET environment variable is required');
-    }
+      if (!webhookSecret) {
+        throw new Error('CHAPA_WEBHOOK_SECRET environment variable is required');
+      }
 
       console.log('Received webhook:', JSON.stringify(payload, null, 2));
 

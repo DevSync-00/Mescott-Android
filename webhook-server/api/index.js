@@ -1,4 +1,4 @@
-/** Root handler so visiting the deployment URL does not show Vercel 404 */
+/** Root handler — GET https://api.mescott.co/ */
 module.exports = (req, res) => {
   res.status(200).json({
     ok: true,
@@ -6,11 +6,10 @@ module.exports = (req, res) => {
     endpoints: {
       chapaWebhook: 'POST /api/webhook',
       paymentReturn: 'GET /api/payment-return?tx_ref=YOUR_TX_REF',
-      telegramWebhook: 'POST /api/webhooks/telegram',
       telegramRequestSession: 'POST /api/telegram-request-session',
       telegramVerify: 'POST /api/telegram-verify',
-      telegramSend: 'POST /api/telegram/send',
-      telegramMessages: 'GET /api/telegram/messages?senderId=TELEGRAM_USER_ID',
+      telegramViaWebhook: 'POST /api/webhook body.mescott_action=telegram-request-session|telegram-verify',
+      telegramBotWebhook: 'POST /api/webhooks/telegram',
       test: 'GET /api/test',
     },
   })
