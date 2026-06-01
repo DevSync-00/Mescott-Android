@@ -118,17 +118,21 @@ export async function signInWithTelegramOidc(): Promise<TelegramLoginResult> {
     }
   }
 
-  const redirectUri = getTelegramRedirectUri()
+  const appRedirectUri = getTelegramRedirectUri()
+  const backendCallback = mescottApiUrl('/api/auth/telegram-callback')
+  
   const { verifier, challenge } = await createPkcePair()
-  const state = await randomHexString(16)
+  const stateVal = await randomHexString(16)
+  const combinedState = `${stateVal}|${appRedirectUri}`
+
   const authUrl = buildAuthorizeUrl({
     clientId,
-    redirectUri,
-    state,
+    redirectUri: backendCallback,
+    state: combinedState,
     codeChallenge: challenge,
   })
 
-  const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri)
+  const result = await WebBrowser.openAuthSessionAsync(authUrl, appRedirectUri)
 
   if (result.type !== 'success' || !result.url) {
     if (result.type === 'cancel' || result.type === 'dismiss') {
@@ -156,9 +160,9 @@ export async function signInWithTelegramOidc(): Promise<TelegramLoginResult> {
     return { ok: false, error: 'No authorization code returned from Telegram' }
   }
 
-  if (returnedState && returnedState !== state) {
+  if (returnedState && returnedState !== combinedState) {
     return { ok: false, error: 'Invalid state — please try again' }
   }
 
-  return exchangeCodeOnServer(code, verifier, redirectUri)
+  return exchangeCodeOnServer(code, verifier, backendCallback)
 }
