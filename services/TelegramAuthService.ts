@@ -1,4 +1,9 @@
-import { MESCOTT_API_PATHS, mescottApiUrl } from '../config/mescott'
+import {
+  MESCOTT_API_PATHS,
+  TELEGRAM_BOT_USERNAME,
+  mescottApiUrl,
+} from '../config/mescott'
+import { supabase } from '../lib/supabase'
 
 export type TelegramSessionResponse = {
   ok: boolean
@@ -32,22 +37,50 @@ async function parseApiJson<T>(response: Response): Promise<{ data: T | null; ra
   }
 }
 
-function apiUnavailableMessage(status: number, rawText: string): string {
-  if (status === 405 || (status === 200 && rawText.includes('<!doctype'))) {
-    return (
-      'Mescott API is not reachable. Set EXPO_PUBLIC_API_URL=https://api.mescott.co in .env and restart Expo.'
-    )
+function buildDeepLink(sessionToken: string, purpose: 'sign_in' | 'sign_up') {
+  const prefix = purpose === 'sign_up' ? 'signup' : 'signin'
+  const bot = TELEGRAM_BOT_USERNAME.replace(/^@/, '')
+  return `https://t.me/${bot}?start=${prefix}_${sessionToken}`
+}
+
+/** Fallback when api.mescott.co has not been redeployed with Telegram routes */
+async function requestTelegramSessionViaSupabase(
+  phone: string,
+  purpose: 'sign_in' | 'sign_up',
+): Promise<TelegramSessionResponse> {
+  const { data, error } = await supabase.rpc('create_telegram_session', {
+    p_phone: phone,
+    p_purpose: purpose,
+  })
+
+  if (error) {
+    if (error.message?.includes('does not exist')) {
+      return {
+        ok: false,
+        error:
+          'Telegram is not set up in the database. Run webhook-server/sql/telegram_tables.sql and telegram_session_rpc.sql in Supabase.',
+      }
+    }
+    return { ok: false, error: error.message }
   }
-  if (status === 404) {
-    return 'Telegram API not found (404). Redeploy webhook-server from the latest code.'
+
+  const row = data as { ok?: boolean; sessionToken?: string } | null
+  if (!row?.sessionToken) {
+    return { ok: false, error: 'Could not create Telegram session' }
   }
-  return `Server error (${status}). Check webhook deployment and env vars.`
+
+  return {
+    ok: true,
+    sessionToken: row.sessionToken,
+    deepLink: buildDeepLink(row.sessionToken, purpose),
+    botUsername: TELEGRAM_BOT_USERNAME.replace(/^@/, ''),
+  }
 }
 
 async function postWebhookApi<T extends { ok?: boolean; error?: string }>(
   path: string,
   body: Record<string, unknown>,
-): Promise<T & { ok: boolean; error?: string }> {
+): Promise<{ result: T & { ok: boolean; error?: string }; status: number }> {
   const urls = [
     mescottApiUrl(path),
     ...(path.includes('telegram-request')
@@ -57,6 +90,7 @@ async function postWebhookApi<T extends { ok?: boolean; error?: string }>(
         : []),
   ]
 
+  let lastStatus = 0
   let lastError = 'Request failed'
 
   for (const url of urls) {
@@ -66,36 +100,63 @@ async function postWebhookApi<T extends { ok?: boolean; error?: string }>(
       body: JSON.stringify(body),
     })
 
+    lastStatus = response.status
     const { data, rawText } = await parseApiJson<T>(response)
 
     if (!data) {
-      lastError = apiUnavailableMessage(response.status, rawText)
+      lastError =
+        response.status === 404
+          ? 'API route missing on server'
+          : `Server error (${response.status})`
       if (response.status === 404) continue
-      return { ok: false, error: lastError } as T & { ok: boolean; error?: string }
+      return {
+        result: { ok: false, error: lastError } as T & { ok: boolean; error?: string },
+        status: response.status,
+      }
     }
 
     if (!response.ok || data.ok === false) {
       return {
-        ...data,
-        ok: false,
-        error: data.error || apiUnavailableMessage(response.status, rawText),
-      } as T & { ok: boolean; error?: string }
+        result: {
+          ...data,
+          ok: false,
+          error: data.error || `Request failed (${response.status})`,
+        } as T & { ok: boolean; error?: string },
+        status: response.status,
+      }
     }
 
-    return { ...data, ok: true } as T & { ok: boolean }
+    return { result: { ...data, ok: true } as T & { ok: boolean }, status: response.status }
   }
 
-  return { ok: false, error: lastError } as T & { ok: boolean; error?: string }
+  return {
+    result: { ok: false, error: lastError } as T & { ok: boolean; error?: string },
+    status: lastStatus,
+  }
 }
 
 export async function requestTelegramSession(
   phone: string,
   purpose: 'sign_in' | 'sign_up' = 'sign_in',
 ): Promise<TelegramSessionResponse> {
-  return postWebhookApi<TelegramSessionResponse>(MESCOTT_API_PATHS.telegramRequestSession, {
-    phone,
-    purpose,
-  })
+  const { result, status } = await postWebhookApi<TelegramSessionResponse>(
+    MESCOTT_API_PATHS.telegramRequestSession,
+    { phone, purpose },
+  )
+
+  if (result.ok) return result
+
+  if (status === 404) {
+    const fallback = await requestTelegramSessionViaSupabase(phone, purpose)
+    if (fallback.ok) return fallback
+  }
+
+  return {
+    ok: false,
+    error:
+      result.error ||
+      'Telegram API not found. Redeploy webhook-server: cd webhook-server && npx vercel login && npx vercel --prod',
+  }
 }
 
 export async function verifyTelegramCode(
@@ -103,10 +164,23 @@ export async function verifyTelegramCode(
   code: string,
   sessionToken: string,
 ): Promise<TelegramVerifyResponse> {
-  return postWebhookApi<TelegramVerifyResponse>(MESCOTT_API_PATHS.telegramVerify, {
-    phone,
-    code,
-    sessionToken,
-  })
-}
+  const { result, status } = await postWebhookApi<TelegramVerifyResponse>(
+    MESCOTT_API_PATHS.telegramVerify,
+    { phone, code, sessionToken },
+  )
 
+  if (result.ok) return result
+
+  if (status === 404) {
+    return {
+      ok: false,
+      error:
+        'Verify API not deployed yet. Run in terminal: cd webhook-server, then npx vercel login, then npx vercel --prod',
+    }
+  }
+
+  return {
+    ok: false,
+    error: result.error || 'Verification failed',
+  }
+}

@@ -42,3 +42,5 @@ ALTER TABLE public.channel_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.telegram_verification_codes ENABLE ROW LEVEL SECURITY;
 
 -- Service role bypasses RLS; tighten policies for anon/authenticated as needed
+
+-- Optional: app fallback when API not deployed — run telegram_session_rpc.sql
