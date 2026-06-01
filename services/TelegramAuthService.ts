@@ -8,6 +8,8 @@ import { supabase } from '../lib/supabase'
 export type TelegramSessionResponse = {
   ok: boolean
   sessionToken?: string
+  /** Present when using Supabase RPC — enter in app if bot does not DM the code yet */
+  code?: string
   deepLink?: string
   botUsername?: string
   error?: string
@@ -53,20 +55,39 @@ async function requestTelegramSessionViaSupabase(
   })
 
   if (error) {
-    if (
-      error.message?.includes('does not exist') ||
-      error.message?.includes('Could not find the function')
-    ) {
+    const code = (error as { code?: string }).code
+    const missingRpc =
+      code === 'PGRST202' ||
+      (error.message?.includes('Could not find the function') &&
+        !error.message?.includes('gen_random_bytes'))
+
+    if (missingRpc) {
       return {
         ok: false,
         error:
-          'Run webhook-server/sql/telegram_session_rpc.sql in Supabase SQL Editor, then try again.',
+          'create_telegram_session is not on your Supabase project yet. Run webhook-server/sql/telegram_setup_complete.sql in SQL Editor.',
       }
     }
-    return { ok: false, error: error.message }
+
+    if (error.message?.includes('gen_random_bytes')) {
+      return {
+        ok: false,
+        error:
+          'Telegram function needs an update. Run webhook-server/sql/telegram_setup_complete.sql again in Supabase SQL Editor.',
+      }
+    }
+
+    if (error.message?.includes('telegram_verification_codes')) {
+      return {
+        ok: false,
+        error: 'Run telegram_tables.sql first, then telegram_session_rpc.sql (or telegram_setup_complete.sql).',
+      }
+    }
+
+    return { ok: false, error: error.message || 'Supabase error' }
   }
 
-  const row = data as { ok?: boolean; sessionToken?: string } | null
+  const row = data as { ok?: boolean; sessionToken?: string; code?: string } | null
   if (!row?.sessionToken) {
     return { ok: false, error: 'Could not create Telegram session' }
   }
@@ -74,6 +95,7 @@ async function requestTelegramSessionViaSupabase(
   return {
     ok: true,
     sessionToken: row.sessionToken,
+    code: row.code,
     deepLink: buildDeepLink(row.sessionToken, purpose),
     botUsername: TELEGRAM_BOT_USERNAME.replace(/^@/, ''),
   }

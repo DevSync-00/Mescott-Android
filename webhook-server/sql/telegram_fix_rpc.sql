@@ -1,4 +1,4 @@
--- Run AFTER telegram_tables.sql (or use telegram_setup_complete.sql for everything at once)
+-- Run in Supabase SQL Editor — returns OTP to the app AND stores it for the bot
 
 CREATE OR REPLACE FUNCTION public.create_telegram_session(
   p_phone text,
@@ -16,10 +16,6 @@ DECLARE
 BEGIN
   IF p_phone IS NULL OR length(trim(p_phone)) < 7 THEN
     RAISE EXCEPTION 'Invalid phone number';
-  END IF;
-
-  IF p_purpose IS NOT NULL AND p_purpose NOT IN ('sign_in', 'sign_up') THEN
-    RAISE EXCEPTION 'Invalid purpose';
   END IF;
 
   v_token := replace(gen_random_uuid()::text, '-', '');

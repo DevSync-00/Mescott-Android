@@ -1,33 +1,29 @@
 /**
- * Single Vercel serverless entry — all API routes go through here.
- * build: telegram-v3-single
+ * Single Vercel serverless entry — static requires so all handlers are bundled.
+ * build: telegram-v4-static
  */
-function requestPath(req) {
-  const raw = req.url || '/'
-  const path = raw.split('?')[0].replace(/\/$/, '') || '/'
-  return path
+const HANDLERS = {
+  '/api/payment-return': require('./payment-return'),
+  '/api/webhook': require('./webhook/index'),
+  '/api/telegram-request-session': require('./telegram/request-session'),
+  '/api/telegram-verify': require('./telegram/verify'),
+  '/api/webhooks/telegram': require('./webhooks/telegram'),
+  '/api/webhooks-telegram': require('./webhooks/telegram'),
+  '/api/telegram/request-session': require('./telegram/request-session'),
+  '/api/telegram/verify': require('./telegram/verify'),
+  '/api/telegram/send': require('./telegram/send'),
+  '/api/telegram/messages': require('./telegram/messages'),
+  '/api/telegram': require('./telegram'),
+  '/api/test': require('./test/index'),
 }
 
-const path = require('path')
-
-function load(relativePath) {
-  const mod = require(path.join(__dirname, relativePath))
+function unwrap(mod) {
   return mod.default || mod
 }
 
-const ROUTES = {
-  '/api/payment-return': './payment-return',
-  '/api/webhook': './webhook/index',
-  '/api/telegram-request-session': './telegram/request-session',
-  '/api/telegram-verify': './telegram/verify',
-  '/api/webhooks/telegram': './webhooks/telegram',
-  '/api/webhooks-telegram': './webhooks/telegram',
-  '/api/telegram/request-session': './telegram/request-session',
-  '/api/telegram/verify': './telegram/verify',
-  '/api/telegram/send': './telegram/send',
-  '/api/telegram/messages': './telegram/messages',
-  '/api/telegram': './telegram',
-  '/api/test': './test/index',
+function requestPath(req) {
+  const raw = req.url || '/'
+  return raw.split('?')[0].replace(/\/$/, '') || '/'
 }
 
 module.exports = async function handler(req, res) {
@@ -39,40 +35,38 @@ module.exports = async function handler(req, res) {
     return res.status(200).end()
   }
 
-  const path = requestPath(req)
+  const urlPath = requestPath(req)
 
-  if (path === '/' || path === '') {
+  if (urlPath === '/' || urlPath === '') {
     return res.status(200).json({
       ok: true,
       service: 'Mescott webhook server',
-      build: 'telegram-v3-single',
+      build: 'telegram-v4-static',
       endpoints: {
         chapaWebhook: 'POST /api/webhook',
         paymentReturn: 'GET /api/payment-return?tx_ref=YOUR_TX_REF',
         telegramRequestSession: 'POST /api/telegram-request-session',
         telegramVerify: 'POST /api/telegram-verify',
-        telegramViaWebhook:
-          'POST /api/webhook {"mescott_action":"telegram-request-session"|"telegram-verify"}',
         telegramBotWebhook: 'POST /api/webhooks/telegram',
         test: 'GET /api/test',
       },
     })
   }
 
-  const modulePath = ROUTES[path]
-  if (!modulePath) {
+  const handlerFn = HANDLERS[urlPath]
+  if (!handlerFn) {
     return res.status(404).json({
       ok: false,
       error: 'Not found',
-      path,
-      build: 'telegram-v3-single',
+      path: urlPath,
+      build: 'telegram-v4-static',
     })
   }
 
   try {
-    return await load(modulePath)(req, res)
+    return await unwrap(handlerFn)(req, res)
   } catch (error) {
-    console.error('Router error:', path, error)
-    return res.status(500).json({ ok: false, error: error.message, path })
+    console.error('Router error:', urlPath, error)
+    return res.status(500).json({ ok: false, error: error.message, path: urlPath })
   }
 }

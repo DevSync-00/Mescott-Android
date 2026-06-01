@@ -205,9 +205,16 @@ export default function Auth() {
       setTelegramSessionToken(result.sessionToken)
       setIsCodeSent(true)
       startCountdown()
+      if (result.code) {
+        setVerificationCode(result.code)
+      }
 
       await Linking.openURL(result.deepLink)
-      showSuccess('Tap Start in Telegram, then enter the 6-digit code here')
+      showSuccess(
+        result.code
+          ? `Your code is ${result.code} — it’s filled in below`
+          : 'Tap Start in Telegram, then enter the 6-digit code here',
+      )
     } catch (error: any) {
       showError(error.message || 'Failed to open Telegram verification')
     } finally {

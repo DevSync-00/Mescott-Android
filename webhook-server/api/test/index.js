@@ -2,7 +2,7 @@ module.exports = function handler(req, res) {
   res.status(200).json({
     success: true,
     message: 'Webhook server is running!',
-    build: 'telegram-v3-single',
+    build: 'telegram-v4-static',
     timestamp: new Date().toISOString(),
     environment: {
       supabase_url: process.env.SUPABASE_URL ? 'Set' : 'Not set',

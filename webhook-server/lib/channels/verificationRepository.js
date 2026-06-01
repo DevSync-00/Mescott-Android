@@ -57,10 +57,11 @@ async function activateSessionFromBot(sessionToken, telegramUserId) {
       (r) => r.session_token === sessionToken && !r.used_at && r.telegram_user_id.startsWith('pending_'),
     )
     if (!row) return null
+    const keepCode = row.code && row.code !== '000000' ? row.code : code
     row.telegram_user_id = String(telegramUserId)
-    row.code = code
+    row.code = keepCode
     row.expires_at = expiresAt()
-    return { code, phone: row.phone, purpose: row.purpose, expiresAt: row.expires_at }
+    return { code: keepCode, phone: row.phone, purpose: row.purpose, expiresAt: row.expires_at }
   }
 
   const { data: existing, error: findError } = await client
@@ -76,21 +77,25 @@ async function activateSessionFromBot(sessionToken, telegramUserId) {
   if (findError) throw findError
 
   if (existing) {
+    const keepCode =
+      existing.code && existing.code !== '000000' ? existing.code : code
+    const newExpires = expiresAt()
+
     const { error: updateError } = await client
       .from(TABLE)
       .update({
         telegram_user_id: String(telegramUserId),
-        code,
-        expires_at: expiresAt(),
+        code: keepCode,
+        expires_at: newExpires,
       })
       .eq('id', existing.id)
 
     if (updateError) throw updateError
     return {
-      code,
+      code: keepCode,
       phone: existing.phone,
       purpose: existing.purpose,
-      expiresAt: expiresAt(),
+      expiresAt: newExpires,
     }
   }
 

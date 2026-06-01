@@ -13,7 +13,13 @@ interface AuthContextType {
   isLoading: boolean; // Add this for backward compatibility
   sendVerificationCode: (phone: string) => Promise<{ success: boolean; message: string }>;
   verifyPhoneCode: (phone: string, code: string) => Promise<{ success: boolean; message: string; isNewUser?: boolean }>;
-  startTelegramVerification: (phone: string) => Promise<{ success: boolean; message: string; sessionToken?: string; deepLink?: string }>;
+  startTelegramVerification: (phone: string) => Promise<{
+    success: boolean;
+    message: string;
+    sessionToken?: string;
+    deepLink?: string;
+    code?: string;
+  }>;
   verifyTelegramOtp: (phone: string, code: string, sessionToken: string) => Promise<{ success: boolean; message: string; isNewUser?: boolean }>;
   logout: () => Promise<void>;
   refreshUserProfile: () => Promise<void>;
@@ -279,9 +285,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
     return {
       success: true,
-      message: 'Open Telegram and tap Start, then enter the code here',
+      message: result.code
+        ? 'Code ready — enter it below (Telegram may also send the same code)'
+        : 'Open Telegram and tap Start, then enter the code here',
       sessionToken: result.sessionToken,
       deepLink: result.deepLink,
+      code: result.code,
     };
   };
 
