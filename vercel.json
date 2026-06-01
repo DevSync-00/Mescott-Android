@@ -7,8 +7,15 @@
   "routes": [
     { "src": "/api/payment-return", "dest": "/webhook-server/api/payment-return.js" },
     { "src": "/api/webhook", "dest": "/webhook-server/api/webhook/index.js" },
+    { "src": "/api/telegram-request-session", "dest": "/webhook-server/api/telegram-request-session.js" },
+    { "src": "/api/telegram-verify", "dest": "/webhook-server/api/telegram-verify.js" },
+    { "src": "/api/telegram", "dest": "/webhook-server/api/telegram.js" },
+    { "src": "/api/webhooks-telegram", "dest": "/webhook-server/api/webhooks-telegram.js" },
+    { "src": "/api/webhooks/telegram", "dest": "/webhook-server/api/webhooks/telegram.js" },
+    { "src": "/api/telegram/(.*)", "dest": "/webhook-server/api/telegram/$1.js" },
+    { "src": "/api/telegram/send", "dest": "/webhook-server/api/telegram/send.js" },
+    { "src": "/api/telegram/messages", "dest": "/webhook-server/api/telegram/messages.js" },
     { "src": "/api/test", "dest": "/webhook-server/api/test/index.js" },
-    { "src": "/api/(.*)", "dest": "/webhook-server/api/$1.js" },
     { "src": "/", "dest": "/webhook-server/api/index.js" },
     { "src": "/(.*)", "dest": "/webhook-server/public/$1" }
   ]

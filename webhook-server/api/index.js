@@ -3,6 +3,7 @@ module.exports = (req, res) => {
   res.status(200).json({
     ok: true,
     service: 'Mescott webhook server',
+    build: 'telegram-v2',
     endpoints: {
       chapaWebhook: 'POST /api/webhook',
       paymentReturn: 'GET /api/payment-return?tx_ref=YOUR_TX_REF',
