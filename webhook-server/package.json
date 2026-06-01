@@ -2,10 +2,8 @@
   "name": "mescott-webhook-server",
   "version": "1.0.0",
   "description": "Webhook server for Chapa payment notifications",
-  "main": "index.js",
   "scripts": {
     "dev": "vercel dev",
-    "build": "echo 'No build step required'",
     "start": "node server.js",
     "telegram:register-webhook": "node scripts/register-telegram-webhook.js",
     "env:pull": "vercel env pull .env.production.local --environment=production --yes"
