@@ -1,23 +1,7 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "builds": [
-    { "src": "api/**/*.js", "use": "@vercel/node" },
-    { "src": "public/**", "use": "@vercel/static" }
-  ],
-  "routes": [
-    { "src": "/api/payment-return", "dest": "/api/payment-return.js" },
-    { "src": "/api/webhook", "dest": "/api/webhook/index.js" },
-    { "src": "/api/telegram-request-session", "dest": "/api/telegram-request-session.js" },
-    { "src": "/api/telegram-verify", "dest": "/api/telegram-verify.js" },
-    { "src": "/api/telegram", "dest": "/api/telegram.js" },
-    { "src": "/api/webhooks-telegram", "dest": "/api/webhooks-telegram.js" },
-    { "src": "/api/webhooks/telegram", "dest": "/api/webhooks/telegram.js" },
-    { "src": "/api/telegram/send", "dest": "/api/telegram/send.js" },
-    { "src": "/api/telegram/messages", "dest": "/api/telegram/messages.js" },
-    { "src": "/api/telegram/request-session", "dest": "/api/telegram/request-session.js" },
-    { "src": "/api/telegram/verify", "dest": "/api/telegram/verify.js" },
-    { "src": "/api/test", "dest": "/api/test/index.js" },
-    { "src": "/", "dest": "/api/index.js" },
-    { "src": "/(.*)", "dest": "/public/$1" }
+  "rewrites": [
+    { "source": "/", "destination": "/api/index" }
   ]
 }
