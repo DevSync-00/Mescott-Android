@@ -125,14 +125,9 @@ export async function signInWithTelegramOidc(): Promise<TelegramLoginResult> {
   const stateVal = await randomHexString(16)
   const combinedState = `${stateVal}|${appRedirectUri}`
 
-  const authUrl = buildAuthorizeUrl({
-    clientId,
-    redirectUri: backendCallback,
-    state: combinedState,
-    codeChallenge: challenge,
-  })
+  const startUrl = `${mescottApiUrl('/api/auth/telegram-login')}?state=${encodeURIComponent(combinedState)}&code_challenge=${challenge}`
 
-  const result = await WebBrowser.openAuthSessionAsync(authUrl, appRedirectUri)
+  const result = await WebBrowser.openAuthSessionAsync(startUrl, appRedirectUri)
 
   if (result.type !== 'success' || !result.url) {
     if (result.type === 'cancel' || result.type === 'dismiss') {

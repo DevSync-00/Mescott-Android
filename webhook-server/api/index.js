@@ -5,6 +5,7 @@
 const HANDLERS = {
   '/api/auth/telegram-oidc': require('./auth/telegram-oidc'),
   '/api/auth/telegram-callback': require('./auth/telegram-callback'),
+  '/api/auth/telegram-login': require('./auth/telegram-login'),
   '/api/payment-return': require('./payment-return'),
   '/api/webhook': require('./webhook/index'),
   '/api/telegram-request-session': require('./telegram/request-session'),
