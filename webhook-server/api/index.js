@@ -8,8 +8,10 @@ function requestPath(req) {
   return path
 }
 
-function load(modulePath) {
-  const mod = require(modulePath)
+const path = require('path')
+
+function load(relativePath) {
+  const mod = require(path.join(__dirname, relativePath))
   return mod.default || mod
 }
 
