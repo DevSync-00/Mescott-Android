@@ -1,11 +1,22 @@
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
+let _supabase = null;
+function getSupabase() {
+  if (!_supabase) {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_ANON_KEY;
+    if (!url || !key) {
+      throw new Error('SUPABASE_URL and SUPABASE_ANON_KEY are not configured on the server');
+    }
+    _supabase = createClient(url, key);
+  }
+  return _supabase;
+}
+
+const supabase = {
+  from: (table) => getSupabase().from(table)
+};
 
 // Verify webhook signature
 function verifyWebhookSignature(payload, signature, secret) {
