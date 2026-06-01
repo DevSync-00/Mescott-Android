@@ -137,7 +137,7 @@ async function processSuccessfulPayment(payload) {
 }
 
 // Main webhook handler
-export default async function handler(req, res) {
+async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
@@ -235,3 +235,6 @@ export default async function handler(req, res) {
     error: 'Method not allowed' 
   });
 }
+
+module.exports = handler
+module.exports.default = handler
