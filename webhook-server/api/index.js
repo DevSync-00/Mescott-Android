@@ -1,8 +1,9 @@
 /**
  * Single Vercel serverless entry — static requires so all handlers are bundled.
- * build: telegram-v4-static
+ * build: telegram-oidc-v1
  */
 const HANDLERS = {
+  '/api/auth/telegram-oidc': require('./auth/telegram-oidc'),
   '/api/payment-return': require('./payment-return'),
   '/api/webhook': require('./webhook/index'),
   '/api/telegram-request-session': require('./telegram/request-session'),
@@ -41,13 +42,11 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({
       ok: true,
       service: 'Mescott webhook server',
-      build: 'telegram-v4-static',
+      build: 'telegram-oidc-v1',
       endpoints: {
+        telegramLogin: 'POST /api/auth/telegram-oidc',
         chapaWebhook: 'POST /api/webhook',
         paymentReturn: 'GET /api/payment-return?tx_ref=YOUR_TX_REF',
-        telegramRequestSession: 'POST /api/telegram-request-session',
-        telegramVerify: 'POST /api/telegram-verify',
-        telegramBotWebhook: 'POST /api/webhooks/telegram',
         test: 'GET /api/test',
       },
     })
@@ -59,7 +58,7 @@ module.exports = async function handler(req, res) {
       ok: false,
       error: 'Not found',
       path: urlPath,
-      build: 'telegram-v4-static',
+      build: 'telegram-oidc-v1',
     })
   }
 

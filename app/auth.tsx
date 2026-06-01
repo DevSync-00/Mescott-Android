@@ -11,7 +11,6 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
   Platform,
-  Linking,
 } from 'react-native'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import { Image } from 'expo-image'
@@ -39,12 +38,10 @@ export default function Auth() {
   })
   const [countryPickerVisible, setCountryPickerVisible] = useState(false)
   const [verificationMethod, setVerificationMethod] = useState<'sms' | 'telegram'>('sms')
-  const [telegramSessionToken, setTelegramSessionToken] = useState<string | null>(null)
   const {
     sendVerificationCode,
     verifyPhoneCode,
-    startTelegramVerification,
-    verifyTelegramOtp,
+    signInWithTelegram,
     isAuthenticated,
     loading: isLoading,
   } = useAuth()
@@ -104,8 +101,6 @@ export default function Auth() {
       setIsCodeSent(false)
       setLoading(false)
       setCountdown(0)
-      setVerificationMethod('sms')
-      setTelegramSessionToken(null)
     }
   }, [isAuthenticated])
 
@@ -158,7 +153,6 @@ export default function Auth() {
 
     setLoading(true)
     setVerificationMethod('sms')
-    setTelegramSessionToken(null)
 
     try {
       const result = await sendVerificationCode(formattedPhone)
@@ -178,45 +172,20 @@ export default function Auth() {
     }
   }
 
-  const handleTelegramVerify = async () => {
-    if (!phoneNumber.trim()) {
-      showError('Please enter your phone number')
-      return
-    }
-
-    const formattedPhone = cleanPhoneNumber(phoneNumber)
-    const digitsOnly = formattedPhone.replace(/\D/g, '')
-    if (digitsOnly.length < 7) {
-      showError('Please enter a valid phone number')
-      return
-    }
-
+  const handleTelegramSignIn = async () => {
     setLoading(true)
-    setVerificationMethod('telegram')
-
     try {
-      const result = await startTelegramVerification(formattedPhone)
+      const result = await signInWithTelegram()
 
-      if (!result.success || !result.deepLink || !result.sessionToken) {
-        showError(result.message)
-        return
+      if (result.success) {
+        showSuccess(result.message || 'Telegram sign-in successful!')
+        // Navigation is handled automatically by the useEffect watching isAuthenticated
+      } else {
+        showError(result.message || 'Telegram sign-in failed.')
       }
-
-      setTelegramSessionToken(result.sessionToken)
-      setIsCodeSent(true)
-      startCountdown()
-      if (result.code) {
-        setVerificationCode(result.code)
-      }
-
-      await Linking.openURL(result.deepLink)
-      showSuccess(
-        result.code
-          ? `Your code is ${result.code} — it’s filled in below`
-          : 'Tap Start in Telegram, then enter the 6-digit code here',
-      )
     } catch (error: any) {
-      showError(error.message || 'Failed to open Telegram verification')
+      console.error('Exception in handleTelegramSignIn:', error)
+      showError(error.message || 'Failed to start Telegram login.')
     } finally {
       setLoading(false)
     }
@@ -231,10 +200,7 @@ export default function Auth() {
     setLoading(true)
     try {
       const formattedPhone = cleanPhoneNumber(phoneNumber)
-      const result =
-        verificationMethod === 'telegram' && telegramSessionToken
-          ? await verifyTelegramOtp(formattedPhone, verificationCode, telegramSessionToken)
-          : await verifyPhoneCode(formattedPhone, verificationCode)
+      const result = await verifyPhoneCode(formattedPhone, verificationCode)
 
       if (result.success) {
         showSuccess(result.message || 'Verification successful!')
@@ -257,10 +223,6 @@ export default function Auth() {
 
   const handleResendCode = async () => {
     if (countdown === 0) {
-      if (verificationMethod === 'telegram') {
-        await handleTelegramVerify()
-        return
-      }
       setLoading(true)
       try {
         const formattedPhone = cleanPhoneNumber(phoneNumber)
@@ -391,13 +353,13 @@ export default function Auth() {
 
                     <TouchableOpacity
                       style={[styles.telegramButton, loading && styles.buttonDisabled]}
-                      onPress={handleTelegramVerify}
+                      onPress={handleTelegramSignIn}
                       disabled={loading}
                       activeOpacity={0.85}
                     >
                       <Ionicons name="paper-plane" size={20} color="#0088CC" style={styles.telegramIcon} />
                       <Text style={styles.telegramButtonText}>
-                        {loading ? 'Opening...' : 'VERIFY WITH TELEGRAM'}
+                        {loading ? 'Signing in...' : 'CONTINUE WITH TELEGRAM'}
                       </Text>
                     </TouchableOpacity>
                   </>
@@ -407,8 +369,6 @@ export default function Auth() {
                       onPress={() => {
                         setIsCodeSent(false)
                         setVerificationCode('')
-                        setTelegramSessionToken(null)
-                        setVerificationMethod('sms')
                       }}
                       style={styles.changeNumberButton}
                       activeOpacity={0.7}

@@ -53,7 +53,13 @@ export const MESCOTT_API_PATHS = {
   telegramVerifyNested: '/api/telegram/verify',
   telegramSend: '/api/telegram/send',
   telegramMessages: '/api/telegram/messages',
+  /** Official Telegram Login (OIDC) — exchange code for Supabase session */
+  telegramOidc: '/api/auth/telegram-oidc',
 } as const
+
+/** Numeric Client ID from @BotFather → Bot Settings → Web Login */
+export const TELEGRAM_OIDC_CLIENT_ID =
+  process.env.EXPO_PUBLIC_TELEGRAM_OIDC_CLIENT_ID || ''
 
 export const TELEGRAM_BOT_USERNAME =
   process.env.EXPO_PUBLIC_TELEGRAM_BOT_USERNAME || 'MescottBot'

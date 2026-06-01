@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SimpleUserProfile } from '../types/SimpleUserProfile';
 import { ProfileSyncService } from '../services/ProfileSyncService';
+import { signInWithTelegramOidc } from '../services/TelegramLoginService';
 import { requestTelegramSession, verifyTelegramCode } from '../services/TelegramAuthService';
 
 interface AuthContextType {
@@ -13,12 +14,13 @@ interface AuthContextType {
   isLoading: boolean; // Add this for backward compatibility
   sendVerificationCode: (phone: string) => Promise<{ success: boolean; message: string }>;
   verifyPhoneCode: (phone: string, code: string) => Promise<{ success: boolean; message: string; isNewUser?: boolean }>;
-  startTelegramVerification: (phone: string) => Promise<{
+  signInWithTelegram: () => Promise<{ success: boolean; message: string; isNewUser?: boolean }>;
+  sendTelegramVerification: (phone: string) => Promise<{
     success: boolean;
     message: string;
     sessionToken?: string;
     deepLink?: string;
-    code?: string;
+    botUsername?: string;
   }>;
   verifyTelegramOtp: (phone: string, code: string, sessionToken: string) => Promise<{ success: boolean; message: string; isNewUser?: boolean }>;
   logout: () => Promise<void>;
@@ -277,30 +279,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
   };
 
-  const startTelegramVerification = async (phone: string) => {
-    const normalized = normalizePhone(phone);
-    const result = await requestTelegramSession(normalized, 'sign_in');
-    if (!result.ok || !result.sessionToken || !result.deepLink) {
-      return { success: false, message: result.error || 'Could not start Telegram verification' };
-    }
-    return {
-      success: true,
-      message: result.code
-        ? 'Code ready — enter it below (Telegram may also send the same code)'
-        : 'Open Telegram and tap Start, then enter the code here',
-      sessionToken: result.sessionToken,
-      deepLink: result.deepLink,
-      code: result.code,
-    };
-  };
-
-  const verifyTelegramOtp = async (phone: string, code: string, sessionToken: string) => {
+  const signInWithTelegram = async () => {
     try {
-      const normalized = normalizePhone(phone);
-      const result = await verifyTelegramCode(normalized, code, sessionToken);
+      const result = await signInWithTelegramOidc();
 
       if (!result.ok || !result.session) {
-        return { success: false, message: result.error || 'Verification failed' };
+        return { success: false, message: result.error || 'Telegram sign-in failed' };
       }
 
       const { error: sessionError } = await supabase.auth.setSession({
@@ -317,12 +301,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       } = await supabase.auth.getUser();
 
       if (!authUser) {
-        return { success: false, message: 'Verification failed' };
+        return { success: false, message: 'Telegram sign-in failed' };
       }
 
-      return ensureProfileAfterAuth(authUser.id, normalized);
+      const phone = result.phone || authUser.phone || '';
+      return ensureProfileAfterAuth(authUser.id, phone ? normalizePhone(phone) : '+');
     } catch (error) {
-      console.error('Unexpected error in verifyTelegramOtp:', error);
+      console.error('Unexpected error in signInWithTelegram:', error);
       return { success: false, message: 'An unexpected error occurred. Please try again.' };
     }
   };
@@ -356,6 +341,60 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (error) {
       console.error('Unexpected error in verifyPhoneCode:', error);
       return { success: false, message: 'An unexpected error occurred. Please try again.' };
+    }
+  };
+
+  const sendTelegramVerification = async (phone: string) => {
+    try {
+      const normalized = normalizePhone(phone);
+      const result = await requestTelegramSession(normalized, 'sign_in');
+      if (!result.ok) {
+        return { success: false, message: result.error || 'Failed to start Telegram verification' };
+      }
+      return {
+        success: true,
+        message: 'Telegram session created',
+        sessionToken: result.sessionToken,
+        deepLink: result.deepLink,
+        botUsername: result.botUsername,
+      };
+    } catch (error: any) {
+      console.error('Error in sendTelegramVerification:', error);
+      return { success: false, message: error.message || 'An unexpected error occurred' };
+    }
+  };
+
+  const verifyTelegramOtp = async (phone: string, code: string, sessionToken: string) => {
+    try {
+      const normalized = normalizePhone(phone);
+      const result = await verifyTelegramCode(normalized, code, sessionToken);
+
+      if (!result.ok || !result.session) {
+        return { success: false, message: result.error || 'Verification failed' };
+      }
+
+      // Login using the returned session
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: result.session.access_token,
+        refresh_token: result.session.refresh_token,
+      });
+
+      if (sessionError) {
+        return { success: false, message: sessionError.message };
+      }
+
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
+
+      if (!authUser) {
+        return { success: false, message: 'Telegram sign-in failed' };
+      }
+
+      return ensureProfileAfterAuth(authUser.id, normalized);
+    } catch (error: any) {
+      console.error('Error in verifyTelegramOtp:', error);
+      return { success: false, message: error.message || 'An unexpected error occurred' };
     }
   };
 
@@ -427,7 +466,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     isLoading: loading, // Add this for backward compatibility
     sendVerificationCode,
     verifyPhoneCode,
-    startTelegramVerification,
+    signInWithTelegram,
+    sendTelegramVerification,
     verifyTelegramOtp,
     logout,
     refreshUserProfile,
