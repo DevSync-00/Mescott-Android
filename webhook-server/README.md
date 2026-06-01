@@ -32,8 +32,11 @@ EXPO_PUBLIC_APP_URL=https://mescott.co
 
 ## Deploy
 
-1. Deploy this `webhook-server` folder to Vercel (root directory = `webhook-server`).
-2. Point **`api.mescott.co`** DNS → that deployment.
+Use Vercel project **`mescott-android`** with **Root Directory** = `webhook-server`. See [DEPLOY.md](./DEPLOY.md).
+
+1. `cd webhook-server && npx vercel link` → choose **mescott-android**
+2. `npx vercel --prod`
+3. Confirm **`api.mescott.co`** is on that project (Settings → Domains).
 3. **Redeploy** after pulling Telegram API changes (older deploys only have Chapa routes).
 4. Chapa dashboard webhook: `https://api.mescott.co/api/webhook`
 5. Copy `webhook-server/.env.example` → `.env` and set `TELEGRAM_BOT_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY`, `TELEGRAM_BOT_USERNAME`.

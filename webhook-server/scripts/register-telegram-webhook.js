@@ -75,7 +75,7 @@ async function main() {
 
   console.log('Success:', JSON.stringify(result, null, 2))
   console.log('')
-  console.log('Add these to Vercel → Project mchapaw → Environment Variables → Production:')
+  console.log('Add these to Vercel → Project mescott-android → Environment Variables → Production:')
   console.log('  TELEGRAM_BOT_TOKEN')
   console.log('  TELEGRAM_WEBHOOK_SECRET=' + secret)
   console.log('  TELEGRAM_WEBHOOK_BASE_URL=https://api.mescott.co')
