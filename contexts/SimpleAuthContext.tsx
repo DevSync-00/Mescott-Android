@@ -212,15 +212,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (user) {
           const { data: newProfile, error: insertError } = await supabase
             .from('profiles')
-            .insert([{
-              user_id: user.id,
-              full_name: user.user_metadata?.full_name || 'Telegram User',
-              username: user.user_metadata?.username || `tg_${user.user_metadata?.telegram_id || userId.substring(0, 8)}`,
-              phone: user.phone || '',
-              telegram_chat_id: String(user.user_metadata?.telegram_id || ''),
-              role: 'customer',
-              current_mode: 'customer',
-            }])
+            .upsert(
+              {
+                user_id: user.id,
+                full_name: user.user_metadata?.full_name || 'Telegram User',
+                username: user.user_metadata?.username || `tg_${user.user_metadata?.telegram_id || userId.substring(0, 8)}`,
+                phone: user.phone || '',
+                telegram_chat_id: String(user.user_metadata?.telegram_id || ''),
+                role: 'customer',
+                current_mode: 'customer',
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'telegram_chat_id' }
+            )
             .select()
             .single();
 

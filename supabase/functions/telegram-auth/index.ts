@@ -272,72 +272,123 @@ Deno.serve(async (req) => {
       let session: any = null;
       let user: any = null;
 
-      const { data: signInData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
-        email,
-        password,
-      });
+      // Check if a profile with this telegram_chat_id already exists in profiles table
+      const { data: existingProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('*')
+        .eq('telegram_chat_id', telegramUserId)
+        .maybeSingle();
 
-      if (!signInError && signInData?.session) {
+      if (existingProfile) {
+        // User already has a profile row. Let's retrieve their auth.users account email to authenticate.
+        const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(existingProfile.user_id);
+        const existingEmail = (!userError && userData?.user?.email) ? userData.user.email : email;
+
+        // Force-update the credentials on the auth.users account so signInWithPassword works
+        const { error: updateErr } = await supabaseAdmin.auth.admin.updateUserById(existingProfile.user_id, {
+          email: existingEmail,
+          password: password,
+          email_confirm: true,
+        });
+
+        if (updateErr) {
+          console.error('[telegram-auth] Failed to sync auth credentials for existing profile user:', updateErr.message);
+        }
+
+        // Authenticate the user
+        const { data: signInData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
+          email: existingEmail,
+          password,
+        });
+
+        if (signInError) {
+          console.error('[telegram-auth] Sign-in for existing user failed:', signInError.message);
+          return new Response(JSON.stringify({ success: false, error: 'Authentication failed for existing account' }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
         session = signInData.session;
         user = signInData.user;
 
-        // Existing user — update profile fields
+        // Update profile fields
         await supabaseAdmin
           .from('profiles')
           .update({
-            telegram_chat_id: telegramUserId,
             telegram_username: username,
             updated_at: new Date().toISOString(),
           })
           .eq('user_id', user.id);
       } else {
-        // Create new user in Supabase Auth
-        const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-          email,
-          password,
-          email_confirm: true,
-          user_metadata: { telegram_id: telegramUserId },
-        });
-
-        if (createError && !createError.message.includes('already registered')) {
-          console.error('[telegram-auth] Failed to create user:', createError.message);
-          return new Response(JSON.stringify({ success: false, error: 'Failed to create user account' }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-
-        // Sign in with the newly created user
-        const { data: freshSignIn, error: freshSignInError } = await supabaseAdmin.auth.signInWithPassword({
+        // Standard flow: check if password login succeeds for default email
+        const { data: signInData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
           email,
           password,
         });
 
-        if (freshSignInError || !freshSignIn?.session) {
-          console.error('[telegram-auth] Sign-in after creation failed:', freshSignInError?.message);
-          return new Response(JSON.stringify({ success: false, error: 'Failed to sign in new user account' }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        if (!signInError && signInData?.session) {
+          session = signInData.session;
+          user = signInData.user;
+
+          // Update profile fields
+          await supabaseAdmin
+            .from('profiles')
+            .update({
+              telegram_chat_id: telegramUserId,
+              telegram_username: username,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('user_id', user.id);
+        } else {
+          // Create new user in Supabase Auth
+          const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+            email,
+            password,
+            email_confirm: true,
+            user_metadata: { telegram_id: telegramUserId },
           });
-        }
 
-        session = freshSignIn.session;
-        user = freshSignIn.user;
+          if (createError && !createError.message.includes('already registered')) {
+            console.error('[telegram-auth] Failed to create user:', createError.message);
+            return new Response(JSON.stringify({ success: false, error: 'Failed to create user account' }), {
+              status: 500,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
 
-        // Create profile
-        const { error: profileErr } = await supabaseAdmin.from('profiles').insert([{
-          user_id: user.id,
-          full_name: fullName,
-          username,
-          phone: '',
-          telegram_chat_id: telegramUserId,
-          telegram_username: username,
-          role: 'customer',
-          current_mode: 'customer',
-        }]);
+          // Sign in with the newly created user
+          const { data: freshSignIn, error: freshSignInError } = await supabaseAdmin.auth.signInWithPassword({
+            email,
+            password,
+          });
 
-        if (profileErr) {
-          console.error('[telegram-auth] Profile creation database error:', profileErr.message);
+          if (freshSignInError || !freshSignIn?.session) {
+            console.error('[telegram-auth] Sign-in after creation failed:', freshSignInError?.message);
+            return new Response(JSON.stringify({ success: false, error: 'Failed to sign in new user account' }), {
+              status: 500,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          session = freshSignIn.session;
+          user = freshSignIn.user;
+
+          // Create profile
+          const { error: profileErr } = await supabaseAdmin.from('profiles').insert([{
+            user_id: user.id,
+            full_name: fullName,
+            username,
+            phone: '',
+            telegram_chat_id: telegramUserId,
+            telegram_username: username,
+            role: 'customer',
+            current_mode: 'customer',
+          }]);
+
+          if (profileErr) {
+            console.error('[telegram-auth] Profile creation database error:', profileErr.message);
+          }
         }
       }
 
