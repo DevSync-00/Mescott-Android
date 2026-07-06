@@ -1,10 +1,5 @@
-const { createClient } = require('@supabase/supabase-js');
+const { getSupabaseAdmin } = require('../../../lib/supabaseAdmin');
 const crypto = require('crypto');
-
-const supabaseAdmin = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -20,6 +15,7 @@ module.exports = async function handler(req, res) {
   }
 
   try {
+    const supabaseAdmin = getSupabaseAdmin();
     const sessionToken = crypto.randomBytes(32).toString('hex');
     const deviceInfo = req.body?.deviceInfo || {};
 
