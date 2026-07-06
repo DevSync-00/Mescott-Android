@@ -22,7 +22,8 @@ function buildAuthUrl(nonce: string): string {
 }
 
 function decodeTgAuthResult(raw: string): Record<string, any> {
-  const str = raw.split('&')[0];
+  // Strip any trailing query/hash suffix — keep only the token itself
+  const str = raw.split(/[&#]/)[0];
   try {
     const urlDecoded = decodeURIComponent(str);
     if (urlDecoded.trimStart().startsWith('{')) return JSON.parse(urlDecoded);
@@ -39,19 +40,32 @@ function decodeTgAuthResult(raw: string): Record<string, any> {
 
 const INJECTED_JS = `
 (function() {
-  // 1. Intercept hash change
-  function checkHash() {
-    var match = window.location.hash.match(/#tgAuthResult=([^&]*)/);
+  // Helper: extract tgAuthResult from EITHER hash or query string and post to RN
+  function scanAndPost() {
+    var full = window.location.href;
+    var match = full.match(/[#?]tgAuthResult=([^&#\\s]*)/);
     if (match && match[1]) {
-      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'tgAuthResult', data: match[1] }));
+      window.ReactNativeWebView.postMessage(
+        JSON.stringify({ type: 'tgAuthResult', data: match[1] })
+      );
     }
   }
-  window.addEventListener('hashchange', checkHash);
-  checkHash();
 
-  // 2. Blend background by appending custom style
+  // 1. Fire immediately on script injection (page already at result URL)
+  scanAndPost();
+
+  // 2. Fire on hash changes (Telegram's default redirect mechanism)
+  window.addEventListener('hashchange', scanAndPost);
+
+  // 3. Fire on popstate (SPA-style navigation inside the OAuth frame)
+  window.addEventListener('popstate', scanAndPost);
+
+  // 4. Blend background for seamless white integration
   var style = document.createElement('style');
-  style.innerHTML = 'body, html, .tgme_widget_login_page { background-color: #ffffff !important; background: #ffffff !important; }';
+  style.innerHTML = [
+    'body, html { background-color: #ffffff !important; background: #ffffff !important; }',
+    '.tgme_widget_login_page { background-color: #ffffff !important; }'
+  ].join(' ');
   document.head.appendChild(style);
 
   true;
@@ -89,16 +103,19 @@ export default function TelegramLoginScreen({ onAuthResult }: TelegramLoginScree
 
   function tryExtractResult(url: string): void {
     if (resolvedRef.current) return;
-    const match = url.match(/#tgAuthResult=([^&\s]*)/);
+    if (!url) return;
+    // Match BOTH hash (#tgAuthResult=) and query (?tgAuthResult=) patterns
+    const match = url.match(/[#?]tgAuthResult=([^&#\s]*)/);
     if (!match || !match[1]) return;
     try {
       const data = decodeTgAuthResult(match[1]) as TelegramAuthData;
       if (data?.hash) {
+        console.log('[TelegramLoginScreen] Auth result intercepted via URL change!');
         resolvedRef.current = true;
         onAuthResult(data);
       }
     } catch (err) {
-      console.warn('[TelegramLoginScreen] Failed to decode tgAuthResult:', err);
+      console.warn('[TelegramLoginScreen] Failed to decode tgAuthResult from URL:', err);
     }
   }
 
@@ -119,15 +136,23 @@ export default function TelegramLoginScreen({ onAuthResult }: TelegramLoginScree
     if (resolvedRef.current) return;
     try {
       const msg = JSON.parse(event.nativeEvent.data);
-      if (msg?.type === 'tgAuthResult' && msg?.data) {
-        const data = decodeTgAuthResult(msg.data) as TelegramAuthData;
+      // Handle both postMessage shapes Telegram can emit:
+      //   { type: 'tgAuthResult', data: '<token>' }  — from our INJECTED_JS
+      //   { tgAuthResult: '<token>' }                — from Telegram's own widget JS
+      const rawToken: string | undefined =
+        (msg?.type === 'tgAuthResult' && msg?.data) ? msg.data :
+        msg?.tgAuthResult ? msg.tgAuthResult :
+        undefined;
+      if (rawToken) {
+        const data = decodeTgAuthResult(rawToken) as TelegramAuthData;
         if (data?.hash) {
+          console.log('[TelegramLoginScreen] Auth result intercepted via postMessage!');
           resolvedRef.current = true;
           onAuthResult(data);
         }
       }
-    } catch (err) {
-      console.warn('[TelegramLoginScreen] postMessage parse error:', err);
+    } catch (_) {
+      // Suppress non-critical structural parse noise from other postMessage senders
     }
   }
 
