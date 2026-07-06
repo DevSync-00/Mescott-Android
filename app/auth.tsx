@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   StatusBar,
+  Alert,
   Animated,
   Easing,
   ActivityIndicator,
@@ -11,7 +12,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
-import { useToast } from '../contexts/ToastContext'
 import TelegramLoginScreen, { TelegramAuthData } from '../components/TelegramLoginScreen'
 
 export default function Auth() {
@@ -19,7 +19,6 @@ export default function Auth() {
   const [loading, setLoading] = useState(false)
 
   const { loginWithTelegram, isAuthenticated, loading: isLoading } = useAuth()
-  const { showSuccess, showError } = useToast()
   const fadeAnim = useRef(new Animated.Value(0)).current
   const slideAnim = useRef(new Animated.Value(12)).current
 
@@ -67,10 +66,13 @@ export default function Auth() {
     setLoading(true)
     try {
       await loginWithTelegram(data)
-      showSuccess('Successfully signed in with Telegram!')
+      console.log('Session established natively. Pushing route transition...')
+      // Explicitly push the route transition immediately on success —
+      // do not rely solely on the isAuthenticated useEffect listener
+      router.replace('/')
     } catch (err: any) {
-      console.error('Telegram login error:', err)
-      showError(err.message || 'Could not complete Telegram login. Please try again.')
+      console.error('Telegram login error navigation catch:', err)
+      Alert.alert('Login Failed', err.message || 'Could not complete Telegram login. Please try again.')
     } finally {
       setLoading(false)
     }

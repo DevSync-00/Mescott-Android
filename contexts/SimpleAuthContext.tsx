@@ -185,6 +185,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         console.log('Profile row missing on first fetch—sign out clean.');
         await supabase.auth.signOut();
         setUser(null);
+        setLoading(false);
         return;
       }
 
@@ -205,9 +206,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         avatar_url: profile.avatar_url,
         profile,
       });
+      // CRITICAL: Release the app-wide root layout loading blocker
+      setLoading(false);
     } catch (error) {
       console.error('Error loading profile context:', error);
       setUser(null);
+      setLoading(false);
     }
   };
 
