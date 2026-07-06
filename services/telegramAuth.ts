@@ -66,7 +66,7 @@ export class TelegramAuthService extends BaseService {
     onAuthSuccess: (payload: any) => void
   ): () => void {
     console.log(
-      '[TelegramAuthService] Subscribing to session:',
+      '[services/telegramAuth] Subscribing to session:',
       sessionToken.substring(0, 8) + '...'
     );
 
@@ -75,7 +75,7 @@ export class TelegramAuthService extends BaseService {
     const handleSuccess = (payload: any) => {
       if (settled) return;
       settled = true;
-      console.log('[TelegramAuthService] AUTH_SUCCESS received');
+      console.log('[services/telegramAuth] AUTH_SUCCESS received');
       onAuthSuccess(payload);
     };
 
@@ -86,11 +86,11 @@ export class TelegramAuthService extends BaseService {
 
     broadcastChannel
       .on('broadcast', { event: 'AUTH_SUCCESS' }, (msg) => {
-        console.log('[TelegramAuthService] Broadcast received');
+        console.log('[services/telegramAuth] Broadcast received');
         handleSuccess(msg.payload);
       })
       .subscribe((status) => {
-        console.log('[TelegramAuthService] Broadcast channel status:', status);
+        console.log('[services/telegramAuth] Broadcast channel status:', status);
       });
 
     // ── Channel 2: DB row change (fallback) ────────────────────────────────
@@ -105,7 +105,7 @@ export class TelegramAuthService extends BaseService {
           filter: `session_token=eq.${sessionToken}`,
         },
         (event) => {
-          console.log('[TelegramAuthService] DB change received:', event.new?.status);
+          console.log('[services/telegramAuth] DB change received:', event.new?.status);
           const row = event.new as any;
           if (row?.status === 'APPROVED' && row?.jwt_payload) {
             handleSuccess(row.jwt_payload);
@@ -113,42 +113,54 @@ export class TelegramAuthService extends BaseService {
         }
       )
       .subscribe((status) => {
-        console.log('[TelegramAuthService] DB channel status:', status);
+        console.log('[services/telegramAuth] DB channel status:', status);
       });
 
-    // ── Channel 3: Polling Fallback (100% Reliable) ─────────────────────────
+    // ── Channel 3: Direct HTTP Fetch Polling Fallback (100% Reliable) ───────
     const pollInterval = setInterval(async () => {
       if (settled) {
         clearInterval(pollInterval);
         return;
       }
       try {
-        const { data, error } = await supabase
-          .from('auth_pending_sessions')
-          .select('status, jwt_payload')
-          .eq('session_token', sessionToken)
-          .maybeSingle();
+        const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+        const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+        const url = `${supabaseUrl}/rest/v1/auth_pending_sessions?session_token=eq.${sessionToken}&select=status,jwt_payload`;
 
-        console.log('[TelegramAuthService] Polling check:', { data, error });
+        const res = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'apikey': supabaseAnonKey,
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+            'Content-Type': 'application/json',
+          },
+        });
 
-        if (!error && data) {
-          if (data.status === 'APPROVED' && data.jwt_payload) {
-            clearInterval(pollInterval);
-            console.log('[TelegramAuthService] Polling detected APPROVED session');
-            handleSuccess(data.jwt_payload);
-          } else if (data.status === 'EXPIRED') {
-            clearInterval(pollInterval);
-            console.log('[TelegramAuthService] Polling detected EXPIRED session');
+        if (res.ok) {
+          const rows = await res.json();
+          const data = rows[0];
+          console.log('[services/telegramAuth] Polling check:', data);
+          if (data) {
+            if (data.status === 'APPROVED' && data.jwt_payload) {
+              clearInterval(pollInterval);
+              console.log('[services/telegramAuth] Polling detected APPROVED session');
+              handleSuccess(data.jwt_payload);
+            } else if (data.status === 'EXPIRED') {
+              clearInterval(pollInterval);
+              console.log('[services/telegramAuth] Polling detected EXPIRED session');
+            }
           }
+        } else {
+          console.warn('[services/telegramAuth] Polling check failed HTTP status:', res.status);
         }
-      } catch (err) {
-        console.warn('[TelegramAuthService] Polling error:', err);
+      } catch (err: any) {
+        console.warn('[services/telegramAuth] Polling check exception:', err.message);
       }
     }, 2000);
 
     return () => {
       console.log(
-        '[TelegramAuthService] Unsubscribing from session:',
+        '[services/telegramAuth] Unsubscribing from session:',
         sessionToken.substring(0, 8) + '...'
       );
       clearInterval(pollInterval);
