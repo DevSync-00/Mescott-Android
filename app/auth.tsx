@@ -4,13 +4,13 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  TextInput,
   StatusBar,
   Animated,
   Easing,
   TouchableWithoutFeedback,
   Keyboard,
   Platform,
+  ActivityIndicator,
 } from 'react-native'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import { Image } from 'expo-image'
@@ -19,31 +19,27 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { useToast } from '../contexts/ToastContext'
-import CountryPicker, { Country } from '../components/CountryPicker'
 import { Ionicons } from '@expo/vector-icons'
-import { Colors } from '../constants/Colors'
+import * as Linking from 'expo-linking'
+import { TelegramAuthService } from '../services/telegramAuth'
 
 export default function Auth() {
   const router = useRouter()
-  const [phoneNumber, setPhoneNumber] = useState('')
-  const [verificationCode, setVerificationCode] = useState('')
-  const [isCodeSent, setIsCodeSent] = useState(false)
+  const [sessionToken, setSessionToken] = useState<string | null>(null)
+  const [telegramLink, setTelegramLink] = useState<string | null>(null)
+  const [fallbackLink, setFallbackLink] = useState<string | null>(null)
+  const [isAwaiting, setIsAwaiting] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [countdown, setCountdown] = useState(0)
-  const [selectedCountry, setSelectedCountry] = useState<Country>({
-    code: 'ET',
-    name: 'Ethiopia',
-    dialCode: '+251',
-    flag: 'https://flagcdn.com/w80/et.png',
-  })
-  const [countryPickerVisible, setCountryPickerVisible] = useState(false)
-  const { sendVerificationCode, verifyPhoneCode, isAuthenticated, loading: isLoading } = useAuth()
+
+  const { initiateTelegramAuth, handleTelegramCallback, isAuthenticated, loading: isLoading } = useAuth()
   const { showSuccess, showError } = useToast()
   const fadeAnim = useRef(new Animated.Value(0)).current
   const slideAnim = useRef(new Animated.Value(16)).current
+  const pulseAnim = useRef(new Animated.Value(1)).current
   const scrollViewRef = useRef<any>(null)
-  const phoneInputRef = useRef<TextInput>(null)
-  const otpInputRef = useRef<TextInput>(null)
+
+  const unsubscribeRef = useRef<(() => void) | null>(null)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Smoothly fade/slide in the auth screen to avoid abrupt pop-in
   useEffect(() => {
@@ -87,132 +83,139 @@ export default function Auth() {
     }
   }, [isAuthenticated, isLoading, router, fadeAnim, slideAnim])
 
-  // Reset auth state when user logs out
+  // Clean up timers & subscriptions on unmount
   useEffect(() => {
-    if (!isAuthenticated) {
-      setVerificationCode('')
-      setIsCodeSent(false)
-      setLoading(false)
-      setCountdown(0)
-    }
-  }, [isAuthenticated])
-
-  const startCountdown = () => {
-    setCountdown(60)
-    const interval = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval)
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-  }
-
-  const cleanPhoneNumber = (phone: string) => {
-    // Remove all non-digit characters
-    let cleaned = phone.replace(/\D/g, '')
-    
-    // Remove the country code if it's already included
-    const countryCode = selectedCountry.dialCode.replace('+', '')
-    if (cleaned.startsWith(countryCode)) {
-      cleaned = cleaned.substring(countryCode.length)
-    }
-    
-    // Remove leading zero if present (common in some countries)
-    if (cleaned.startsWith('0')) {
-      cleaned = cleaned.substring(1)
-    }
-    
-    // Return formatted phone number with country code
-    return selectedCountry.dialCode + cleaned
-  }
-
-  const handleSendCode = async () => {
-    if (!phoneNumber.trim()) {
-      showError('Please enter your phone number')
-      return
-    }
-
-    const formattedPhone = cleanPhoneNumber(phoneNumber)
-
-    // Basic validation - at least 7 digits after country code
-    const digitsOnly = formattedPhone.replace(/\D/g, '')
-    if (digitsOnly.length < 7) {
-      showError('Please enter a valid phone number')
-      return
-    }
-
-    setLoading(true)
-
-    try {
-      const result = await sendVerificationCode(formattedPhone)
-
-      if (result.success) {
-        showSuccess('Verification code sent successfully!')
-        setIsCodeSent(true)
-        startCountdown()
-      } else {
-        showError(result.message)
+    return () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current()
       }
-    } catch (error: any) {
-      console.error('Exception in handleSendCode:', error)
-      showError(error.message || 'Failed to send verification code. Please try again.')
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+    }
+  }, [])
+
+  // Pulse animation for the logo during awaiting state
+  useEffect(() => {
+    let animation: Animated.CompositeAnimation | null = null
+    if (isAwaiting) {
+      animation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.15,
+            duration: 1000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1.0,
+            duration: 1000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ])
+      )
+      animation.start()
+    } else {
+      pulseAnim.setValue(1)
+    }
+    return () => {
+      if (animation) {
+        animation.stop()
+      }
+    }
+  }, [isAwaiting])
+
+  const handleCancelAndRetry = () => {
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current()
+      unsubscribeRef.current = null
+    }
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
+    }
+    setIsAwaiting(false)
+    setSessionToken(null)
+    setTelegramLink(null)
+    setFallbackLink(null)
+    setLoading(false)
+  }
+
+  const handleTimeout = () => {
+    handleCancelAndRetry()
+    showError('Verification session expired. Please try again.')
+  }
+
+  const handleContinueWithTelegram = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    setLoading(true)
+    try {
+      const data = await initiateTelegramAuth({
+        platform: Platform.OS,
+        os_version: Platform.Version,
+        device_name: Platform.select({ ios: 'iPhone', android: 'Android Device', default: 'Mobile Device' }),
+      })
+
+      if (!data || !data.session_token) {
+        showError('Failed to initialize Telegram session. Please try again.')
+        setLoading(false)
+        return
+      }
+
+      setSessionToken(data.session_token)
+      setTelegramLink(data.telegram_link)
+      setFallbackLink(data.fallback_link)
+      setIsAwaiting(true)
+
+      // Subscribe to Supabase Realtime channel and DB changes
+      unsubscribeRef.current = TelegramAuthService.subscribeToAuthStatus(
+        data.session_token,
+        async (jwtPayload) => {
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current)
+            timeoutRef.current = null
+          }
+          if (unsubscribeRef.current) {
+            unsubscribeRef.current()
+            unsubscribeRef.current = null
+          }
+
+          setLoading(true)
+          const res = await handleTelegramCallback(jwtPayload)
+          if (res.success) {
+            showSuccess('Successfully signed in with Telegram!')
+          } else {
+            showError(res.message || 'Authentication verification failed.')
+            handleCancelAndRetry()
+          }
+        }
+      )
+
+      // Set 5-minute timeout
+      timeoutRef.current = setTimeout(() => {
+        handleTimeout()
+      }, 300000)
+
+      // Open native Telegram app link or fallback to web link
+      const canOpen = await Linking.canOpenURL(data.telegram_link)
+      if (canOpen) {
+        await Linking.openURL(data.telegram_link)
+      } else {
+        await Linking.openURL(data.fallback_link)
+      }
+    } catch (err: any) {
+      console.error('Telegram auth initiation error:', err)
+      showError('An error occurred during authentication. Please try again.')
+      handleCancelAndRetry()
     } finally {
       setLoading(false)
     }
   }
 
-  const handleVerifyCode = async () => {
-    if (verificationCode.length !== 6) {
-      showError('Please enter the 6-digit verification code')
-      return
-    }
-
-    setLoading(true)
-    try {
-      const formattedPhone = cleanPhoneNumber(phoneNumber)
-      const result = await verifyPhoneCode(formattedPhone, verificationCode)
-
-      if (result.success) {
-        showSuccess(result.message || 'Verification successful!')
-
-        // Reset form state (will be handled by auth state change)
-        setVerificationCode('')
-        setIsCodeSent(false)
-        setPhoneNumber('')
-        
-        // Note: Navigation will be handled by useEffect above with smooth transition
-      } else {
-        showError(result.message)
-        setLoading(false)
-      }
-    } catch (error: any) {
-      showError(error.message || 'Verification failed. Please try again.')
-      setLoading(false)
-    }
-  }
-
-  const handleResendCode = async () => {
-    if (countdown === 0) {
-      setLoading(true)
-      try {
-        const formattedPhone = cleanPhoneNumber(phoneNumber)
-        const result = await sendVerificationCode(formattedPhone)
-
-        if (result.success) {
-          setVerificationCode('')
-          showSuccess('New verification code sent')
-          startCountdown()
-        } else {
-          showError(result.message)
-        }
-      } catch (error: any) {
-        showError(error.message || 'Failed to resend verification code')
-      } finally {
-        setLoading(false)
-      }
+  const handleOpenFallbackLink = async () => {
+    if (fallbackLink) {
+      await Linking.openURL(fallbackLink)
     }
   }
 
@@ -250,158 +253,111 @@ export default function Auth() {
             scrollToOverflowEnabled={false}
             overScrollMode="never"
           >
-              {/* Hero */}
-              <View style={styles.hero}>
-                <View style={styles.heroTextBlock}>
-                  <Text style={styles.heroGreeting}>Hey!</Text>
-                  <Text style={styles.heroGreeting}>Welcome To</Text>
-                  <View style={styles.brandRow}>
-                    <Text style={styles.heroBrand}>MESCO</Text>
+            {/* Hero */}
+            <View style={styles.hero}>
+              <View style={styles.heroTextBlock}>
+                <Text style={styles.heroGreeting}>Hey!</Text>
+                <Text style={styles.heroGreeting}>Welcome To</Text>
+                <View style={styles.brandRow}>
+                  <Text style={styles.heroBrand}>MESCO</Text>
+                  <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
                     <Image
                       source={require('../assets/images/splash-icon-light.png')}
                       style={styles.heroMark}
                       contentFit="contain"
                       cachePolicy="memory-disk"
                     />
+                  </Animated.View>
+                </View>
+              </View>
+            </View>
+
+            {/* Card */}
+            <View style={styles.card}>
+              {isAwaiting ? (
+                <View style={styles.awaitingContainer}>
+                  <Text style={styles.title}>Awaiting Approval</Text>
+                  <Text style={styles.subtitle}>
+                    Waiting for Telegram approval... please do not close Mescott.
+                  </Text>
+
+                  <View style={styles.spinnerWrap}>
+                    <ActivityIndicator size="large" color="#24A1DE" style={styles.spinner} />
                   </View>
+
+                  <Text style={styles.instructionsText}>
+                    Ensure you click "Start" inside the Telegram app/bot to approve your login.
+                  </Text>
+
+                  <TouchableOpacity
+                    style={styles.fallbackButton}
+                    onPress={handleOpenFallbackLink}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.fallbackButtonText}>
+                      App didn't switch? Open Telegram Web
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={handleCancelAndRetry}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel & Retry</Text>
+                  </TouchableOpacity>
                 </View>
-              </View>
+              ) : (
+                <View style={styles.introContainer}>
+                  <Text style={styles.title}>Frictionless Login</Text>
+                  <Text style={styles.subtitle}>Sign in securely using your Telegram account</Text>
 
-              {/* Card */}
-              <View style={styles.card}>
-                {!isCodeSent ? (
-                  <>
-                    <Text style={styles.title}>ENTER YOUR PHONE NUMBER</Text>
-                    <Text style={styles.subtitle}>We will send you an OTP verification code</Text>
-
-                    <View style={styles.phoneInputRow}>
-                      <TouchableOpacity
-                        style={styles.flagWrap}
-                        onPress={() => {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-                          setCountryPickerVisible(true)
-                        }}
-                        activeOpacity={0.6}
-                      >
-                        <View style={styles.flagImageContainer}>
-                          <Image
-                            source={{ uri: selectedCountry.flag }}
-                            style={styles.flag}
-                            contentFit="cover"
-                            transition={200}
-                            cachePolicy="memory-disk"
-                          />
-                        </View>
-                        <Ionicons
-                          name="chevron-down"
-                          size={16}
-                          color="#666"
-                          style={styles.flagChevron}
-                        />
-                      </TouchableOpacity>
-                      <View style={styles.dialCodeContainer}>
-                        <Text style={styles.dialCode}>{selectedCountry.dialCode}</Text>
+                  {/* How It Works Card */}
+                  <View style={styles.howItWorksCard}>
+                    <Text style={styles.howItWorksTitle}>- HOW IT WORKS -</Text>
+                    <View style={styles.stepRow}>
+                      <View style={styles.stepBadge}>
+                        <Text style={styles.stepBadgeText}>1</Text>
                       </View>
-                      <TextInput
-                        ref={phoneInputRef}
-                        style={styles.phoneInput}
-                        placeholder="Phone number"
-                        placeholderTextColor="#999"
-                        value={phoneNumber}
-                        onChangeText={setPhoneNumber}
-                        keyboardType="phone-pad"
-                        returnKeyType="done"
-                        onSubmitEditing={handleSendCode}
-                      />
+                      <Text style={styles.stepText}>Tap "Continue with Telegram" below</Text>
                     </View>
-
-                    <TouchableOpacity
-                      style={[styles.primaryButton, loading && styles.buttonDisabled]}
-                      onPress={handleSendCode}
-                      disabled={loading}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={styles.buttonText}>{loading ? 'Sending...' : 'CONTINUE'}</Text>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <>
-                    <TouchableOpacity
-                      onPress={() => {
-                        setIsCodeSent(false)
-                        setVerificationCode('')
-                      }}
-                      style={styles.changeNumberButton}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="arrow-back" size={18} color={Colors.primary[600]} style={styles.changeNumberIcon} />
-                      <Text style={styles.changeNumberText}>Change Number</Text>
-                    </TouchableOpacity>
-
-                    <Text style={styles.title}>OTP Verification</Text>
-                    <Text style={styles.subtitle}>Enter the OTP verification code</Text>
-
-                    <View>
-                      <TextInput
-                        ref={otpInputRef}
-                        style={styles.otpInput}
-                        placeholder="000000"
-                        placeholderTextColor="#CFCFCF"
-                        value={verificationCode}
-                        onChangeText={setVerificationCode}
-                        keyboardType="number-pad"
-                        maxLength={6}
-                        autoFocus
-                        returnKeyType="done"
-                        onSubmitEditing={handleVerifyCode}
-                        textAlign="center"
-                      />
+                    <View style={styles.stepRow}>
+                      <View style={styles.stepBadge}>
+                        <Text style={styles.stepBadgeText}>2</Text>
+                      </View>
+                      <Text style={styles.stepText}>Click "Start" in the Telegram bot</Text>
                     </View>
+                    <View style={styles.stepRow}>
+                      <View style={styles.stepBadge}>
+                        <Text style={styles.stepBadgeText}>3</Text>
+                      </View>
+                      <Text style={styles.stepText}>Return to Mescott automatically</Text>
+                    </View>
+                  </View>
 
-                    <TouchableOpacity
-                      style={[styles.primaryButton, loading && styles.buttonDisabled]}
-                      onPress={handleVerifyCode}
-                      disabled={loading}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={styles.buttonText}>{loading ? 'Verifying...' : 'VERIFY'}</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={handleResendCode}
-                      disabled={countdown > 0 || loading}
-                      style={styles.resendLink}
-                      activeOpacity={0.7}
-                    >
-                      <Text
-                        style={[
-                          styles.resendText,
-                          (countdown > 0 || loading) && styles.resendTextDisabled,
-                        ]}
-                      >
-                        {countdown > 0 ? `Resend code in ${countdown}s` : 'Resend Code'}
+                  <TouchableOpacity
+                    style={[styles.telegramButton, loading && styles.buttonDisabled]}
+                    onPress={handleContinueWithTelegram}
+                    disabled={loading}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.telegramBtnContent}>
+                      <Ionicons name={"logo-telegram" as any} size={24} color="#FFF" style={styles.telegramIcon} />
+                      <Text style={styles.telegramButtonText}>
+                        {loading ? 'INITIATING...' : 'CONTINUE WITH TELEGRAM'}
                       </Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-
-                <View style={styles.footerWrap}>
-                  <Text style={styles.footer}>Terms & Conditions Apply*</Text>
+                    </View>
+                  </TouchableOpacity>
                 </View>
+              )}
+
+              <View style={styles.footerWrap}>
+                <Text style={styles.footer}>Terms & Conditions Apply*</Text>
               </View>
-            </KeyboardAwareScrollView>
+            </View>
+          </KeyboardAwareScrollView>
         </Animated.View>
       </TouchableWithoutFeedback>
-
-      <CountryPicker
-        visible={countryPickerVisible}
-        onClose={() => setCountryPickerVisible(false)}
-        onSelect={(country) => {
-          setSelectedCountry(country)
-          setCountryPickerVisible(false)
-        }}
-        selectedCountry={selectedCountry}
-      />
     </SafeAreaView>
   )
 }
@@ -412,9 +368,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#371F80',
   },
   animatedContainer: {
-    flex: 1,
-  },
-  keyboardView: {
     flex: 1,
   },
   scrollView: {
@@ -475,133 +428,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     marginBottom: 24,
   },
-  phoneInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E9E9E9',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 32,
-  },
-  flagWrap: {
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-    flexDirection: 'row',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    minWidth: 50,
-  },
-  flagImageContainer: {
-    width: 36,
-    height: 26,
-    borderRadius: 5,
-    overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f8f8f8',
-  },
-  flag: {
-    width: 36,
-    height: 26,
-  },
-  flagChevron: {
-    marginLeft: 4,
-    marginTop: 1,
-  },
-  dialCodeContainer: {
-    marginRight: 8,
-    justifyContent: 'center',
-  },
-  dialCode: {
-    fontSize: 16,
-    color: '#1F1F1F',
-    fontWeight: '600',
-  },
-  phoneInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#1F1F1F',
-    paddingVertical: 12,
-  },
-  otpInput: {
-    width: '100%',
-    height: 64,
-    backgroundColor: '#E9E9E9',
-    borderRadius: 18,
-    fontSize: 26,
-    fontWeight: '700',
-    letterSpacing: 12,
-    marginBottom: 28,
-    color: '#1F1F1F',
-  },
-  primaryButton: {
-    backgroundColor: '#7B4FFF',
-    borderRadius: 24,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 8,
-  },
   buttonDisabled: {
     opacity: 0.6,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  backLink: {
-    marginBottom: 10,
-  },
-  backLinkText: {
-    color: '#371F80',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  changeNumberButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: Colors.primary[50],
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: Colors.primary[200],
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  changeNumberIcon: {
-    marginRight: 8,
-  },
-  changeNumberText: {
-    color: Colors.primary[600],
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  resendLink: {
-    marginTop: 12,
-    alignItems: 'center',
-  },
-  resendText: {
-    color: '#7B4FFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  resendTextDisabled: {
-    color: '#B0B0B0',
   },
   footerWrap: {
     marginTop: 32,
@@ -612,4 +440,125 @@ const styles = StyleSheet.create({
     color: '#371F80',
     textAlign: 'center',
   },
+  introContainer: {
+    width: '100%',
+  },
+  awaitingContainer: {
+    width: '100%',
+    alignItems: 'center',
+    backgroundColor: 'rgba(55, 31, 128, 0.05)',
+    borderRadius: 24,
+    padding: 20,
+  },
+  howItWorksCard: {
+    backgroundColor: '#F5F5FA',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: '#E8E8F0',
+  },
+  howItWorksTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#371F80',
+    textAlign: 'center',
+    marginBottom: 16,
+    letterSpacing: 1,
+  },
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  stepBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#371F80',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  stepBadgeText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  stepText: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '500',
+    flex: 1,
+  },
+  telegramButton: {
+    backgroundColor: '#24A1DE',
+    borderRadius: 24,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 8,
+    shadowColor: '#24A1DE',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  telegramBtnContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  telegramIcon: {
+    marginRight: 8,
+  },
+  telegramButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  spinnerWrap: {
+    marginVertical: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  spinner: {
+    transform: [{ scale: 1.2 }],
+  },
+  instructionsText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  fallbackButton: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 24,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    width: '100%',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    marginBottom: 12,
+  },
+  fallbackButtonText: {
+    color: '#24A1DE',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  cancelButton: {
+    backgroundColor: '#FF4D4D',
+    borderRadius: 24,
+    paddingVertical: 14,
+    width: '100%',
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
 })
+

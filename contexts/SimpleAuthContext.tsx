@@ -4,14 +4,15 @@ import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SimpleUserProfile } from '../types/SimpleUserProfile';
 import { ProfileSyncService } from '../services/ProfileSyncService';
+import { TelegramAuthService } from '../services/telegramAuth';
 
 interface AuthContextType {
   user: SimpleUserProfile | null;
   isAuthenticated: boolean;
   loading: boolean;
   isLoading: boolean; // Add this for backward compatibility
-  sendVerificationCode: (phone: string) => Promise<{ success: boolean; message: string }>;
-  verifyPhoneCode: (phone: string, code: string) => Promise<{ success: boolean; message: string; isNewUser?: boolean }>;
+  initiateTelegramAuth: (deviceInfo?: Record<string, any>) => Promise<{ success: boolean; session_token: string; telegram_link: string; fallback_link: string; } | null>;
+  handleTelegramCallback: (jwtPayload: any) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
   refreshUserProfile: () => Promise<void>;
   switchMode: () => Promise<void>;
@@ -222,89 +223,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const sendVerificationCode = async (phone: string) => {
-    const normalized = normalizePhone(phone);
-
-    // Send OTP (login-only flow)
-    const { error } = await supabase.auth.signInWithOtp({ phone: normalized });
-    if (error) return { success: false, message: error.message };
-    return { success: true, message: 'Verification code sent' };
+  const initiateTelegramAuth = async (deviceInfo: Record<string, any> = {}) => {
+    return await TelegramAuthService.fetchDeepLink(deviceInfo);
   };
 
-  const verifyPhoneCode = async (phone: string, code: string) => {
+  const handleTelegramCallback = async (jwtPayload: any) => {
     try {
-      const normalized = normalizePhone(phone);
-      const { data, error } = await supabase.auth.verifyOtp({ phone: normalized, token: code, type: 'sms' });
-
-      if (error) {
-        console.error('OTP verification error:', error);
-        return { success: false, message: error.message };
+      const { access_token, refresh_token } = jwtPayload;
+      if (!access_token || !refresh_token) {
+        throw new Error('Invalid JWT payload from Telegram auth');
       }
 
-      if (!data?.user) {
-        console.error('No user data returned from OTP verification');
-        return { success: false, message: 'Verification failed' };
-      }
-      
-      const authUser = data.user;
-      console.log('OTP verified successfully for user:', authUser.id);
+      const { error } = await supabase.auth.setSession({
+        access_token,
+        refresh_token,
+      });
 
-      // Login-only flow: if profile missing, auto-create minimal profile
-      let isNewUser = false;
-      try {
-        const { data: existingProfile, error: checkError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', authUser.id)
-          .maybeSingle();
+      if (error) throw error;
 
-        if (checkError) {
-          console.error('Error checking user existence during sign-in:', checkError);
-          await supabase.auth.signOut();
-          setUser(null);
-          return { success: false, message: 'Error verifying user. Please try again.' };
+      if (jwtPayload.user?.user_id) {
+        await loadUserProfile(jwtPayload.user.user_id);
+      } else {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          await loadUserProfile(session.user.id);
+        } else {
+          throw new Error('No user session found after setting tokens');
         }
-
-        if (!existingProfile) {
-          console.log('No profile found, creating a minimal profile for OTP login');
-          const usernameSeed = normalized.replace(/\D/g, '').slice(-4) || '0000';
-          const { data: profile, error: createError } = await supabase
-            .from('profiles')
-            .insert({
-              user_id: authUser.id,
-              full_name: '',
-              username: `user-${usernameSeed}`,
-              phone: normalized,
-              role: 'customer',
-              current_mode: 'customer',
-            })
-            .select()
-            .single();
-
-          if (createError) {
-            console.error('Profile creation error:', createError);
-            return { success: false, message: createError.message };
-          }
-
-          console.log('Minimal profile created:', profile?.id);
-          isNewUser = true;
-        }
-
-        await loadUserProfile(authUser.id);
-        return {
-          success: true,
-          message: isNewUser ? 'Signed in. Please complete your profile.' : 'Signed in successfully',
-          isNewUser,
-        };
-      } catch (profileError) {
-        console.error('Profile handling error during sign-in:', profileError);
-        await supabase.auth.signOut();
-        setUser(null);
-        return { success: false, message: 'Unable to load profile. Please try again.' };
       }
-    } catch (error) {
-      console.error('Unexpected error in verifyPhoneCode:', error);
-      return { success: false, message: 'An unexpected error occurred. Please try again.' };
+      return { success: true };
+    } catch (err: any) {
+      console.error('Error handling Telegram callback:', err);
+      return { success: false, message: err.message };
     }
   };
 
@@ -374,8 +324,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     isAuthenticated,
     loading,
     isLoading: loading, // Add this for backward compatibility
-    sendVerificationCode,
-    verifyPhoneCode,
+    initiateTelegramAuth,
+    handleTelegramCallback,
     logout,
     refreshUserProfile,
     switchMode,
