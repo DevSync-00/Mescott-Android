@@ -171,83 +171,43 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const applyProfileToState = (profile: any) => {
-    setUser({
-      id: profile.id,
-      user_id: profile.user_id,
-      full_name: profile.full_name,
-      username: profile.username,
-      phone: profile.phone,
-      role: profile.role,
-      current_mode: profile.current_mode,
-      tasker_application_status: profile.tasker_application_status,
-      created_at: profile.created_at,
-      updated_at: profile.updated_at,
-      name: profile.full_name,
-      currentMode: profile.current_mode,
-      avatar_url: profile.avatar_url,
-      profile,
-    });
-  };
-
   const loadUserProfile = async (userId: string) => {
     try {
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('user_id', userId) // user_id references auth.users.id
+        .eq('user_id', userId)
         .maybeSingle();
 
-      if (error) {
-        console.error('Database error loading profile:', error);
-        throw new Error(`Database error: ${error.message}`);
-      }
+      if (error) throw new Error(`Database error: ${error.message}`);
 
       if (!profile) {
-        console.log('Profile row missing during initial token return. Attempting lazy profile creation stub...');
-        
-        // Fetch user metadata directly from auth session to self-heal the missing profile row
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (user) {
-          const { data: newProfile, error: insertError } = await supabase
-            .from('profiles')
-            .upsert(
-              {
-                user_id: user.id,
-                full_name: user.user_metadata?.full_name || 'Telegram User',
-                username: user.user_metadata?.username || `tg_${user.user_metadata?.telegram_id || userId.substring(0, 8)}`,
-                phone: user.phone || '',
-                telegram_chat_id: String(user.user_metadata?.telegram_id || ''),
-                role: 'customer',
-                current_mode: 'customer',
-                updated_at: new Date().toISOString(),
-              },
-              { onConflict: 'telegram_chat_id' }
-            )
-            .select()
-            .single();
-
-          if (!insertError && newProfile) {
-            applyProfileToState(newProfile);
-            return;
-          } else if (insertError) {
-            console.error('Lazy profile creation failed:', insertError.message);
-          }
-        }
-        
-        // If lazy healing fails, log out clean instead of leaving a broken app framework
+        console.log('Profile row missing on first fetch—sign out clean.');
         await supabase.auth.signOut();
         setUser(null);
         return;
       }
 
-      console.log('Profile loaded successfully:', profile.full_name);
-      applyProfileToState(profile);
+      // Set user profile state seamlessly
+      setUser({
+        id: profile.id,
+        user_id: profile.user_id,
+        full_name: profile.full_name,
+        username: profile.username,
+        phone: profile.phone,
+        role: profile.role,
+        current_mode: profile.current_mode,
+        tasker_application_status: profile.tasker_application_status,
+        created_at: profile.created_at,
+        updated_at: profile.updated_at,
+        name: profile.full_name,
+        currentMode: profile.current_mode,
+        avatar_url: profile.avatar_url,
+        profile,
+      });
     } catch (error) {
-      console.error('Error in loadUserProfile:', error);
+      console.error('Error loading profile context:', error);
       setUser(null);
-      throw error;
     }
   };
 
