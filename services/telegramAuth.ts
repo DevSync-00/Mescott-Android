@@ -116,13 +116,43 @@ export class TelegramAuthService extends BaseService {
         console.log('[TelegramAuthService] DB channel status:', status);
       });
 
+    // ── Channel 3: Polling Fallback (100% Reliable) ─────────────────────────
+    const pollInterval = setInterval(async () => {
+      if (settled) {
+        clearInterval(pollInterval);
+        return;
+      }
+      try {
+        const { data, error } = await supabase
+          .from('auth_pending_sessions')
+          .select('status, jwt_payload')
+          .eq('session_token', sessionToken)
+          .maybeSingle();
+
+        if (!error && data) {
+          if (data.status === 'APPROVED' && data.jwt_payload) {
+            clearInterval(pollInterval);
+            console.log('[TelegramAuthService] Polling detected APPROVED session');
+            handleSuccess(data.jwt_payload);
+          } else if (data.status === 'EXPIRED') {
+            clearInterval(pollInterval);
+            console.log('[TelegramAuthService] Polling detected EXPIRED session');
+          }
+        }
+      } catch (err) {
+        console.warn('[TelegramAuthService] Polling error:', err);
+      }
+    }, 2000);
+
     return () => {
       console.log(
         '[TelegramAuthService] Unsubscribing from session:',
         sessionToken.substring(0, 8) + '...'
       );
+      clearInterval(pollInterval);
       supabase.removeChannel(broadcastChannel);
       supabase.removeChannel(dbChannel);
     };
   }
 }
+
