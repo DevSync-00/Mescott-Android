@@ -11,9 +11,7 @@ config.cacheStores = []
 // Resolver configuration tuned for Windows/OneDrive paths
 config.resolver = {
   ...config.resolver,
-  platforms: ['ios', 'android', 'native', 'web'],
   useGlobalHotkey: false,
-  sourceExts: [...(config.resolver?.sourceExts || []), 'tsx', 'ts', 'jsx', 'js'],
 }
 
 // Transformer configuration
