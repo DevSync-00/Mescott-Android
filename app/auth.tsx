@@ -63,18 +63,19 @@ export default function Auth() {
   }, [isAuthenticated, isLoading, router, fadeAnim, slideAnim])
 
   const handleAuthResult = async (data: TelegramAuthData) => {
+    console.log('[Auth] Extracted auth data received on client layer. Initiating sign-in...')
     setLoading(true)
     try {
+      // 1. Submit the credentials to the Supabase context
       await loginWithTelegram(data)
-      console.log('Session established natively. Pushing route transition...')
-      // Explicitly push the route transition immediately on success —
-      // do not rely solely on the isAuthenticated useEffect listener
+      // 2. Drop the spinner BEFORE transition so the overlay never blocks navigation
+      setLoading(false)
+      // 3. Force route transition explicitly to the root screen layout
       router.replace('/')
     } catch (err: any) {
-      console.error('Telegram login error navigation catch:', err)
-      Alert.alert('Login Failed', err.message || 'Could not complete Telegram login. Please try again.')
-    } finally {
+      console.error('[Auth] Navigation block catch:', err)
       setLoading(false)
+      Alert.alert('Authentication Mismatch', err.message || 'Verification timed out. Please try again.')
     }
   }
 

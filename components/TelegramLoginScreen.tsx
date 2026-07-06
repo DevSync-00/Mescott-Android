@@ -40,27 +40,52 @@ function decodeTgAuthResult(raw: string): Record<string, any> {
 
 const INJECTED_JS = `
 (function() {
-  // Helper: extract tgAuthResult from EITHER hash or query string and post to RN
-  function scanAndPost() {
-    var full = window.location.href;
-    var match = full.match(/[#?]tgAuthResult=([^&#\\s]*)/);
+  var resolved = false;
+
+  function checkUrlForAuth() {
+    if (resolved) return;
+    var currentUrl = window.location.href;
+    // Match BOTH hash (#tgAuthResult=) and query (?tgAuthResult=) patterns
+    var match = currentUrl.match(/[#?&]tgAuthResult=([^&#\\s]*)/);
     if (match && match[1]) {
+      resolved = true;
+      clearInterval(urlInterval);
       window.ReactNativeWebView.postMessage(
         JSON.stringify({ type: 'tgAuthResult', data: match[1] })
       );
     }
   }
 
-  // 1. Fire immediately on script injection (page already at result URL)
-  scanAndPost();
+  // 1. Intercept SPA-style history mutations (Android Chrome doesn't always fire events)
+  var origPush = history.pushState;
+  if (origPush) {
+    history.pushState = function() {
+      origPush.apply(this, arguments);
+      checkUrlForAuth();
+    };
+  }
+  var origReplace = history.replaceState;
+  if (origReplace) {
+    history.replaceState = function() {
+      origReplace.apply(this, arguments);
+      checkUrlForAuth();
+    };
+  }
 
-  // 2. Fire on hash changes (Telegram's default redirect mechanism)
-  window.addEventListener('hashchange', scanAndPost);
+  // 2. Standard window event listeners
+  window.addEventListener('hashchange', checkUrlForAuth);
+  window.addEventListener('popstate', checkUrlForAuth);
 
-  // 3. Fire on popstate (SPA-style navigation inside the OAuth frame)
-  window.addEventListener('popstate', scanAndPost);
+  // 3. Aggressive 250ms polling fallback — bulletproof on Android Chrome WebView
+  var urlInterval = setInterval(checkUrlForAuth, 250);
 
-  // 4. Blend background for seamless white integration
+  // 4. Cleanup interval on page unload
+  window.addEventListener('unload', function() { clearInterval(urlInterval); });
+
+  // 5. Run immediately in case we are already on the result page
+  checkUrlForAuth();
+
+  // 6. Blend background for seamless white integration
   var style = document.createElement('style');
   style.innerHTML = [
     'body, html { background-color: #ffffff !important; background: #ffffff !important; }',
