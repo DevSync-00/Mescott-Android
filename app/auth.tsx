@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   StatusBar,
   Animated,
   Easing,
@@ -11,23 +10,17 @@ import {
   Keyboard,
   Platform,
   ActivityIndicator,
-  TextInput,
 } from 'react-native'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import { Image } from 'expo-image'
-import * as Haptics from 'expo-haptics'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { useToast } from '../contexts/ToastContext'
-import { FontAwesome } from '@expo/vector-icons'
 import TelegramLoginScreen, { TelegramAuthData } from '../components/TelegramLoginScreen'
 
 export default function Auth() {
   const router = useRouter()
-  const [phoneNumber, setPhoneNumber] = useState('+251')
-  const [inputError, setInputError] = useState<string | null>(null)
-  const [showWebView, setShowWebView] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const { loginWithTelegram, isAuthenticated, loading: isLoading } = useAuth()
@@ -79,54 +72,8 @@ export default function Auth() {
     }
   }, [isAuthenticated, isLoading, router, fadeAnim, slideAnim])
 
-  // Pulse animation for the logo
-  useEffect(() => {
-    let animation: Animated.CompositeAnimation | null = null
-    if (loading) {
-      animation = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.15,
-            duration: 1000,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1.0,
-            duration: 1000,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
-          }),
-        ])
-      )
-      animation.start()
-    } else {
-      pulseAnim.setValue(1)
-    }
-    return () => {
-      if (animation) {
-        animation.stop()
-      }
-    }
-  }, [loading])
-
-  const handleContinueWithTelegram = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    
-    // Validate phone number format
-    const digits = phoneNumber.replace(/\D/g, '')
-    if (digits.length < 8) {
-      setInputError('Please enter a valid phone number with country code')
-      return
-    }
-
-    setInputError(null)
-    setShowWebView(true)
-    setLoading(true)
-  }
-
   const handleAuthResult = async (data: TelegramAuthData) => {
-    setShowWebView(false)
+    setLoading(true)
     try {
       await loginWithTelegram(data)
       showSuccess('Successfully signed in with Telegram!')
@@ -136,11 +83,6 @@ export default function Auth() {
     } finally {
       setLoading(false)
     }
-  }
-
-  const handleCancel = () => {
-    setShowWebView(false)
-    setLoading(false)
   }
 
   return (
@@ -182,7 +124,7 @@ export default function Auth() {
               <View style={styles.heroTextBlock}>
                 <Text style={styles.heroGreeting}>Hey!</Text>
                 <Text style={styles.heroGreeting}>Welcome To</Text>
-                <View style={styles.brandRow}>
+                <View style={brandRowStyle}>
                   <Text style={styles.heroBrand}>MESCO</Text>
                   <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
                     <Image
@@ -198,65 +140,14 @@ export default function Auth() {
 
             {/* Card */}
             <View style={styles.card}>
-              {showWebView ? (
-                <View style={styles.awaitingContainer}>
-                  <Text style={styles.awaitingTitle}>Check Telegram</Text>
-                  <Text style={styles.awaitingText}>
-                    We have sent a verification request to your Telegram. Please open Telegram and tap "Confirm" inside the secure verification thread.
-                  </Text>
-                  <ActivityIndicator size="large" color="#371F80" style={styles.awaitingLoader} />
-                  
-                  <TouchableOpacity onPress={handleCancel} style={styles.awaitingCancelButton}>
-                    <Text style={styles.awaitingCancelText}>Cancel & Try Again</Text>
-                  </TouchableOpacity>
+              <View style={styles.webViewContainer}>
+                <TelegramLoginScreen onAuthResult={handleAuthResult} />
+              </View>
 
-                  {/* Hidden Background Webview for Automation */}
-                  <View style={styles.hiddenWebView}>
-                    <TelegramLoginScreen
-                      phoneNumber={phoneNumber}
-                      onAuthResult={handleAuthResult}
-                      onCancel={handleCancel}
-                    />
-                  </View>
-                </View>
-              ) : (
-                <View style={styles.introContainer}>
-                  <Text style={styles.title}>Frictionless Login</Text>
-                  <Text style={styles.subtitle}>Sign in instantly using your phone number</Text>
-
-                  <View style={styles.inputContainer}>
-                    <FontAwesome name="phone" size={20} color="#371F80" style={styles.inputIcon} />
-                    <TextInput
-                      style={styles.textInput}
-                      value={phoneNumber}
-                      onChangeText={(text) => {
-                        if (!text.startsWith('+')) {
-                          setPhoneNumber('+' + text.replace(/\D/g, ''))
-                        } else {
-                          setPhoneNumber('+' + text.substring(1).replace(/\D/g, ''))
-                        }
-                        if (inputError) setInputError(null)
-                      }}
-                      placeholder="e.g. +251 912 345 678"
-                      placeholderTextColor="#999999"
-                      keyboardType="phone-pad"
-                    />
-                  </View>
-                  {inputError && <Text style={styles.errorText}>{inputError}</Text>}
-
-                  <TouchableOpacity
-                    style={[styles.telegramButton, loading && styles.buttonDisabled]}
-                    onPress={handleContinueWithTelegram}
-                    disabled={loading}
-                    activeOpacity={0.85}
-                  >
-                    <View style={styles.telegramBtnContent}>
-                      <FontAwesome name="telegram" size={24} color="#FFF" style={styles.telegramIcon} />
-                      <Text style={styles.telegramButtonText}>
-                        {loading ? 'SENDING REQUEST...' : 'CONTINUE WITH TELEGRAM'}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
+              {loading && (
+                <View style={styles.signingInOverlay}>
+                  <ActivityIndicator size="large" color="#371F80" />
+                  <Text style={styles.signingInText}>Signing in...</Text>
                 </View>
               )}
 
@@ -269,6 +160,12 @@ export default function Auth() {
       </TouchableWithoutFeedback>
     </SafeAreaView>
   )
+}
+
+const brandRowStyle = {
+  flexDirection: 'row' as const,
+  alignItems: 'center' as const,
+  marginTop: 14,
 }
 
 const styles = StyleSheet.create({
@@ -300,11 +197,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     lineHeight: 40,
   },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 14,
-  },
   heroBrand: {
     color: '#FFFFFF',
     fontSize: 56,
@@ -321,24 +213,31 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 56,
     borderTopRightRadius: 56,
     paddingHorizontal: 28,
-    paddingTop: 48,
+    paddingTop: 36,
     paddingBottom: 32,
     minHeight: '100%',
     marginTop: -24,
   },
-  title: {
-    color: '#000000',
-    fontSize: 20,
+  webViewContainer: {
+    width: '100%',
+    height: 420,
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
+  signingInOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 20,
+    borderTopLeftRadius: 56,
+    borderTopRightRadius: 56,
+  },
+  signingInText: {
+    marginTop: 12,
+    fontSize: 16,
     fontWeight: '700',
-    marginBottom: 12,
-  },
-  subtitle: {
     color: '#371F80',
-    fontSize: 15,
-    marginBottom: 24,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
   },
   footerWrap: {
     marginTop: 32,
@@ -348,105 +247,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#371F80',
     textAlign: 'center',
-  },
-  introContainer: {
-    width: '100%',
-  },
-  telegramButton: {
-    backgroundColor: '#24A1DE',
-    borderRadius: 24,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 8,
-    shadowColor: '#24A1DE',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  telegramBtnContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  telegramIcon: {
-    marginRight: 8,
-  },
-  telegramButtonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#E8E8F0',
-    borderRadius: 24,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    marginBottom: 16,
-    backgroundColor: '#F9F9FC',
-  },
-  inputIcon: {
-    marginRight: 12,
-  },
-  textInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#333333',
-    fontWeight: '600',
-  },
-  errorText: {
-    color: '#FF3B30',
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: -8,
-    marginBottom: 16,
-    marginLeft: 12,
-  },
-  awaitingContainer: {
-    width: '100%',
-    alignItems: 'center',
-    paddingVertical: 24,
-  },
-  awaitingTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#371F80',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  awaitingText: {
-    fontSize: 15,
-    color: '#666666',
-    textAlign: 'center',
-    marginBottom: 32,
-    lineHeight: 22,
-    paddingHorizontal: 16,
-  },
-  awaitingLoader: {
-    marginBottom: 40,
-    transform: [{ scale: 1.3 }],
-  },
-  awaitingCancelButton: {
-    borderWidth: 1.5,
-    borderColor: '#E8E8F0',
-    borderRadius: 24,
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    backgroundColor: '#FFFFFF',
-  },
-  awaitingCancelText: {
-    color: '#371F80',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  hiddenWebView: {
-    width: 1,
-    height: 1,
-    opacity: 0.01,
-    position: 'absolute',
   },
 })

@@ -37,7 +37,7 @@ function decodeTgAuthResult(raw: string): Record<string, any> {
   return JSON.parse(json);
 }
 
-const buildInjectedJs = (phoneNumber: string) => `
+const INJECTED_JS = `
 (function() {
   // 1. Intercept hash change
   function checkHash() {
@@ -49,45 +49,10 @@ const buildInjectedJs = (phoneNumber: string) => `
   window.addEventListener('hashchange', checkHash);
   checkHash();
 
-  // 2. Automate phone form fill
-  function attemptFill() {
-    var phoneInput = document.getElementById('login-phone');
-    if (phoneInput) {
-      if (phoneInput.value !== "${phoneNumber}") {
-        phoneInput.value = "${phoneNumber}";
-        phoneInput.dispatchEvent(new Event('input', { bubbles: true }));
-        phoneInput.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-      
-      // Look for the Next button
-      var nextBtn = document.querySelector('button.btn-primary') || 
-                    document.querySelector('button') || 
-                    document.querySelector('.btn');
-      if (nextBtn && nextBtn.textContent && nextBtn.textContent.toLowerCase().includes('next')) {
-        nextBtn.click();
-        return true;
-      }
-    }
-
-    // 3. Automate "Log in as <Name>" if already authenticated
-    var buttons = document.querySelectorAll('button, a.btn, div.btn');
-    for (var i = 0; i < buttons.length; i++) {
-      var btn = buttons[i];
-      if (btn.textContent && btn.textContent.toLowerCase().includes('log in as')) {
-        btn.click();
-        return true;
-      }
-    }
-    return false;
-  }
-
-  var attempts = 0;
-  var interval = setInterval(function() {
-    attempts++;
-    if (attemptFill() || attempts > 30) {
-      clearInterval(interval);
-    }
-  }, 250);
+  // 2. Blend background by appending custom style
+  var style = document.createElement('style');
+  style.innerHTML = 'body, html, .tgme_widget_login_page { background-color: #ffffff !important; background: #ffffff !important; }';
+  document.head.appendChild(style);
 
   true;
 })();
@@ -104,12 +69,10 @@ export interface TelegramAuthData {
 }
 
 interface TelegramLoginScreenProps {
-  phoneNumber: string;
   onAuthResult: (data: TelegramAuthData) => void;
-  onCancel?: () => void;
 }
 
-export default function TelegramLoginScreen({ phoneNumber, onAuthResult, onCancel }: TelegramLoginScreenProps) {
+export default function TelegramLoginScreen({ onAuthResult }: TelegramLoginScreenProps) {
   const [nonce, setNonce] = useState<string>(generateNonce);
   const [webViewKey, setWebViewKey] = useState<string>('tg-webview-initial');
   const [loading, setLoading] = useState(true);
@@ -168,8 +131,6 @@ export default function TelegramLoginScreen({ phoneNumber, onAuthResult, onCance
     }
   }
 
-  const injectedJs = buildInjectedJs(phoneNumber);
-
   return (
     <View style={styles.container}>
       {loading && (
@@ -183,8 +144,8 @@ export default function TelegramLoginScreen({ phoneNumber, onAuthResult, onCance
         incognito={true}
         javaScriptEnabled={true}
         domStorageEnabled={true}
-        injectedJavaScript={injectedJs}
-        injectedJavaScriptBeforeContentLoaded={injectedJs}
+        injectedJavaScript={INJECTED_JS}
+        injectedJavaScriptBeforeContentLoaded={INJECTED_JS}
         onNavigationStateChange={handleNavigationStateChange}
         onShouldStartLoadWithRequest={handleShouldStartLoad}
         onMessage={handleMessage}
@@ -198,7 +159,7 @@ export default function TelegramLoginScreen({ phoneNumber, onAuthResult, onCance
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
-  webview: { flex: 1 },
+  webview: { flex: 1, backgroundColor: '#FFFFFF' },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#FFFFFF',
