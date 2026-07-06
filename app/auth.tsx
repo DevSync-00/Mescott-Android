@@ -19,7 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { useToast } from '../contexts/ToastContext'
-import { Ionicons } from '@expo/vector-icons'
+import { Ionicons, FontAwesome } from '@expo/vector-icons'
 import * as Linking from 'expo-linking'
 import { TelegramAuthService } from '../services/telegramAuth'
 
@@ -342,7 +342,7 @@ export default function Auth() {
                     activeOpacity={0.85}
                   >
                     <View style={styles.telegramBtnContent}>
-                      <Ionicons name={"logo-telegram" as any} size={24} color="#FFF" style={styles.telegramIcon} />
+                      <FontAwesome name="telegram" size={24} color="#FFF" style={styles.telegramIcon} />
                       <Text style={styles.telegramButtonText}>
                         {loading ? 'INITIATING...' : 'CONTINUE WITH TELEGRAM'}
                       </Text>
