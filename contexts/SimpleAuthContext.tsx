@@ -108,11 +108,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') &&
         session?.user
       ) {
+        // Delay slightly to avoid racing loginWithTelegram's own loadUserProfile call
         setTimeout(() => {
           loadUserProfile(session.user!.id).catch((error) =>
             handleProfileLoadError(error, event)
           );
-        }, 0);
+        }, 500);
       }
     });
 
@@ -171,8 +172,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const loadUserProfile = async (userId: string) => {
+  const loadUserProfile = async (userId: string, retries = 3, delay = 800): Promise<void> => {
     try {
+      console.log(`[Auth] Fetching profile row for UID: ${userId}. Retries remaining: ${retries}`);
+
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
@@ -181,15 +184,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       if (error) throw new Error(`Database error: ${error.message}`);
 
+      // Profile row not yet written by the DB trigger — give it a grace window
       if (!profile) {
-        console.log('Profile row missing on first fetch—sign out clean.');
+        if (retries > 0) {
+          console.log(`[Auth] Profile row not ready yet. Retrying in ${delay}ms... (${retries} left)`);
+          await new Promise<void>((resolve) => setTimeout(resolve, delay));
+          return loadUserProfile(userId, retries - 1, delay);
+        }
+        // All retries exhausted — sign out cleanly
+        console.warn('[Auth] Profile row missing after all retries — signing out clean.');
         await supabase.auth.signOut();
         setUser(null);
         setLoading(false);
         return;
       }
 
-      // Set user profile state seamlessly
+      console.log('[Auth] Profile loaded successfully:', profile.full_name);
+
+      // Set user profile state seamlessly — preserve all fields
       setUser({
         id: profile.id,
         user_id: profile.user_id,
@@ -209,11 +221,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // CRITICAL: Release the app-wide root layout loading blocker
       setLoading(false);
     } catch (error) {
-      console.error('Error loading profile context:', error);
+      console.error('[Auth] Critical exception inside loadUserProfile:', error);
       setUser(null);
       setLoading(false);
     }
   };
+
 
   const refreshUserProfile = async () => {
     if (!user) return;
