@@ -5,11 +5,13 @@ import { Ionicons } from '@expo/vector-icons'
 import { useToast } from '../contexts/ToastContext'
 import { PaymentService } from '../services/PaymentService'
 import { Colors } from '../constants/Colors'
+import { formatETB } from '../lib/formatCurrency'
 import SkeletonLoader from '../components/SkeletonLoader'
 
 export default function PaymentSuccessScreen() {
   const { showError } = useToast()
-  const { tx_ref } = useLocalSearchParams<{ tx_ref: string }>()
+  const params = useLocalSearchParams<{ tx_ref?: string; trx_ref?: string }>()
+  const txRef = params.tx_ref || params.trx_ref
   const [loading, setLoading] = useState(true)
   const [paymentStatus, setPaymentStatus] = useState<{
     status: string
@@ -18,18 +20,17 @@ export default function PaymentSuccessScreen() {
   } | null>(null)
 
   const verifyPayment = useCallback(async () => {
-    if (!tx_ref) return
+    if (!txRef) return
 
     try {
       setLoading(true)
-      const status = await PaymentService.verifyChapaPayment(tx_ref)
+      const status = await PaymentService.verifyChapaPayment(txRef)
 
       if (status) {
         setPaymentStatus(status)
 
         if (status.status === 'completed') {
-          // Process the payment
-          await PaymentService.processChapaPayment(tx_ref)
+          await PaymentService.processChapaPayment(txRef)
         }
       } else {
         showError('Unable to verify payment status')
@@ -40,25 +41,17 @@ export default function PaymentSuccessScreen() {
     } finally {
       setLoading(false)
     }
-  }, [tx_ref])
+  }, [txRef, showError])
 
   useEffect(() => {
-    if (tx_ref) {
+    if (txRef) {
       verifyPayment()
     } else {
       showError('Invalid payment reference')
       router.replace('/')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tx_ref, verifyPayment])
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-ET', {
-      style: 'currency',
-      currency: 'ETB',
-      minimumFractionDigits: 2,
-    }).format(amount)
-  }
+  }, [txRef, verifyPayment])
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -142,7 +135,7 @@ export default function PaymentSuccessScreen() {
 
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Amount:</Text>
-              <Text style={styles.detailValue}>{formatCurrency(paymentStatus.amount)}</Text>
+              <Text style={styles.detailValue}>{formatETB(paymentStatus.amount)}</Text>
             </View>
 
             <View style={styles.detailRow}>
@@ -154,7 +147,7 @@ export default function PaymentSuccessScreen() {
 
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Transaction ID:</Text>
-              <Text style={styles.detailValue}>{tx_ref}</Text>
+              <Text style={styles.detailValue}>{txRef}</Text>
             </View>
 
             {paymentStatus.breakdown && (
@@ -165,28 +158,28 @@ export default function PaymentSuccessScreen() {
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Subtotal:</Text>
                   <Text style={styles.detailValue}>
-                    {formatCurrency(paymentStatus.breakdown.subtotal)}
+                    {formatETB(paymentStatus.breakdown.subtotal)}
                   </Text>
                 </View>
 
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>VAT (15%):</Text>
                   <Text style={styles.detailValue}>
-                    {formatCurrency(paymentStatus.breakdown.vat)}
+                    {formatETB(paymentStatus.breakdown.vat)}
                   </Text>
                 </View>
 
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Platform Fee (5%):</Text>
                   <Text style={styles.detailValue}>
-                    {formatCurrency(paymentStatus.breakdown.platformFee)}
+                    {formatETB(paymentStatus.breakdown.platformFee)}
                   </Text>
                 </View>
 
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Total:</Text>
                   <Text style={[styles.detailValue, styles.totalAmount]}>
-                    {formatCurrency(paymentStatus.breakdown.total)}
+                    {formatETB(paymentStatus.breakdown.total)}
                   </Text>
                 </View>
               </>

@@ -15,6 +15,7 @@ import { useAuth } from '../contexts/SimpleAuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { BookingService, Booking } from '../services/BookingService'
 import { Colors } from '../constants/Colors'
+import { formatETB } from '../lib/formatCurrency'
 import { SkeletonList } from '../components/SkeletonLoader'
 import { showConfirmation } from '../utils/alertHelper'
 
@@ -348,7 +349,9 @@ export default function Bookings() {
                   <View style={styles.detailRow}>
                     <View style={styles.detailItem}>
                       <Ionicons name="cash-outline" size={18} color={Colors.neutral[500]} />
-                      <Text style={styles.detailText}>${booking.agreed_price}</Text>
+                      <Text style={styles.detailText}>
+                        {formatETB(booking.agreed_price ?? 0)}
+                      </Text>
                     </View>
                   </View>
                 </View>

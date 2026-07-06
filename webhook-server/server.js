@@ -180,6 +180,17 @@ async function processSuccessfulPayment(payload) {
   }
 }
 
+// Telegram Bot API webhook (sign-up / sign-in verification + support)
+const telegramWebhookHandler = require('./api/webhooks/telegram');
+app.post('/webhooks/telegram', (req, res) => telegramWebhookHandler(req, res));
+app.get('/webhooks/telegram', (req, res) => telegramWebhookHandler(req, res));
+
+const telegramSendHandler = require('./api/telegram/send');
+app.post('/api/telegram/send', (req, res) => telegramSendHandler(req, res));
+
+const telegramMessagesHandler = require('./api/telegram/messages');
+app.get('/api/telegram/messages', (req, res) => telegramMessagesHandler(req, res));
+
 // Main webhook endpoint
 app.post('/webhook', async (req, res) => {
   try {
@@ -239,11 +250,15 @@ app.post('/webhook', async (req, res) => {
   }
 });
 
+const { MESCOTT_API_URL, apiUrl } = require('./lib/mescottUrls');
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Mescott Webhook Server running on port ${PORT}`);
-  console.log(`📍 Health check: http://localhost:${PORT}/`);
-  console.log(`🔗 Webhook endpoint: http://localhost:${PORT}/webhook`);
+  console.log(`📍 Public API base: ${MESCOTT_API_URL}`);
+  console.log(`🔗 Chapa webhook: ${apiUrl('/api/webhook')}`);
+  console.log(`🔗 Payment return: ${apiUrl('/api/payment-return')}`);
+  console.log(`🔗 Telegram webhook: ${apiUrl('/api/webhooks/telegram')}`);
 });
 
 module.exports = app;

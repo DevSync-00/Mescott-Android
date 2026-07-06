@@ -15,6 +15,7 @@ import { WithdrawalOrderService } from '../services/WithdrawalOrderService'
 import PaymentMethodModal from './PaymentMethodModal'
 import BottomSheet, { BottomSheetRef } from './BottomSheet'
 import { Colors } from '../constants/Colors'
+import { formatETB } from '../lib/formatCurrency'
 import { showInfoAlert, showSuccessAlert } from '../utils/alertHelper'
 
 interface WithdrawalModalProps {
@@ -124,13 +125,6 @@ export default function WithdrawalModal({
     }
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-ET', {
-      style: 'currency',
-      currency: 'ETB',
-    }).format(amount)
-  }
-
   const getWithdrawalMethodName = (type: string) => {
     switch (type) {
       case 'bank_account':
@@ -174,7 +168,7 @@ export default function WithdrawalModal({
             <Text
               style={[styles.balanceAmount, currentBalance <= 0 && styles.balanceAmountWarning]}
             >
-              {formatCurrency(currentBalance)}
+              {formatETB(currentBalance)}
             </Text>
             {currentBalance <= 0 && (
               <Text style={styles.balanceWarning}>
@@ -198,7 +192,7 @@ export default function WithdrawalModal({
               />
             </View>
             <Text style={styles.amountNote}>
-              Minimum: {formatCurrency(50)} • Maximum: {formatCurrency(currentBalance)}
+              Minimum: {formatETB(50)} • Maximum: {formatETB(currentBalance)}
             </Text>
           </View>
 
@@ -276,7 +270,7 @@ export default function WithdrawalModal({
               <View style={styles.summaryCard}>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Amount:</Text>
-                  <Text style={styles.summaryValue}>{formatCurrency(parseFloat(amount))}</Text>
+                  <Text style={styles.summaryValue}>{formatETB(parseFloat(amount))}</Text>
                 </View>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Method:</Text>
@@ -284,7 +278,7 @@ export default function WithdrawalModal({
                 </View>
                 <View style={[styles.summaryRow, styles.summaryTotal]}>
                   <Text style={styles.summaryTotalLabel}>You&apos;ll Receive:</Text>
-                  <Text style={styles.summaryTotalValue}>{formatCurrency(netAmount)}</Text>
+                  <Text style={styles.summaryTotalValue}>{formatETB(netAmount)}</Text>
                 </View>
               </View>
             </View>

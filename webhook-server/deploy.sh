@@ -24,20 +24,18 @@ npm install
 echo "🚀 Deploying to Vercel..."
 vercel --prod
 
-# Get the deployment URL
-DEPLOYMENT_URL=$(vercel ls | grep "webhook-server" | head -1 | awk '{print $2}')
 echo "✅ Deployment complete!"
-echo "🌐 Your webhook URL: https://$DEPLOYMENT_URL/api/payments/chapa/webhook"
-
 echo ""
-echo "📝 Next steps:"
-echo "1. Update your Chapa dashboard with the webhook URL above"
-echo "2. Set environment variables in Vercel dashboard:"
-echo "   - SUPABASE_URL"
-echo "   - SUPABASE_ANON_KEY" 
-echo "   - CHAPA_WEBHOOK_SECRET"
-echo "3. Test the webhook with a sample payment"
-
+echo "🌐 Configure DNS: mescott.co → your Vercel deployment"
 echo ""
-echo "🔍 To monitor logs:"
-echo "vercel logs"
+echo "📝 Production URLs (use in Chapa, Telegram, and app .env):"
+echo "   Chapa webhook:     https://api.mescott.co/api/webhook"
+echo "   Payment return:    https://api.mescott.co/api/payment-return"
+echo "   Telegram webhook:  https://api.mescott.co/api/webhooks/telegram"
+echo ""
+echo "📝 Environment variables:"
+echo "   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, CHAPA_WEBHOOK_SECRET"
+echo "   TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET"
+echo "   TELEGRAM_WEBHOOK_BASE_URL=https://api.mescott.co"
+echo "   EXPO_PUBLIC_API_URL=https://api.mescott.co"
+echo "   EXPO_PUBLIC_APP_URL=https://mescott.co"

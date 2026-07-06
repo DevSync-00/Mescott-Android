@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import {
   View,
   Text,
@@ -8,11 +8,14 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
+  AppState,
+  AppStateStatus,
   Dimensions,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { PaymentService, Payment, PaymentCalculation } from '../services/PaymentService'
 import { Colors } from '../constants/Colors'
+import { formatETB } from '../lib/formatCurrency'
 import BottomSheet, { BottomSheetRef } from './BottomSheet'
 
 const { width } = Dimensions.get('window')
@@ -38,18 +41,104 @@ function ChapaPaymentModal({
   customerInfo,
 }: ChapaPaymentModalProps) {
   const bottomSheetRef = useRef<BottomSheetRef>(null)
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [loading, setLoading] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null)
   const [txRef, setTxRef] = useState<string | null>(null)
   const [breakdown, setBreakdown] = useState<PaymentCalculation | null>(null)
-  const [paymentStatus, setPaymentStatus] = useState<string>('pending')
+  const [paymentStatus, setPaymentStatus] = useState<'pending' | 'completed' | 'failed'>('pending')
+  const isPollingRef = useRef(false)
+  const hasShownFailedAlertRef = useRef(false)
+
+  const stopPaymentStatusPolling = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current)
+      pollIntervalRef.current = null
+    }
+    isPollingRef.current = false
+  }, [])
 
   useEffect(() => {
-    if (visible && payment && customerInfo) {
-      initializePayment()
+    return () => stopPaymentStatusPolling()
+  }, [stopPaymentStatusPolling])
+
+  const showPaymentFailed = useCallback(() => {
+    setPaymentStatus('failed')
+    if (!hasShownFailedAlertRef.current) {
+      hasShownFailedAlertRef.current = true
+      Alert.alert(
+        'Payment Failed',
+        'Your payment could not be processed. Please try again.',
+        [{ text: 'OK' }],
+      )
     }
-  }, [visible, payment, customerInfo])
+  }, [])
+
+  const handlePaymentComplete = useCallback(async () => {
+    if (!txRef) return
+
+    stopPaymentStatusPolling()
+    setPaymentStatus('completed')
+
+    const success = await PaymentService.processChapaPayment(txRef)
+    if (success) {
+      Alert.alert('Payment Successful!', 'Your payment has been processed successfully.', [
+        {
+          text: 'OK',
+          onPress: () => {
+            onPaymentSuccess(payment)
+            onClose()
+          },
+        },
+      ])
+    }
+  }, [txRef, stopPaymentStatusPolling, payment, onPaymentSuccess, onClose])
+
+  const checkPaymentStatus = useCallback(async () => {
+    if (!txRef) return
+
+    try {
+      const status = await PaymentService.verifyChapaPayment(txRef)
+      if (!status) return
+
+      if (status.status === 'completed') {
+        await handlePaymentComplete()
+      } else if (status.status === 'failed') {
+        stopPaymentStatusPolling()
+        showPaymentFailed()
+      }
+    } catch (error) {
+      console.error('Error checking payment status:', error)
+    }
+  }, [txRef, handlePaymentComplete, stopPaymentStatusPolling, showPaymentFailed])
+
+  const startPaymentStatusPolling = useCallback(() => {
+    if (!txRef || isPollingRef.current) return
+
+    isPollingRef.current = true
+    void checkPaymentStatus()
+
+    pollIntervalRef.current = setInterval(() => {
+      void checkPaymentStatus()
+    }, 3000)
+
+    setTimeout(() => {
+      stopPaymentStatusPolling()
+    }, 600000)
+  }, [txRef, checkPaymentStatus, stopPaymentStatusPolling])
+
+  useEffect(() => {
+    if (!txRef) return
+
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState === 'active' && isPollingRef.current && txRef) {
+        void checkPaymentStatus()
+      }
+    })
+
+    return () => subscription.remove()
+  }, [txRef, checkPaymentStatus])
 
   const initializePayment = async () => {
     if (!payment || !customerInfo) return
@@ -98,6 +187,20 @@ function ChapaPaymentModal({
     }
   }
 
+  useEffect(() => {
+    if (visible && payment && customerInfo) {
+      setPaymentStatus('pending')
+      hasShownFailedAlertRef.current = false
+      initializePayment()
+    }
+    if (!visible) {
+      stopPaymentStatusPolling()
+      setPaymentStatus('pending')
+      hasShownFailedAlertRef.current = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, payment, customerInfo])
+
   const handlePayment = async () => {
     if (!checkoutUrl) {
       Alert.alert('Error', 'Payment URL not available')
@@ -106,6 +209,12 @@ function ChapaPaymentModal({
 
     try {
       setProcessing(true)
+
+      if (paymentStatus === 'failed') {
+        hasShownFailedAlertRef.current = false
+        setPaymentStatus('pending')
+        stopPaymentStatusPolling()
+      }
 
       // Open Chapa checkout in browser
       const supported = await Linking.canOpenURL(checkoutUrl)
@@ -123,55 +232,6 @@ function ChapaPaymentModal({
     } finally {
       setProcessing(false)
     }
-  }
-
-  const startPaymentStatusPolling = () => {
-    if (!txRef) return
-
-    const pollInterval = setInterval(async () => {
-      try {
-        const status = await PaymentService.verifyChapaPayment(txRef!)
-        if (status) {
-          setPaymentStatus(status.status)
-
-          if (status.status === 'completed') {
-            clearInterval(pollInterval)
-            await PaymentService.processChapaPayment(txRef!)
-            Alert.alert('Payment Successful!', 'Your payment has been processed successfully.', [
-              {
-                text: 'OK',
-                onPress: () => {
-                  onPaymentSuccess(payment) // Pass payment info which contains task_id
-                  onClose()
-                },
-              },
-            ])
-          } else if (status.status === 'failed' || status.status === 'cancelled') {
-            clearInterval(pollInterval)
-            Alert.alert(
-              'Payment Failed',
-              'Your payment could not be processed. Please try again.',
-              [{ text: 'OK' }],
-            )
-          }
-        }
-      } catch (error) {
-        console.error('Error checking payment status:', error)
-      }
-    }, 3000) // Check every 3 seconds
-
-    // Stop polling after 10 minutes
-    setTimeout(() => {
-      clearInterval(pollInterval)
-    }, 600000)
-  }
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-ET', {
-      style: 'currency',
-      currency: 'ETB',
-      minimumFractionDigits: 2,
-    }).format(amount)
   }
 
   if (!payment) return null
@@ -217,18 +277,18 @@ function ChapaPaymentModal({
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Subtotal:</Text>
                   <Text style={styles.summaryValue}>
-                    {formatCurrency(breakdown.breakdown.subtotal)}
+                    {formatETB(breakdown.breakdown.subtotal)}
                   </Text>
                 </View>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>VAT (15%):</Text>
-                  <Text style={styles.summaryValue}>{formatCurrency(breakdown.breakdown.vat)}</Text>
+                  <Text style={styles.summaryValue}>{formatETB(breakdown.breakdown.vat)}</Text>
                 </View>
                 <View style={styles.divider} />
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Total Amount:</Text>
                   <Text style={styles.summaryAmount}>
-                    {formatCurrency(breakdown.breakdown.total)}
+                    {formatETB(breakdown.breakdown.total)}
                   </Text>
                 </View>
               </>
@@ -263,21 +323,57 @@ function ChapaPaymentModal({
 
           {/* Payment Status */}
           {paymentStatus !== 'pending' && (
-            <View style={styles.statusCard}>
+            <View
+              style={[
+                styles.statusCard,
+                paymentStatus === 'failed' && styles.statusCardFailed,
+                paymentStatus === 'completed' && styles.statusCardSuccess,
+              ]}
+            >
               <View style={styles.statusHeader}>
                 <Ionicons
-                  name={paymentStatus === 'completed' ? 'checkmark-circle' : 'time'}
+                  name={
+                    paymentStatus === 'completed'
+                      ? 'checkmark-circle'
+                      : paymentStatus === 'failed'
+                        ? 'close-circle'
+                        : 'time'
+                  }
                   size={20}
-                  color={paymentStatus === 'completed' ? Colors.success[500] : Colors.warning[500]}
+                  color={
+                    paymentStatus === 'completed'
+                      ? Colors.success[500]
+                      : paymentStatus === 'failed'
+                        ? Colors.error[500]
+                        : Colors.warning[500]
+                  }
                 />
-                <Text style={styles.statusTitle}>
-                  {paymentStatus === 'completed' ? 'Payment Completed' : 'Processing Payment...'}
+                <Text
+                  style={[
+                    styles.statusTitle,
+                    paymentStatus === 'failed' && styles.statusTitleFailed,
+                    paymentStatus === 'completed' && styles.statusTitleSuccess,
+                  ]}
+                >
+                  {paymentStatus === 'completed'
+                    ? 'Payment Completed'
+                    : paymentStatus === 'failed'
+                      ? 'Payment Failed'
+                      : 'Processing Payment...'}
                 </Text>
               </View>
-              <Text style={styles.statusDescription}>
+              <Text
+                style={[
+                  styles.statusDescription,
+                  paymentStatus === 'failed' && styles.statusDescriptionFailed,
+                  paymentStatus === 'completed' && styles.statusDescriptionSuccess,
+                ]}
+              >
                 {paymentStatus === 'completed'
                   ? 'Your payment has been successfully processed.'
-                  : 'Please wait while we process your payment.'}
+                  : paymentStatus === 'failed'
+                    ? 'Your payment could not be processed. Please try again.'
+                    : 'Please wait while we process your payment.'}
               </Text>
             </View>
           )}
@@ -305,15 +401,24 @@ function ChapaPaymentModal({
               </View>
             ) : (
               <TouchableOpacity
-                style={styles.payButton}
+                style={[
+                  styles.payButton,
+                  paymentStatus === 'failed' && styles.payButtonRetry,
+                ]}
                 onPress={handlePayment}
                 disabled={!checkoutUrl || paymentStatus === 'completed'}
               >
-                <Ionicons name="card" size={20} color="#fff" />
+                <Ionicons
+                  name={paymentStatus === 'failed' ? 'refresh' : 'card'}
+                  size={20}
+                  color="#fff"
+                />
                 <Text style={styles.payButtonText}>
                   {paymentStatus === 'completed'
                     ? 'Payment Completed'
-                    : `Pay ${formatCurrency(breakdown?.breakdown.total || payment.amount)}`}
+                    : paymentStatus === 'failed'
+                      ? 'Try Again'
+                      : `Pay ${formatETB(breakdown?.breakdown.total || payment.amount)}`}
                 </Text>
               </TouchableOpacity>
             )}
@@ -474,6 +579,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.warning[200],
   },
+  statusCardFailed: {
+    backgroundColor: Colors.error[50],
+    borderLeftColor: Colors.error[500],
+    borderColor: Colors.error[200],
+  },
+  statusCardSuccess: {
+    backgroundColor: Colors.success[50],
+    borderLeftColor: Colors.success[500],
+    borderColor: Colors.success[200],
+  },
   statusHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -485,10 +600,25 @@ const styles = StyleSheet.create({
     color: Colors.warning[700],
     marginLeft: 8,
   },
+  statusTitleFailed: {
+    color: Colors.error[700],
+  },
+  statusTitleSuccess: {
+    color: Colors.success[700],
+  },
   statusDescription: {
     fontSize: 12,
     color: Colors.warning[600],
     lineHeight: 18,
+  },
+  statusDescriptionFailed: {
+    color: Colors.error[600],
+  },
+  statusDescriptionSuccess: {
+    color: Colors.success[600],
+  },
+  payButtonRetry: {
+    backgroundColor: Colors.error[500],
   },
   securityNotice: {
     flexDirection: 'row',

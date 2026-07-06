@@ -1,149 +1,81 @@
-# Muyacon Webhook Server
+# Mescott Webhook Server
 
-This is a webhook server for handling Chapa payment notifications in the Muyacon platform.
+Handles **Chapa payments**, **payment return redirects**, and **Telegram** sign-up/sign-in for the Mescott mobile app.
 
-## 🚀 Quick Setup
+Hosted on **`https://api.mescott.co`** (website stays on `https://mescott.co`).
 
-### 1. Install Dependencies
-```bash
-cd webhook-server
-npm install
-```
+## Endpoints
 
-### 2. Set Environment Variables
-Create a `.env.local` file:
+| Method | URL | Purpose |
+|--------|-----|---------|
+| POST | `https://api.mescott.co/api/webhook` | Chapa payment webhook |
+| GET | `https://api.mescott.co/api/payment-return` | Chapa return → opens app |
+| POST | `https://api.mescott.co/api/webhooks/telegram` | Telegram Bot webhook |
+| POST | `https://api.mescott.co/api/telegram-request-session` | App: get `deepLink` + `sessionToken` |
+| POST | `https://api.mescott.co/api/telegram-verify` | App: verify OTP → Supabase session |
+| POST | `https://api.mescott.co/api/telegram/send` | Send Telegram message |
+| GET | `https://api.mescott.co/api/telegram/messages` | Fetch messages |
+
+## Environment variables (Vercel — webhook project)
+
 ```env
-SUPABASE_URL=your_supabase_url
-SUPABASE_ANON_KEY=your_supabase_anon_key
-CHAPA_WEBHOOK_SECRET=qwertyuil@1A
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+CHAPA_WEBHOOK_SECRET=your_secret
+
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_WEBHOOK_SECRET=...
+TELEGRAM_BOT_USERNAME=YourBotName
+TELEGRAM_WEBHOOK_BASE_URL=https://api.mescott.co
+EXPO_PUBLIC_APP_URL=https://mescott.co
 ```
 
-### 3. Deploy to Vercel
+## Deploy
 
-#### Option A: Using Vercel CLI
-```bash
-# Install Vercel CLI
-npm i -g vercel
+Use Vercel project **`mescott-android`** with **Root Directory** = `webhook-server`. See [DEPLOY.md](./DEPLOY.md).
 
-# Login to Vercel
-vercel login
+1. `cd webhook-server && npx vercel link` → choose **mescott-android**
+2. `npx vercel --prod`
+3. Confirm **`api.mescott.co`** is on that project (Settings → Domains).
+3. **Redeploy** after pulling Telegram API changes (older deploys only have Chapa routes).
+4. Chapa dashboard webhook: `https://api.mescott.co/api/webhook`
+5. Copy `webhook-server/.env.example` → `.env` and set `TELEGRAM_BOT_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY`, `TELEGRAM_BOT_USERNAME`.
 
-# Deploy
-vercel
+6. Register Telegram webhook (loads `.env` automatically):
 
-# Set environment variables
-vercel env add SUPABASE_URL
-vercel env add SUPABASE_ANON_KEY
-vercel env add CHAPA_WEBHOOK_SECRET
+```powershell
+cd webhook-server
+npm run telegram:register-webhook
 ```
 
-#### Option B: Using Vercel Dashboard
-1. Go to [vercel.com](https://vercel.com)
-2. Import your GitHub repository
-3. Set environment variables in the dashboard
-4. Deploy
+Paste your bot token when prompted. Add the same variables to **Vercel → Production**, then `npx vercel --prod`.
 
-### 4. Update Chapa Dashboard
-Once deployed, update your Chapa webhook URL:
-- **Webhook URL**: `https://your-app.vercel.app/api/payments/chapa/webhook`
-- **Secret Hash**: `qwertyuil@1A`
+## Mobile app `.env`
 
-## 🔧 How It Works
+```env
+EXPO_PUBLIC_APP_URL=https://mescott.co
+EXPO_PUBLIC_API_URL=https://api.mescott.co
+EXPO_PUBLIC_TELEGRAM_BOT_USERNAME=YourBotName
+```
 
-1. **Chapa sends webhook** → Your Vercel function receives it
-2. **Verify signature** → Ensures the webhook is from Chapa
-3. **Process payment** → Updates Supabase database
-4. **Credit tasker wallet** → Adds money to tasker's account
-5. **Update task status** → Marks task as paid
+Then: `npx expo start --clear`
 
-## 📊 Webhook Events Handled
+## Telegram sign-in flow
 
-- `charge.completed` - Payment successful
-- `charge.success` - Payment successful (alternative)
+1. User enters phone → **Verify with Telegram**.
+2. App `POST /api/telegram-request-session` → opens `https://t.me/Bot?start=signin_<token>`.
+3. User taps **Start** in Telegram → 6-digit code.
+4. App `POST /api/telegram-verify` → Supabase session.
 
-## 🛠️ Local Development
+Run `sql/telegram_tables.sql` in Supabase if not already applied.
+
+## Test
 
 ```bash
-# Install dependencies
-npm install
-
-# Run locally
-vercel dev
-
-# Test webhook
-curl -X POST http://localhost:3000/api/payments/chapa/webhook \
+curl https://api.mescott.co/
+curl -X POST https://api.mescott.co/api/telegram-request-session \
   -H "Content-Type: application/json" \
-  -d '{"event":"charge.completed","data":{"tx_ref":"test123","amount":1000}}'
+  -d '{"phone":"+251911000000"}'
 ```
 
-## 🔍 Monitoring
-
-Check Vercel function logs:
-1. Go to Vercel dashboard
-2. Select your project
-3. Go to "Functions" tab
-4. Click on the webhook function
-5. View logs in real-time
-
-## 🚨 Troubleshooting
-
-### Common Issues
-
-1. **Webhook not received**
-   - Check Vercel deployment status
-   - Verify webhook URL in Chapa dashboard
-   - Check function logs
-
-2. **Database errors**
-   - Verify Supabase credentials
-   - Check database permissions
-   - Ensure tables exist
-
-3. **Signature verification fails**
-   - Check webhook secret matches
-   - Verify payload format
-
-### Testing
-
-Use Chapa's test webhook payload:
-```json
-{
-  "event": "charge.completed",
-  "data": {
-    "tx_ref": "test_123",
-    "amount": 1000,
-    "currency": "ETB",
-    "status": "success",
-    "meta": {
-      "task_id": "task_123",
-      "tasker_id": "tasker_123",
-      "platform_fee": 50,
-      "vat_amount": 150,
-      "net_amount": 800
-    }
-  }
-}
-```
-
-## 📝 Environment Variables
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `SUPABASE_URL` | Your Supabase project URL | `https://xxx.supabase.co` |
-| `SUPABASE_ANON_KEY` | Your Supabase anon key | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` |
-| `CHAPA_WEBHOOK_SECRET` | Chapa webhook secret | `qwertyuil@1A` |
-
-## 🔒 Security
-
-- Webhook signature verification
-- CORS headers configured
-- Error handling and logging
-- Environment variable protection
-
-## 📞 Support
-
-For issues with this webhook server:
-1. Check Vercel function logs
-2. Verify Chapa webhook configuration
-3. Test with sample payload
-4. Contact development team
+Expected: JSON with `"ok": true` and `deepLink`. If **404**, redeploy the latest `webhook-server` code.

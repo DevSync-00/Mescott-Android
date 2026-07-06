@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   GestureResponderEvent,
   Platform,
   FlatList,
+  StatusBar,
 } from 'react-native'
 import Animated, {
   useSharedValue,
@@ -19,13 +20,12 @@ import Animated, {
   interpolate,
 } from 'react-native-reanimated'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
-import { StatusBar } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import { TaskService, Task } from '../services/TaskService'
-import { TaskApplicationService } from '../services/TaskApplicationService'
+import { getTaskStatusColor, getTaskStatusLabel } from '../lib/chat/taskContext'
 import { ChatService } from '../services/ChatService'
 import { SearchService, SearchFilters } from '../services/SearchService'
 import { PaymentService, Payment } from '../services/PaymentService'
@@ -34,7 +34,6 @@ import { getCache } from '../lib/cache'
 import AdvancedSearch from '../components/AdvancedSearch'
 import LoadingErrorState from '../components/LoadingErrorState'
 import ChapaPaymentModal from '../components/ChapaPaymentModal'
-// import RatingModal from '../components/RatingModal'
 import JobsHeader from '../components/JobsHeader'
 import { Colors } from '../constants/Colors'
 import { SkeletonList } from '../components/SkeletonLoader'
@@ -114,8 +113,6 @@ export default function Jobs() {
   const [pendingPayments, setPendingPayments] = useState<Payment[]>([])
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
-  const [showRatingModal, setShowRatingModal] = useState(false)
-  const [selectedTaskForRating, setSelectedTaskForRating] = useState<Task | null>(null)
   const [viewMode, setViewMode] = useState<'detailed' | 'compact'>('detailed')
   const [favoriteTasks, setFavoriteTasks] = useState<Set<string>>(new Set())
   // const [detailVisible, setDetailVisible] = useState(false)
@@ -273,14 +270,9 @@ export default function Jobs() {
     }
   })
 
-  if (!isAuthenticated) {
-    return null
-  }
-
   const handlePayNow = async (task: Task) => {
     if (!user || !task.id) return
 
-    // Find the pending payment for this task
     const pendingPayment = pendingPayments.find((p) => p.task_id === task.id)
 
     if (!pendingPayment) {
@@ -288,33 +280,55 @@ export default function Jobs() {
       return
     }
 
-    // Get customer info for Chapa payment
-    const customerInfo = {
-      email: user.profile?.email || 'customer@mescott.com',
-      firstName: user.name?.split(' ')[0] || 'Customer',
-      lastName: user.name?.split(' ').slice(1).join(' ') || 'User',
-      phone: user.phone || '+251911234567',
-    }
-
-    console.log('Customer Info for Payment:', customerInfo)
-    console.log('User Data:', { email: user.profile?.email, name: user.name, phone: user.phone })
-
     setSelectedPayment(pendingPayment)
     setShowPaymentModal(true)
   }
 
-  const handlePaymentSuccess = (task: Task) => {
-    loadPendingPayments() // Reload pending payments
-    loadTasks() // Reload tasks to update status
+  const openReviewForTask = useCallback(
+    (task: Task) => {
+      if (!task.id || !task.tasker_id) {
+        Alert.alert('Cannot review', 'This task has no assigned tasker to review.')
+        return
+      }
+      router.push({
+        pathname: '/review',
+        params: {
+          taskId: task.id,
+          revieweeId: task.tasker_id,
+          revieweeName: task.tasker_name || 'Tasker',
+          taskTitle: task.title,
+        },
+      })
+    },
+    [router],
+  )
 
-    // Show rating modal for the completed task
-    setSelectedTaskForRating(task)
-    setShowRatingModal(true)
-  }
+  const handlePaymentSuccess = useCallback(
+    async (payment?: Payment | null) => {
+      await loadPendingPayments()
+
+      const taskId = payment?.task_id
+      let task: Task | null = taskId ? tasks.find((t) => t.id === taskId) ?? null : null
+
+      if (!task && taskId) {
+        task = await TaskService.getTaskById(taskId)
+      }
+
+      await loadTasks()
+
+      if (task) {
+        openReviewForTask(task)
+      }
+    },
+    [loadPendingPayments, loadTasks, tasks, openReviewForTask],
+  )
 
   const hasPendingPayment = (task: Task) => {
-    const hasPayment = pendingPayments.some((p) => p.task_id === task.id)
-    return hasPayment
+    return pendingPayments.some((p) => p.task_id === task.id)
+  }
+
+  if (!isAuthenticated) {
+    return null
   }
 
   const handleAdvancedSearch = async (filters: SearchFilters) => {
@@ -428,40 +442,6 @@ export default function Jobs() {
           return 0
       }
     })
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return Colors.warning[500]
-      case 'assigned':
-        return Colors.primary[500]
-      case 'in_progress':
-        return Colors.primary[500]
-      case 'completed':
-        return Colors.success[500]
-      case 'cancelled':
-        return Colors.error[500]
-      default:
-        return Colors.neutral[500]
-    }
-  }
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return 'Pending'
-      case 'assigned':
-        return 'Assigned'
-      case 'in_progress':
-        return 'In Progress'
-      case 'completed':
-        return 'Completed'
-      case 'cancelled':
-        return 'Cancelled'
-      default:
-        return 'Unknown'
-    }
-  }
 
   const formatUrgency = (urgency?: string) => {
     if (!urgency) return ''
@@ -670,8 +650,7 @@ export default function Jobs() {
               }
               renderItem={({ item: task }) => {
                 const isFavorite = favoriteTasks.has(task.id)
-                const hasApplied = appliedTasks.has(task.id)
-                
+
                 return (
                   <TouchableOpacity
                     style={[styles.taskCard, viewMode === 'compact' && styles.taskCardCompact]}
@@ -820,16 +799,16 @@ export default function Jobs() {
                             <View
                               style={[
                                 styles.statusTag,
-                                { backgroundColor: getStatusColor(task.status) + '15' },
+                                { backgroundColor: getTaskStatusColor(task.status) + '15' },
                               ]}
                             >
                               <Text
                                 style={[
                                   styles.statusTagText,
-                                  { color: getStatusColor(task.status) },
+                                  { color: getTaskStatusColor(task.status) },
                                 ]}
                               >
-                                {getStatusLabel(task.status)}
+                                {getTaskStatusLabel(task.status)}
                               </Text>
                             </View>
                           )}
@@ -883,8 +862,7 @@ export default function Jobs() {
                                   style={[styles.actionButton, styles.rateButton]}
                                   onPress={(e) => {
                                     e.stopPropagation()
-                                    setSelectedTaskForRating(task)
-                                    setShowRatingModal(true)
+                                    openReviewForTask(task)
                                   }}
                                 >
                                   <Ionicons name="star" size={16} color="#fff" />
@@ -993,37 +971,15 @@ export default function Jobs() {
         }}
         payment={selectedPayment}
         onPaymentSuccess={(payment) => {
-          const task = payment?.task_id ? tasks.find((t) => t.id === payment.task_id) : null
-          if (task) {
-            handlePaymentSuccess(task)
-          }
+          handlePaymentSuccess(payment)
         }}
         customerInfo={{
-          email: user?.profile?.email || 'customer@mescott.com',
+          email: user?.profile?.email || 'customer@mescott.co',
           firstName: user?.name?.split(' ')[0] || 'Customer',
           lastName: user?.name?.split(' ').slice(1).join(' ') || 'User',
           phone: user?.phone || '+251911234567',
         }}
       />
-
-      {/* Rating Modal - Temporarily disabled */}
-      {/* {selectedTaskForRating && (
-        <RatingModal
-          visible={showRatingModal}
-          onClose={() => {
-            setShowRatingModal(false)
-            setSelectedTaskForRating(null)
-          }}
-          onRatingSubmitted={handleRatingSubmitted}
-          taskId={selectedTaskForRating.id || ''}
-          customerId={selectedTaskForRating.customer_id || ''}
-          technicianId={selectedTaskForRating.tasker_id || ''}
-          customerUserId={user?.id || ''}
-          technicianUserId={selectedTaskForRating.tasker_id || ''}
-          taskTitle={selectedTaskForRating.title || 'Task'}
-          technicianName={selectedTaskForRating.tasker_name || 'Technician'}
-        />
-      )} */}
 
       {/* Task Detail navigates to full page now; sheet removed */}
 

@@ -188,9 +188,9 @@ export class SimpleNotificationService {
 
   static async createPaymentNotification(amount: number, type: 'received' | 'sent' | 'refunded', taskTitle?: string): Promise<boolean> {
     const messages = {
-      received: `You received $${amount}${taskTitle ? ` for "${taskTitle}"` : ''}.`,
-      sent: `You sent $${amount}${taskTitle ? ` for "${taskTitle}"` : ''}.`,
-      refunded: `You received a refund of $${amount}${taskTitle ? ` for "${taskTitle}"` : ''}.`
+      received: `You received ${amount} ETB${taskTitle ? ` for "${taskTitle}"` : ''}.`,
+      sent: `You sent ${amount} ETB${taskTitle ? ` for "${taskTitle}"` : ''}.`,
+      refunded: `You received a refund of ${amount} ETB${taskTitle ? ` for "${taskTitle}"` : ''}.`,
     }
 
     return await this.addNotification(

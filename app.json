@@ -9,12 +9,14 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "description": "Connect with skilled professionals for any task. Post jobs or offer your services on Ethiopia's leading marketplace platform.",
-    "platforms": ["android"],
+    "platforms": [
+      "android"
+    ],
     "githubUrl": "https://github.com/berbir12/muyacon1",
     "primaryColor": "#7B42F6",
     "android": {
       "package": "com.mescott.app",
-      "versionCode": 600,
+      "versionCode": 605,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
@@ -48,8 +50,8 @@
           "imageWidth": 200,
           "backgroundColor": "#7B42F6",
           "resizeMode": "contain",
-          "dark":{
-            "image":"./assets/images/splash-icon-dark.png",
+          "dark": {
+            "image": "./assets/images/splash-icon-dark.png",
             "backgroundColor": "#000000"
           }
         }
@@ -76,9 +78,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "95580e21-6915-4645-b710-09710fccd22c"
+        "projectId": "27ea2f57-78e0-41cd-8c6e-e3f56609c50b"
       }
     },
-    "owner": "berbir1"
+    "owner": "berbir"
   }
 }

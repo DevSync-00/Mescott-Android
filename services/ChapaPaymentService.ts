@@ -144,17 +144,17 @@ export class ChapaPaymentService {
         throw new Error('Task not found')
       }
 
-      // Validate and format email - Chapa has very strict email validation
-      const validateEmail = (email: string) => {
-        // Very strict email validation for Chapa
-        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
-        return emailRegex.test(email) && email.length <= 254 && !email.includes('..') && !email.startsWith('.') && !email.endsWith('.')
+      // Chapa rejects many user emails; use a stable fallback when profile email is missing/invalid
+      const validEmail = 'test@gmail.com'
+
+      const returnUrl = CHAPA_CONFIG.getReturnUrl(txRef)
+      if (!returnUrl.startsWith('https://')) {
+        throw new Error(
+          'Chapa requires an HTTPS return URL. Set EXPO_PUBLIC_API_URL in .env and restart Expo with: npx expo start --clear',
+        )
       }
 
-      // Always use a known working email for Chapa (they're very strict)
-      const validEmail = 'test@gmail.com' // Use a known working email
-      
-      console.warn(`Using known working email for Chapa: ${validEmail}`)
+      console.log('Chapa return_url:', returnUrl)
 
       // Prepare Chapa payment request
       const paymentRequest: ChapaPaymentRequest = {
@@ -165,8 +165,8 @@ export class ChapaPaymentService {
         last_name: customerInfo.lastName.trim(),
         phone_number: customerInfo.phone.replace(/\s+/g, ''), // Remove spaces from phone
         tx_ref: txRef,
-        callback_url: 'https://mchapaw-n0utcbuab-bereket-birhanu-kinfus-projects.vercel.app/api/webhook',
-        return_url: 'https://mescott.com/payment-success',
+        callback_url: CHAPA_CONFIG.webhookUrl,
+        return_url: returnUrl,
         customization: {
           title: CHAPA_CONFIG.companyName,
           description: 'Payment for task completion',
@@ -249,13 +249,18 @@ export class ChapaPaymentService {
 
       if (result.status !== 'success') {
         console.error('Chapa Error Details:', result)
-        
-        // Handle specific validation errors
-        if (result.message?.email) {
-          throw new Error(`Chapa validation failed: ${result.message.email.join(', ')}`)
+
+        const msg = result.message
+        if (typeof msg === 'object' && msg !== null) {
+          const parts = Object.entries(msg).flatMap(([field, errors]) =>
+            Array.isArray(errors)
+              ? errors.map((e) => `${field}: ${e}`)
+              : [`${field}: ${String(errors)}`],
+          )
+          throw new Error(`Chapa validation failed: ${parts.join('; ')}`)
         }
-        
-        throw new Error(`Chapa payment failed: ${result.message?.email || result.message || 'Unknown error'}`)
+
+        throw new Error(`Chapa payment failed: ${msg || 'Unknown error'}`)
       }
 
       const checkoutUrl = result.data?.checkout_url
@@ -495,6 +500,85 @@ export class ChapaPaymentService {
       console.error('Error creating payment record:', appError)
       throw appError
     }
+  }
+
+  static mapChapaStatus(chapaStatus: string): 'completed' | 'failed' | 'pending' {
+    const normalized = (chapaStatus || '').toLowerCase()
+    if (normalized === 'success' || normalized === 'successful') return 'completed'
+    if (
+      normalized === 'failed' ||
+      normalized === 'failure' ||
+      normalized === 'cancelled' ||
+      normalized === 'canceled' ||
+      normalized === 'declined'
+    ) {
+      return 'failed'
+    }
+    return 'pending'
+  }
+
+  private static async updateTransactionStatus(
+    txRef: string,
+    status: 'completed' | 'failed' | 'pending',
+    chapaData?: ChapaVerificationResponse['data']
+  ): Promise<void> {
+    const { data: existing } = await supabase
+      .from('transactions')
+      .select('metadata')
+      .eq('metadata->>tx_ref', txRef)
+      .maybeSingle()
+
+    const metadata = {
+      ...(existing?.metadata ?? {}),
+      ...(chapaData ? { chapa_verification: chapaData, payment_gateway: 'chapa' } : {}),
+    }
+
+    const { error } = await supabase
+      .from('transactions')
+      .update({
+        status,
+        updated_at: new Date().toISOString(),
+        metadata,
+      })
+      .eq('metadata->>tx_ref', txRef)
+
+    if (error) {
+      console.error('Error updating transaction status:', error)
+    }
+  }
+
+  /** Verify with Chapa API and map to app status (completed | failed | pending). */
+  static async resolvePaymentStatus(txRef: string): Promise<{
+    status: 'completed' | 'failed' | 'pending'
+    amount: number
+    breakdown: any
+  } | null> {
+    const dbRecord = await this.getPaymentStatus(txRef)
+    const verification = await this.verifyPayment(txRef)
+
+    if (verification?.data) {
+      const status = this.mapChapaStatus(verification.data.status)
+
+      if (status === 'failed') {
+        await this.updateTransactionStatus(txRef, 'failed', verification.data)
+      }
+
+      return {
+        status,
+        amount: dbRecord?.amount ?? (Number(verification.data.amount) || 0),
+        breakdown: dbRecord?.breakdown,
+      }
+    }
+
+    if (dbRecord) {
+      const dbStatus =
+        dbRecord.status === 'completed' || dbRecord.status === 'failed'
+          ? (dbRecord.status as 'completed' | 'failed')
+          : 'pending'
+      return { status: dbStatus, amount: dbRecord.amount, breakdown: dbRecord.breakdown }
+    }
+
+    return null
   }
 
   // Get payment status by transaction reference

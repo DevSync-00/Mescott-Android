@@ -280,7 +280,7 @@ export default function Profile() {
         router.push('/settings')
         break
       case 'help':
-        showInfoAlert('Help & Support', 'For support, please contact us at support@mescott.com')
+        showInfoAlert('Help & Support', 'For support, please contact us at support@mescott.co')
         break
       case 'about':
         showInfoAlert('About Mescott', 'Version 1.0.0\n\nYour trusted marketplace for local services')
