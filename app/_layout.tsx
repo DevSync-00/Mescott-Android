@@ -536,8 +536,9 @@ function AppContent() {
   }, [])
 
   // Handle initial navigation based on auth state after loading completes with smooth transitions
+  // IMPORTANT: gate on appIsReady so TabNavigator is fully mounted before we call replace()
   useEffect(() => {
-    if (!isLoading && !isTransitioning) {
+    if (!appIsReady || isLoading || isTransitioning) return
       // Only redirect if we're on the auth page and user is authenticated
       if (pathname === '/auth' && isAuthenticated) {
         setIsTransitioning(true)
@@ -582,44 +583,15 @@ function AppContent() {
           }, 50)
         })
       }
-    }
-  }, [isLoading, isAuthenticated, pathname, router, isTransitioning, fadeAnim])
+  }, [appIsReady, isLoading, isAuthenticated, pathname, router, isTransitioning, fadeAnim])
 
   if (!appIsReady) {
     return null // Native splash screen is showing
   }
 
-  // While redirecting to auth after logout, show fading placeholder
-  if (!isAuthenticated && pathname !== '/auth' && !isTransitioning) {
-    return (
-      <Animated.View style={{ flex: 1, backgroundColor: '#ffffff', opacity: fadeAnim }}>
-        <SafeAreaView style={{ flex: 1 }} edges={[]} />
-        {showCustomSplash && (
-          <Animated.View
-            pointerEvents="none"
-            style={{
-              position: 'absolute',
-              inset: 0,
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: '#7B42F6',
-              opacity: splashOpacity,
-            }}
-          >
-            <Animated.Image
-              source={require('../assets/images/splash-icon-light.png')}
-              resizeMode="contain"
-              style={{
-                width: 200,
-                height: 200,
-                transform: [{ scale: splashScale }],
-              }}
-            />
-          </Animated.View>
-        )}
-      </Animated.View>
-    )
-  }
+  // While auth is loading or transitioning, TabNavigator is still mounted below
+  // We never short-circuit the return here because that would unmount
+  // TabNavigator and cause screen names to be unregistered before replace() fires.
 
   return (
     <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
