@@ -426,6 +426,288 @@ Deno.serve(async (req) => {
     }
   }
 
+  // ── Route 3: OIDC /login — redirect to oauth.telegram.org ────────────────
+  // GET /login?state=<state>&code_challenge=<challenge>&app_redirect=<uri>
+  if (url.pathname.endsWith('/login')) {
+    const clientId = Deno.env.get('TELEGRAM_OIDC_CLIENT_ID') || '';
+    if (!clientId) {
+      return new Response('TELEGRAM_OIDC_CLIENT_ID is not configured', { status: 500 });
+    }
+
+    const state = url.searchParams.get('state') || '';
+    const codeChallenge = url.searchParams.get('code_challenge') || '';
+
+    if (!state || !codeChallenge) {
+      return new Response('Missing state or code_challenge', { status: 400 });
+    }
+
+    const callbackUrl = `${supabaseUrl}/functions/v1/telegram-auth/callback`;
+    const q = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: callbackUrl,
+      response_type: 'code',
+      scope: 'openid profile phone',
+      state,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+    });
+
+    const telegramAuthUrl = `https://oauth.telegram.org/auth?${q.toString()}`;
+
+    // Return an HTML page that immediately redirects the browser to Telegram OIDC.
+    // This ensures the correct Origin/Referer headers are set from our domain.
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Connecting to Telegram...</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+           display: flex; align-items: center; justify-content: center;
+           height: 100vh; margin: 0; background: #f5f5f7; color: #1d1d1f; }
+    .wrap { text-align: center; padding: 24px; }
+    .spin { border: 4px solid rgba(0,0,0,.1); width: 36px; height: 36px;
+            border-radius: 50%; border-left-color: #0088CC;
+            animation: spin 1s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    h1 { font-size: 20px; margin-bottom: 8px; font-weight: 600; }
+    p  { font-size: 14px; color: #86868b; margin: 0; }
+    a  { display: inline-block; margin-top: 16px; color: #0088CC; text-decoration: none; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="spin"></div>
+    <h1>Connecting to Telegram</h1>
+    <p>Please wait while we establish a secure connection...</p>
+    <a href="${telegramAuthUrl}">Tap here if not redirected automatically</a>
+  </div>
+  <script>setTimeout(function(){ window.location.replace("${telegramAuthUrl}"); }, 100);</script>
+</body>
+</html>`;
+
+    return new Response(html, {
+      status: 200,
+      headers: { 'Content-Type': 'text/html' },
+    });
+  }
+
+  // ── Route 4: OIDC /callback — Telegram redirects here after user confirms ─
+  // GET /callback?code=<code>&state=<state>
+  if (url.pathname.endsWith('/callback')) {
+    const code = url.searchParams.get('code') || '';
+    const state = url.searchParams.get('state') || '';
+    const error = url.searchParams.get('error') || '';
+    const errorDesc = url.searchParams.get('error_description') || '';
+
+    if (!state) {
+      return new Response('Missing state parameter', { status: 400 });
+    }
+
+    // State format: "<randomHex>|<mobileAppDeepLink>"
+    const pipeIdx = state.indexOf('|');
+    const mobileDeepLink = pipeIdx !== -1 ? state.substring(pipeIdx + 1) : '';
+
+    if (!mobileDeepLink) {
+      return new Response('Invalid state format — no mobile deep link found', { status: 400 });
+    }
+
+    try {
+      const target = new URL(mobileDeepLink);
+      if (code) target.searchParams.set('code', code);
+      if (state) target.searchParams.set('state', state);
+      if (error) target.searchParams.set('error', error);
+      if (errorDesc) target.searchParams.set('error_description', errorDesc);
+
+      const targetStr = target.toString();
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Redirecting to Mescott...</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+           display: flex; align-items: center; justify-content: center;
+           height: 100vh; margin: 0; background: #f5f5f7; color: #1d1d1f; }
+    .wrap { text-align: center; padding: 24px; }
+    .spin { border: 4px solid rgba(0,0,0,.1); width: 36px; height: 36px;
+            border-radius: 50%; border-left-color: #7B4FFF;
+            animation: spin 1s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    h1 { font-size: 20px; margin-bottom: 8px; font-weight: 600; }
+    p  { font-size: 14px; color: #86868b; margin: 0; }
+    a  { display: inline-block; margin-top: 16px; color: #7B4FFF; text-decoration: none; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="spin"></div>
+    <h1>Redirecting to Mescott</h1>
+    <p>Please wait while we take you back to the app.</p>
+    <a href="${targetStr}">Tap here if not redirected automatically</a>
+  </div>
+  <script>setTimeout(function(){ window.location.replace("${targetStr}"); }, 100);</script>
+</body>
+</html>`;
+
+      return new Response(html, {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' },
+      });
+    } catch (err: any) {
+      return new Response(`Redirect error: ${err.message}`, { status: 500 });
+    }
+  }
+
+  // ── Route 5: OIDC /oidc-exchange — server-side code → Supabase session ────
+  // POST /oidc-exchange  body: { code, code_verifier, redirect_uri }
+  if (url.pathname.endsWith('/oidc-exchange')) {
+    if (req.method !== 'POST') {
+      return new Response(JSON.stringify({ ok: false, error: 'Method not allowed' }), {
+        status: 405,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const clientId = Deno.env.get('TELEGRAM_OIDC_CLIENT_ID') || '';
+    const clientSecret = Deno.env.get('TELEGRAM_OIDC_CLIENT_SECRET') || '';
+
+    if (!clientId || !clientSecret) {
+      return new Response(
+        JSON.stringify({ ok: false, error: 'TELEGRAM_OIDC_CLIENT_ID and TELEGRAM_OIDC_CLIENT_SECRET must be configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    try {
+      const body = await req.json();
+      const { code, code_verifier: codeVerifier, redirect_uri: redirectUri } = body || {};
+
+      if (!code || !codeVerifier || !redirectUri) {
+        return new Response(
+          JSON.stringify({ ok: false, error: 'code, code_verifier, and redirect_uri are required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // ── Step 1: Exchange auth code for Telegram tokens ────────────────────
+      const basic = btoa(`${clientId}:${clientSecret}`);
+      const tokenBody = new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
+        client_id: clientId,
+        code_verifier: codeVerifier,
+      });
+
+      const tokenRes = await fetch('https://oauth.telegram.org/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Authorization: `Basic ${basic}`,
+        },
+        body: tokenBody.toString(),
+      });
+
+      const tokenText = await tokenRes.text();
+      let tokenData: any;
+      try { tokenData = JSON.parse(tokenText); }
+      catch { throw new Error(`Telegram token endpoint returned invalid JSON (${tokenRes.status}): ${tokenText}`); }
+
+      if (!tokenRes.ok) {
+        const msg = tokenData?.error_description || tokenData?.error || `HTTP ${tokenRes.status}`;
+        throw new Error(`Telegram token exchange failed: ${msg}`);
+      }
+
+      if (!tokenData.id_token) throw new Error('Telegram did not return an id_token');
+
+      // ── Step 2: Decode id_token to get user info (skip full JWT verify in Deno) ──
+      // Telegram signs with RS256; we trust the exchange endpoint since we hold the secret.
+      const [, payloadB64] = tokenData.id_token.split('.');
+      const payloadJson = atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/'));
+      const claims: any = JSON.parse(payloadJson);
+
+      const telegramUserId = String(claims.sub || claims.id || '');
+      const rawPhone = claims.phone_number || '';
+      const phone = rawPhone ? (rawPhone.startsWith('+') ? rawPhone : `+${rawPhone}`) : '';
+      const firstName = claims.given_name || claims.first_name || '';
+      const lastName = claims.family_name || claims.last_name || '';
+      const username = claims.preferred_username || '';
+      const fullName = [firstName, lastName].filter(Boolean).join(' ') || 'Telegram User';
+
+      if (!telegramUserId) throw new Error('No Telegram user ID in id_token');
+      if (!phone) throw new Error('No phone number in id_token — ensure phone scope was granted');
+
+      console.log(`[oidc] Authenticated Telegram user ${telegramUserId}, phone: ${phone.substring(0, 5)}...`);
+
+      // ── Step 3: Find or create Supabase user by phone ─────────────────────
+      const password = await derivePassword(Number(telegramUserId));
+
+      let authData: any = null;
+      const { data: signInData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({ phone, password });
+
+      if (!signInError && signInData?.session) {
+        authData = signInData;
+        // Update profile with Telegram info
+        await supabaseAdmin
+          .from('profiles')
+          .update({ telegram_chat_id: telegramUserId, telegram_username: username, updated_at: new Date().toISOString() })
+          .eq('user_id', authData.user.id);
+      } else {
+        // Create new user
+        const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+          phone, password, phone_confirm: true,
+        });
+
+        if (createError && !createError.message.includes('already registered')) {
+          throw new Error(`Failed to create user: ${createError.message}`);
+        }
+
+        const { data: freshData, error: freshErr } = await supabaseAdmin.auth.signInWithPassword({ phone, password });
+        if (freshErr || !freshData?.session) throw new Error(`Sign-in after creation failed: ${freshErr?.message}`);
+        authData = freshData;
+
+        // Create profile
+        await supabaseAdmin.from('profiles').insert([{
+          user_id: authData.user.id,
+          full_name: fullName,
+          username: username || `tg_${telegramUserId}`,
+          phone,
+          telegram_chat_id: telegramUserId,
+          telegram_username: username,
+          role: 'customer',
+          current_mode: 'customer',
+        }]).select().single();
+      }
+
+      console.log(`[oidc] Supabase session issued for user ${authData.user.id}`);
+
+      return new Response(JSON.stringify({
+        ok: true,
+        verified: true,
+        phone,
+        telegram_user_id: telegramUserId,
+        profile: { name: fullName, username },
+        session: {
+          access_token: authData.session.access_token,
+          refresh_token: authData.session.refresh_token,
+          user_id: authData.user.id,
+          expires_at: authData.session.expires_at,
+        },
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+
+    } catch (err: any) {
+      console.error('[oidc-exchange] Error:', err.message);
+      return new Response(JSON.stringify({ ok: false, error: err.message || 'OIDC exchange failed' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+  }
+
   return new Response(JSON.stringify({ error: 'Not found' }), {
     status: 404,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },

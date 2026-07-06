@@ -19,27 +19,19 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { useToast } from '../contexts/ToastContext'
-import { Ionicons, FontAwesome } from '@expo/vector-icons'
-import * as Linking from 'expo-linking'
-import { TelegramAuthService } from '../services/telegramAuth'
+import { FontAwesome } from '@expo/vector-icons'
 
 export default function Auth() {
   const router = useRouter()
-  const [sessionToken, setSessionToken] = useState<string | null>(null)
-  const [telegramLink, setTelegramLink] = useState<string | null>(null)
-  const [fallbackLink, setFallbackLink] = useState<string | null>(null)
   const [isAwaiting, setIsAwaiting] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  const { initiateTelegramAuth, handleTelegramCallback, isAuthenticated, loading: isLoading } = useAuth()
+  const { signInWithTelegram, isAuthenticated, loading: isLoading } = useAuth()
   const { showSuccess, showError } = useToast()
   const fadeAnim = useRef(new Animated.Value(0)).current
   const slideAnim = useRef(new Animated.Value(16)).current
   const pulseAnim = useRef(new Animated.Value(1)).current
   const scrollViewRef = useRef<any>(null)
-
-  const unsubscribeRef = useRef<(() => void) | null>(null)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Smoothly fade/slide in the auth screen to avoid abrupt pop-in
   useEffect(() => {
@@ -83,17 +75,7 @@ export default function Auth() {
     }
   }, [isAuthenticated, isLoading, router, fadeAnim, slideAnim])
 
-  // Clean up timers & subscriptions on unmount
-  useEffect(() => {
-    return () => {
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current()
-      }
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
-      }
-    }
-  }, [])
+  // Nothing to clean up — OIDC flow is synchronous (browser handles it)
 
   // Pulse animation for the logo during awaiting state
   useEffect(() => {
@@ -127,95 +109,28 @@ export default function Auth() {
   }, [isAwaiting])
 
   const handleCancelAndRetry = () => {
-    if (unsubscribeRef.current) {
-      unsubscribeRef.current()
-      unsubscribeRef.current = null
-    }
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current)
-      timeoutRef.current = null
-    }
     setIsAwaiting(false)
-    setSessionToken(null)
-    setTelegramLink(null)
-    setFallbackLink(null)
     setLoading(false)
-  }
-
-  const handleTimeout = () => {
-    handleCancelAndRetry()
-    showError('Verification session expired. Please try again.')
   }
 
   const handleContinueWithTelegram = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     setLoading(true)
+    setIsAwaiting(true)
     try {
-      const data = await initiateTelegramAuth({
-        platform: Platform.OS,
-        os_version: Platform.Version,
-        device_name: Platform.select({ ios: 'iPhone', android: 'Android Device', default: 'Mobile Device' }),
-      })
-
-      if (!data || !data.session_token) {
-        showError('Failed to initialize Telegram session. Please try again.')
-        setLoading(false)
-        return
-      }
-
-      setSessionToken(data.session_token)
-      setTelegramLink(data.telegram_link)
-      setFallbackLink(data.fallback_link)
-      setIsAwaiting(true)
-
-      // Subscribe to Supabase Realtime channel and DB changes
-      unsubscribeRef.current = TelegramAuthService.subscribeToAuthStatus(
-        data.session_token,
-        async (jwtPayload) => {
-          if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current)
-            timeoutRef.current = null
-          }
-          if (unsubscribeRef.current) {
-            unsubscribeRef.current()
-            unsubscribeRef.current = null
-          }
-
-          setLoading(true)
-          const res = await handleTelegramCallback(jwtPayload)
-          if (res.success) {
-            showSuccess('Successfully signed in with Telegram!')
-          } else {
-            showError(res.message || 'Authentication verification failed.')
-            handleCancelAndRetry()
-          }
-        }
-      )
-
-      // Set 5-minute timeout
-      timeoutRef.current = setTimeout(() => {
-        handleTimeout()
-      }, 300000)
-
-      // Open native Telegram app link or fallback to web link
-      const canOpen = await Linking.canOpenURL(data.telegram_link)
-      if (canOpen) {
-        await Linking.openURL(data.telegram_link)
+      const res = await signInWithTelegram()
+      if (res.success) {
+        showSuccess('Successfully signed in with Telegram!')
       } else {
-        await Linking.openURL(data.fallback_link)
+        showError(res.message || 'Telegram sign-in failed. Please try again.')
+        handleCancelAndRetry()
       }
     } catch (err: any) {
-      console.error('Telegram auth initiation error:', err)
-      showError('An error occurred during authentication. Please try again.')
+      console.error('Telegram OIDC error:', err)
+      showError('An error occurred. Please try again.')
       handleCancelAndRetry()
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleOpenFallbackLink = async () => {
-    if (fallbackLink) {
-      await Linking.openURL(fallbackLink)
     }
   }
 
@@ -276,9 +191,9 @@ export default function Auth() {
             <View style={styles.card}>
               {isAwaiting ? (
                 <View style={styles.awaitingContainer}>
-                  <Text style={styles.title}>Awaiting Approval</Text>
+                  <Text style={styles.title}>Opening Telegram...</Text>
                   <Text style={styles.subtitle}>
-                    Waiting for Telegram approval... please do not close Mescott.
+                    Please confirm the login request in Telegram, then return to Mescott.
                   </Text>
 
                   <View style={styles.spinnerWrap}>
@@ -286,25 +201,15 @@ export default function Auth() {
                   </View>
 
                   <Text style={styles.instructionsText}>
-                    Ensure you click "Start" inside the Telegram app/bot to approve your login.
+                    Check Telegram's "Service Notifications" chat for a Confirm/Decline message.
                   </Text>
-
-                  <TouchableOpacity
-                    style={styles.fallbackButton}
-                    onPress={handleOpenFallbackLink}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.fallbackButtonText}>
-                      App didn't switch? Open Telegram Web
-                    </Text>
-                  </TouchableOpacity>
 
                   <TouchableOpacity
                     style={styles.cancelButton}
                     onPress={handleCancelAndRetry}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.cancelButtonText}>Cancel & Retry</Text>
+                    <Text style={styles.cancelButtonText}>Cancel &amp; Retry</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -325,13 +230,13 @@ export default function Auth() {
                       <View style={styles.stepBadge}>
                         <Text style={styles.stepBadgeText}>2</Text>
                       </View>
-                      <Text style={styles.stepText}>Click "Start" in the Telegram bot</Text>
+                      <Text style={styles.stepText}>Tap "Confirm" in Telegram's service notification</Text>
                     </View>
                     <View style={styles.stepRow}>
                       <View style={styles.stepBadge}>
                         <Text style={styles.stepBadgeText}>3</Text>
                       </View>
-                      <Text style={styles.stepText}>Return to Mescott automatically</Text>
+                      <Text style={styles.stepText}>You're signed in — no password needed!</Text>
                     </View>
                   </View>
 

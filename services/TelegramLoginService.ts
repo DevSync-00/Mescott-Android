@@ -1,11 +1,6 @@
 import * as Crypto from 'expo-crypto'
 import * as WebBrowser from 'expo-web-browser'
 import * as Linking from 'expo-linking'
-import {
-  MESCOTT_API_PATHS,
-  TELEGRAM_OIDC_CLIENT_ID,
-  mescottApiUrl,
-} from '../config/mescott'
 
 WebBrowser.maybeCompleteAuthSession()
 
@@ -68,8 +63,10 @@ async function exchangeCodeOnServer(
   code: string,
   codeVerifier: string,
   redirectUri: string,
+  edgeFunctionBase: string,
 ): Promise<TelegramLoginResult> {
-  const response = await fetch(mescottApiUrl(MESCOTT_API_PATHS.telegramOidc), {
+  const exchangeUrl = `${edgeFunctionBase}/oidc-exchange`;
+  const response = await fetch(exchangeUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -109,23 +106,19 @@ async function exchangeCodeOnServer(
  * @see https://core.telegram.org/bots/telegram-login
  */
 export async function signInWithTelegramOidc(): Promise<TelegramLoginResult> {
-  const clientId = TELEGRAM_OIDC_CLIENT_ID
-  if (!clientId) {
-    return {
-      ok: false,
-      error:
-        'Set EXPO_PUBLIC_TELEGRAM_OIDC_CLIENT_ID in .env (numeric Client ID from @BotFather → Web Login).',
-    }
-  }
+  const edgeFunctionBase = (process.env.EXPO_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '') +
+    '/functions/v1/telegram-auth';
 
   const appRedirectUri = getTelegramRedirectUri()
-  const backendCallback = mescottApiUrl('/api/auth/telegram-callback')
-  
+  // The Edge Function /callback will redirect back to appRedirectUri
+  const backendCallback = `${edgeFunctionBase}/callback`;
+
   const { verifier, challenge } = await createPkcePair()
   const stateVal = await randomHexString(16)
   const combinedState = `${stateVal}|${appRedirectUri}`
 
-  const startUrl = `${mescottApiUrl('/api/auth/telegram-login')}?state=${encodeURIComponent(combinedState)}&code_challenge=${challenge}`
+  // Edge Function /login handles the redirect to oauth.telegram.org
+  const startUrl = `${edgeFunctionBase}/login?state=${encodeURIComponent(combinedState)}&code_challenge=${encodeURIComponent(challenge)}`;
 
   const result = await WebBrowser.openAuthSessionAsync(startUrl, appRedirectUri)
 
@@ -159,5 +152,6 @@ export async function signInWithTelegramOidc(): Promise<TelegramLoginResult> {
     return { ok: false, error: 'Invalid state — please try again' }
   }
 
-  return exchangeCodeOnServer(code, verifier, backendCallback)
+  // Exchange code using our Edge Function /oidc-exchange endpoint
+  return exchangeCodeOnServer(code, verifier, backendCallback, edgeFunctionBase)
 }
