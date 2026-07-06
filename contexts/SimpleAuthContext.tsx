@@ -171,6 +171,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const applyProfileToState = (profile: any) => {
+    setUser({
+      id: profile.id,
+      user_id: profile.user_id,
+      full_name: profile.full_name,
+      username: profile.username,
+      phone: profile.phone,
+      role: profile.role,
+      current_mode: profile.current_mode,
+      tasker_application_status: profile.tasker_application_status,
+      created_at: profile.created_at,
+      updated_at: profile.updated_at,
+      name: profile.full_name,
+      currentMode: profile.current_mode,
+      avatar_url: profile.avatar_url,
+      profile,
+    });
+  };
+
   const loadUserProfile = async (userId: string) => {
     try {
       const { data: profile, error } = await supabase
@@ -185,28 +204,42 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       if (!profile) {
-        console.log('No profile found for user:', userId);
+        console.log('Profile row missing during initial token return. Attempting lazy profile creation stub...');
+        
+        // Fetch user metadata directly from auth session to self-heal the missing profile row
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          const { data: newProfile, error: insertError } = await supabase
+            .from('profiles')
+            .insert([{
+              user_id: user.id,
+              full_name: user.user_metadata?.full_name || 'Telegram User',
+              username: user.user_metadata?.username || `tg_${user.user_metadata?.telegram_id || userId.substring(0, 8)}`,
+              phone: user.phone || '',
+              telegram_chat_id: String(user.user_metadata?.telegram_id || ''),
+              role: 'customer',
+              current_mode: 'customer',
+            }])
+            .select()
+            .single();
+
+          if (!insertError && newProfile) {
+            applyProfileToState(newProfile);
+            return;
+          } else if (insertError) {
+            console.error('Lazy profile creation failed:', insertError.message);
+          }
+        }
+        
+        // If lazy healing fails, log out clean instead of leaving a broken app framework
+        await supabase.auth.signOut();
         setUser(null);
-        throw new Error('Profile not found');
+        return;
       }
 
       console.log('Profile loaded successfully:', profile.full_name);
-      setUser({
-        id: profile.id,
-        user_id: profile.user_id,
-        full_name: profile.full_name,
-        username: profile.username,
-        phone: profile.phone,
-        role: profile.role,
-        current_mode: profile.current_mode,
-        tasker_application_status: profile.tasker_application_status,
-        created_at: profile.created_at,
-        updated_at: profile.updated_at,
-        name: profile.full_name,
-        currentMode: profile.current_mode,
-        avatar_url: profile.avatar_url, // Add avatar_url to main user object
-        profile,
-      });
+      applyProfileToState(profile);
     } catch (error) {
       console.error('Error in loadUserProfile:', error);
       setUser(null);

@@ -325,16 +325,20 @@ Deno.serve(async (req) => {
         user = freshSignIn.user;
 
         // Create profile
-        await supabaseAdmin.from('profiles').insert([{
+        const { error: profileErr } = await supabaseAdmin.from('profiles').insert([{
           user_id: user.id,
           full_name: fullName,
           username,
-          phone: null,
+          phone: '',
           telegram_chat_id: telegramUserId,
           telegram_username: username,
           role: 'customer',
           current_mode: 'customer',
         }]);
+
+        if (profileErr) {
+          console.error('[telegram-auth] Profile creation database error:', profileErr.message);
+        }
       }
 
       console.log(`[telegram-auth] Successful widget login for Telegram ID: ${telegramUserId}`);
