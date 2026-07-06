@@ -129,6 +129,8 @@ export class TelegramAuthService extends BaseService {
           .eq('session_token', sessionToken)
           .maybeSingle();
 
+        console.log('[TelegramAuthService] Polling check:', { data, error });
+
         if (!error && data) {
           if (data.status === 'APPROVED' && data.jwt_payload) {
             clearInterval(pollInterval);
