@@ -37,8 +37,9 @@ function decodeTgAuthResult(raw: string): Record<string, any> {
   return JSON.parse(json);
 }
 
-const INJECTED_JS = `
+const buildInjectedJs = (phoneNumber: string) => `
 (function() {
+  // 1. Intercept hash change
   function checkHash() {
     var match = window.location.hash.match(/#tgAuthResult=([^&]*)/);
     if (match && match[1]) {
@@ -47,6 +48,47 @@ const INJECTED_JS = `
   }
   window.addEventListener('hashchange', checkHash);
   checkHash();
+
+  // 2. Automate phone form fill
+  function attemptFill() {
+    var phoneInput = document.getElementById('login-phone');
+    if (phoneInput) {
+      if (phoneInput.value !== "${phoneNumber}") {
+        phoneInput.value = "${phoneNumber}";
+        phoneInput.dispatchEvent(new Event('input', { bubbles: true }));
+        phoneInput.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      
+      // Look for the Next button
+      var nextBtn = document.querySelector('button.btn-primary') || 
+                    document.querySelector('button') || 
+                    document.querySelector('.btn');
+      if (nextBtn && nextBtn.textContent && nextBtn.textContent.toLowerCase().includes('next')) {
+        nextBtn.click();
+        return true;
+      }
+    }
+
+    // 3. Automate "Log in as <Name>" if already authenticated
+    var buttons = document.querySelectorAll('button, a.btn, div.btn');
+    for (var i = 0; i < buttons.length; i++) {
+      var btn = buttons[i];
+      if (btn.textContent && btn.textContent.toLowerCase().includes('log in as')) {
+        btn.click();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  var attempts = 0;
+  var interval = setInterval(function() {
+    attempts++;
+    if (attemptFill() || attempts > 30) {
+      clearInterval(interval);
+    }
+  }, 250);
+
   true;
 })();
 `;
@@ -62,11 +104,12 @@ export interface TelegramAuthData {
 }
 
 interface TelegramLoginScreenProps {
+  phoneNumber: string;
   onAuthResult: (data: TelegramAuthData) => void;
   onCancel?: () => void;
 }
 
-export default function TelegramLoginScreen({ onAuthResult, onCancel }: TelegramLoginScreenProps) {
+export default function TelegramLoginScreen({ phoneNumber, onAuthResult, onCancel }: TelegramLoginScreenProps) {
   const [nonce, setNonce] = useState<string>(generateNonce);
   const [webViewKey, setWebViewKey] = useState<string>('tg-webview-initial');
   const [loading, setLoading] = useState(true);
@@ -125,11 +168,13 @@ export default function TelegramLoginScreen({ onAuthResult, onCancel }: Telegram
     }
   }
 
+  const injectedJs = buildInjectedJs(phoneNumber);
+
   return (
     <View style={styles.container}>
       {loading && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#229ED9" />
+          <ActivityIndicator size="large" color="#371F80" />
         </View>
       )}
       <WebView
@@ -138,8 +183,8 @@ export default function TelegramLoginScreen({ onAuthResult, onCancel }: Telegram
         incognito={true}
         javaScriptEnabled={true}
         domStorageEnabled={true}
-        injectedJavaScript={INJECTED_JS}
-        injectedJavaScriptBeforeContentLoaded={INJECTED_JS}
+        injectedJavaScript={injectedJs}
+        injectedJavaScriptBeforeContentLoaded={injectedJs}
         onNavigationStateChange={handleNavigationStateChange}
         onShouldStartLoadWithRequest={handleShouldStartLoad}
         onMessage={handleMessage}
