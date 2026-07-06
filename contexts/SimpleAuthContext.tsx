@@ -4,9 +4,8 @@ import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SimpleUserProfile } from '../types/SimpleUserProfile';
 import { ProfileSyncService } from '../services/ProfileSyncService';
-import { TelegramAuthService } from '../services/telegramAuth';
+import { TelegramAuthService, TelegramWidgetAuthData, requestTelegramSession, verifyTelegramCode } from '../services/TelegramAuthService';
 import { signInWithTelegramOidc } from '../services/TelegramLoginService';
-import { requestTelegramSession, verifyTelegramCode } from '../services/TelegramAuthService';
 
 interface AuthContextType {
   user: SimpleUserProfile | null;
@@ -16,6 +15,7 @@ interface AuthContextType {
   initiateTelegramAuth: (deviceInfo?: Record<string, any>) => Promise<{ success: boolean; session_token: string; telegram_link: string; fallback_link: string; } | null>;
   handleTelegramCallback: (jwtPayload: any) => Promise<{ success: boolean; message?: string }>;
   signInWithTelegram: () => Promise<{ success: boolean; message: string; isNewUser?: boolean }>;
+  loginWithTelegram: (telegramAuthData: any) => Promise<void>;
   sendTelegramVerification: (phone: string) => Promise<{
     success: boolean;
     message: string;
@@ -454,6 +454,55 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const loginWithTelegram = async (telegramAuthData: TelegramWidgetAuthData): Promise<void> => {
+    try {
+      console.log('🔑 TELEGRAM WIDGET LOGIN - Starting for Telegram user:', telegramAuthData.id);
+
+      // Step 1: Always sign out first to prevent account bleed
+      await supabase.auth.signOut();
+      setUser(null);
+
+      // Step 2: Call Edge Function — HMAC verification happens server-side
+      const result = await TelegramAuthService.loginWithTelegramHMAC(telegramAuthData);
+
+      // Step 3: Verify the returned session belongs to the correct Telegram account
+      const expectedId = String(telegramAuthData.id);
+      const returnedId = result.session.user?.user_metadata?.telegram_id;
+      if (returnedId && returnedId !== expectedId) {
+        await supabase.auth.signOut();
+        throw new Error('Account mismatch — session belongs to a different Telegram user. Please try again.');
+      }
+
+      // Step 4: Set the Supabase session
+      const { data, error } = await supabase.auth.setSession({
+        access_token: result.session.access_token,
+        refresh_token: result.session.refresh_token,
+      });
+
+      if (error) {
+        await supabase.auth.signOut();
+        throw error;
+      }
+
+      console.log('🔑 TELEGRAM WIDGET LOGIN - Session set for user:', data.user?.id);
+
+      // Step 5: Load the profile
+      if (data.user) {
+        await loadUserProfile(data.user.id);
+      }
+    } catch (err) {
+      // Step 5 (error path): always sign out so we never leave a partial session
+      console.error('❌ TELEGRAM WIDGET LOGIN - Error:', err);
+      try {
+        await supabase.auth.signOut();
+      } catch (_) {
+        // best-effort
+      }
+      setUser(null);
+      throw err;
+    }
+  };
+
   const value: AuthContextType = {
     user,
     isAuthenticated,
@@ -462,6 +511,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     initiateTelegramAuth,
     handleTelegramCallback,
     signInWithTelegram,
+    loginWithTelegram,
     sendTelegramVerification,
     verifyTelegramOtp,
     logout,

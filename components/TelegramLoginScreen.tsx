@@ -10,8 +10,6 @@ function generateNonce(): string {
 }
 
 function buildAuthUrl(nonce: string): string {
-  // Use the widget page — this renders just the "Log in with Telegram" button
-  // with no phone number form. The button opens the Telegram app directly.
   return (
     `https://oauth.telegram.org/auth` +
     `?bot_id=${BOT_ID}` +
@@ -39,14 +37,8 @@ function decodeTgAuthResult(raw: string): Record<string, any> {
   return JSON.parse(json);
 }
 
-// Injected JS that:
-// 1. Hides ALL of Telegram's default UI text (the form header, instructions, domain name, bot name links)
-// 2. Styles the single login button to match Mescott's design
-// 3. Intercepts the auth result hash as before
 const INJECTED_JS = `
 (function() {
-
-  // ── Intercept auth result ──────────────────────────────────────────────
   function checkHash(url) {
     var match = url.match(/#tgAuthResult=([^&]*)/);
     if (match && match[1]) {
@@ -62,10 +54,8 @@ const INJECTED_JS = `
   window.addEventListener('hashchange', function() { checkHash(window.location.href); });
   checkHash(window.location.href);
 
-  // ── Hide noisy UI and re-skin the button ──────────────────────────────
   var style = document.createElement('style');
   style.textContent = \`
-    /* Hide the header block: icons, title text, instruction paragraph */
     .tgme_widget_login_wrap > .tgme_widget_login_header,
     .tgme_widget_login_wrap > p,
     .tgme_widget_login_wrap > .tgme_widget_login_row:not(:last-child),
@@ -78,7 +68,6 @@ const INJECTED_JS = `
       display: none !important;
     }
 
-    /* Center just the button */
     body, html { background: #ffffff !important; margin: 0; padding: 0; }
     .tgme_widget_login_wrap, .tgme_widget_login {
       display: flex !important;
@@ -90,7 +79,6 @@ const INJECTED_JS = `
       background: #ffffff !important;
     }
 
-    /* Style the login button to match Mescott */
     .tgme_widget_login_btn,
     a[href*="tg://"],
     .tgme_widget_login_button {
@@ -109,14 +97,12 @@ const INJECTED_JS = `
       cursor: pointer !important;
     }
 
-    /* Hide everything else that isn't the button row */
     .tgme_widget_login_wrap > *:not(.tgme_widget_login_row:last-child) {
       display: none !important;
     }
   \`;
   document.head.appendChild(style);
 
-  // Re-apply after DOM settles (Telegram renders async)
   setTimeout(function() { document.head.appendChild(style.cloneNode(true)); }, 800);
   setTimeout(function() { document.head.appendChild(style.cloneNode(true)); }, 1800);
 
@@ -174,7 +160,6 @@ export default function TelegramLoginScreen({ onAuthResult, onCancel }: Telegram
   }
 
   function handleShouldStartLoad(request: { url: string }): boolean {
-    // Let tg:// deep links open the Telegram app natively
     if (request.url.startsWith('tg://')) {
       Linking.openURL(request.url).catch(() => {});
       return false;

@@ -11,6 +11,7 @@ import {
   Keyboard,
   Platform,
   ActivityIndicator,
+  Modal,
 } from 'react-native'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import { Image } from 'expo-image'
@@ -19,14 +20,15 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { useToast } from '../contexts/ToastContext'
-import { FontAwesome } from '@expo/vector-icons'
+import { FontAwesome, Ionicons } from '@expo/vector-icons'
+import TelegramLoginScreen, { TelegramAuthData } from '../components/TelegramLoginScreen'
 
 export default function Auth() {
   const router = useRouter()
-  const [isAwaiting, setIsAwaiting] = useState(false)
+  const [showWebView, setShowWebView] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  const { signInWithTelegram, isAuthenticated, loading: isLoading } = useAuth()
+  const { loginWithTelegram, isAuthenticated, loading: isLoading } = useAuth()
   const { showSuccess, showError } = useToast()
   const fadeAnim = useRef(new Animated.Value(0)).current
   const slideAnim = useRef(new Animated.Value(16)).current
@@ -77,10 +79,10 @@ export default function Auth() {
 
   // Nothing to clean up — OIDC flow is synchronous (browser handles it)
 
-  // Pulse animation for the logo during awaiting state
+  // Pulse animation for the logo
   useEffect(() => {
     let animation: Animated.CompositeAnimation | null = null
-    if (isAwaiting) {
+    if (loading) {
       animation = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
@@ -106,32 +108,29 @@ export default function Auth() {
         animation.stop()
       }
     }
-  }, [isAwaiting])
-
-  const handleCancelAndRetry = () => {
-    setIsAwaiting(false)
-    setLoading(false)
-  }
+  }, [loading])
 
   const handleContinueWithTelegram = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    setShowWebView(true)
+  }
+
+  const handleAuthResult = async (data: TelegramAuthData) => {
+    setShowWebView(false)
     setLoading(true)
-    setIsAwaiting(true)
     try {
-      const res = await signInWithTelegram()
-      if (res.success) {
-        showSuccess('Successfully signed in with Telegram!')
-      } else {
-        showError(res.message || 'Telegram sign-in failed. Please try again.')
-        handleCancelAndRetry()
-      }
+      await loginWithTelegram(data)
+      showSuccess('Successfully signed in with Telegram!')
     } catch (err: any) {
-      console.error('Telegram OIDC error:', err)
-      showError('An error occurred. Please try again.')
-      handleCancelAndRetry()
+      console.error('Telegram login error:', err)
+      showError(err.message || 'Could not complete Telegram login. Please try again.')
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleCancel = () => {
+    setShowWebView(false)
   }
 
   return (
@@ -189,72 +188,47 @@ export default function Auth() {
 
             {/* Card */}
             <View style={styles.card}>
-              {isAwaiting ? (
-                <View style={styles.awaitingContainer}>
-                  <Text style={styles.title}>Opening Telegram...</Text>
-                  <Text style={styles.subtitle}>
-                    Please confirm the login request in Telegram, then return to Mescott.
-                  </Text>
+              <View style={styles.introContainer}>
+                <Text style={styles.title}>Frictionless Login</Text>
+                <Text style={styles.subtitle}>Sign in securely using your Telegram account</Text>
 
-                  <View style={styles.spinnerWrap}>
-                    <ActivityIndicator size="large" color="#24A1DE" style={styles.spinner} />
+                {/* How It Works Card */}
+                <View style={styles.howItWorksCard}>
+                  <Text style={styles.howItWorksTitle}>- HOW IT WORKS -</Text>
+                  <View style={styles.stepRow}>
+                    <View style={styles.stepBadge}>
+                      <Text style={styles.stepBadgeText}>1</Text>
+                    </View>
+                    <Text style={styles.stepText}>Tap "Continue with Telegram" below</Text>
                   </View>
-
-                  <Text style={styles.instructionsText}>
-                    Check Telegram's "Service Notifications" chat for a Confirm/Decline message.
-                  </Text>
-
-                  <TouchableOpacity
-                    style={styles.cancelButton}
-                    onPress={handleCancelAndRetry}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.cancelButtonText}>Cancel &amp; Retry</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={styles.introContainer}>
-                  <Text style={styles.title}>Frictionless Login</Text>
-                  <Text style={styles.subtitle}>Sign in securely using your Telegram account</Text>
-
-                  {/* How It Works Card */}
-                  <View style={styles.howItWorksCard}>
-                    <Text style={styles.howItWorksTitle}>- HOW IT WORKS -</Text>
-                    <View style={styles.stepRow}>
-                      <View style={styles.stepBadge}>
-                        <Text style={styles.stepBadgeText}>1</Text>
-                      </View>
-                      <Text style={styles.stepText}>Tap "Continue with Telegram" below</Text>
+                  <View style={styles.stepRow}>
+                    <View style={styles.stepBadge}>
+                      <Text style={styles.stepBadgeText}>2</Text>
                     </View>
-                    <View style={styles.stepRow}>
-                      <View style={styles.stepBadge}>
-                        <Text style={styles.stepBadgeText}>2</Text>
-                      </View>
-                      <Text style={styles.stepText}>Tap "Confirm" in Telegram's service notification</Text>
-                    </View>
-                    <View style={styles.stepRow}>
-                      <View style={styles.stepBadge}>
-                        <Text style={styles.stepBadgeText}>3</Text>
-                      </View>
-                      <Text style={styles.stepText}>You're signed in — no password needed!</Text>
-                    </View>
+                    <Text style={styles.stepText}>Tap "Confirm" in Telegram's service notification</Text>
                   </View>
-
-                  <TouchableOpacity
-                    style={[styles.telegramButton, loading && styles.buttonDisabled]}
-                    onPress={handleContinueWithTelegram}
-                    disabled={loading}
-                    activeOpacity={0.85}
-                  >
-                    <View style={styles.telegramBtnContent}>
-                      <FontAwesome name="telegram" size={24} color="#FFF" style={styles.telegramIcon} />
-                      <Text style={styles.telegramButtonText}>
-                        {loading ? 'INITIATING...' : 'CONTINUE WITH TELEGRAM'}
-                      </Text>
+                  <View style={styles.stepRow}>
+                    <View style={styles.stepBadge}>
+                      <Text style={styles.stepBadgeText}>3</Text>
                     </View>
-                  </TouchableOpacity>
+                    <Text style={styles.stepText}>You're signed in — no password needed!</Text>
+                  </View>
                 </View>
-              )}
+
+                <TouchableOpacity
+                  style={[styles.telegramButton, loading && styles.buttonDisabled]}
+                  onPress={handleContinueWithTelegram}
+                  disabled={loading}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.telegramBtnContent}>
+                    <FontAwesome name="telegram" size={24} color="#FFF" style={styles.telegramIcon} />
+                    <Text style={styles.telegramButtonText}>
+                      {loading ? 'SIGNING IN...' : 'CONTINUE WITH TELEGRAM'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
 
               <View style={styles.footerWrap}>
                 <Text style={styles.footer}>Terms & Conditions Apply*</Text>
@@ -263,6 +237,29 @@ export default function Auth() {
           </KeyboardAwareScrollView>
         </Animated.View>
       </TouchableWithoutFeedback>
+
+      {/* ── Telegram WebView Modal ── */}
+      <Modal
+        visible={showWebView}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={handleCancel}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalHeaderTitle}>Sign in with Telegram</Text>
+            <TouchableOpacity
+              onPress={handleCancel}
+              style={styles.closeButton}
+              accessibilityLabel="Close Telegram login"
+              accessibilityRole="button"
+            >
+              <Ionicons name="close" size={22} color="#333333" />
+            </TouchableOpacity>
+          </View>
+          <TelegramLoginScreen onAuthResult={handleAuthResult} onCancel={handleCancel} />
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -464,5 +461,31 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 14,
     fontWeight: '700',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#EFEFEF',
+  },
+  modalHeaderTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1A1A1A',
+    textAlign: 'center',
+    marginLeft: 38,
+  },
+  closeButton: {
+    position: 'absolute',
+    right: 16,
+    padding: 4,
   },
 })
