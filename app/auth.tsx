@@ -6,13 +6,8 @@ import {
   StatusBar,
   Animated,
   Easing,
-  TouchableWithoutFeedback,
-  Keyboard,
-  Platform,
   ActivityIndicator,
 } from 'react-native'
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
-import { Image } from 'expo-image'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
@@ -26,9 +21,7 @@ export default function Auth() {
   const { loginWithTelegram, isAuthenticated, loading: isLoading } = useAuth()
   const { showSuccess, showError } = useToast()
   const fadeAnim = useRef(new Animated.Value(0)).current
-  const slideAnim = useRef(new Animated.Value(16)).current
-  const pulseAnim = useRef(new Animated.Value(1)).current
-  const scrollViewRef = useRef<any>(null)
+  const slideAnim = useRef(new Animated.Value(12)).current
 
   // Smoothly fade/slide in the auth screen to avoid abrupt pop-in
   useEffect(() => {
@@ -51,7 +44,6 @@ export default function Auth() {
   // Redirect away if already authenticated with smooth transition
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      // Fade out smoothly before navigation
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 0,
@@ -66,7 +58,6 @@ export default function Auth() {
           useNativeDriver: true,
         }),
       ]).start(() => {
-        // Navigate after fade out completes
         router.replace('/')
       })
     }
@@ -86,143 +77,69 @@ export default function Auth() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor="#371F80" translucent={false} />
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent={false} />
 
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <Animated.View
-          style={[
-            styles.animatedContainer,
-            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-          ]}
-        >
-          <KeyboardAwareScrollView
-            innerRef={(ref) => {
-              scrollViewRef.current = ref
-            }}
-            contentContainerStyle={styles.scrollContent}
-            style={styles.scrollView}
-            keyboardShouldPersistTaps="never"
-            showsVerticalScrollIndicator={false}
-            bounces={false}
-            alwaysBounceVertical={false}
-            alwaysBounceHorizontal={false}
-            keyboardDismissMode="none"
-            enableOnAndroid={true}
-            enableAutomaticScroll={true}
-            extraHeight={0}
-            extraScrollHeight={0}
-            scrollEnabled={true}
-            viewIsInsideTabBar={false}
-            enableResetScrollToCoords={false}
-            keyboardOpeningTime={Platform.OS === 'ios' ? 250 : 0}
-            scrollToOverflowEnabled={false}
-            overScrollMode="never"
-          >
-            {/* Hero */}
-            <View style={styles.hero}>
-              <View style={styles.heroTextBlock}>
-                <Text style={styles.heroGreeting}>Hey!</Text>
-                <Text style={styles.heroGreeting}>Welcome To</Text>
-                <View style={brandRowStyle}>
-                  <Text style={styles.heroBrand}>MESCO</Text>
-                  <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                    <Image
-                      source={require('../assets/images/splash-icon-light.png')}
-                      style={styles.heroMark}
-                      contentFit="contain"
-                      cachePolicy="memory-disk"
-                    />
-                  </Animated.View>
-                </View>
-              </View>
-            </View>
+      <Animated.View
+        style={[
+          styles.animatedContainer,
+          { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+        ]}
+      >
+        {/* Minimalist Top Branding Header */}
+        <View style={styles.hero}>
+          <Text style={styles.heroBrand}>Welcome To MESCOTT</Text>
+        </View>
 
-            {/* Card */}
-            <View style={styles.card}>
-              <View style={styles.webViewContainer}>
-                <TelegramLoginScreen onAuthResult={handleAuthResult} />
-              </View>
+        {/* Inline Telegram Widget WebView covering main body */}
+        <View style={styles.webViewWrapper}>
+          <TelegramLoginScreen onAuthResult={handleAuthResult} />
+        </View>
 
-              {loading && (
-                <View style={styles.signingInOverlay}>
-                  <ActivityIndicator size="large" color="#371F80" />
-                  <Text style={styles.signingInText}>Signing in...</Text>
-                </View>
-              )}
+        {/* Signing In Overlay State */}
+        {loading && (
+          <View style={styles.signingInOverlay}>
+            <ActivityIndicator size="large" color="#371F80" />
+            <Text style={styles.signingInText}>Signing in...</Text>
+          </View>
+        )}
 
-              <View style={styles.footerWrap}>
-                <Text style={styles.footer}>Terms & Conditions Apply*</Text>
-              </View>
-            </View>
-          </KeyboardAwareScrollView>
-        </Animated.View>
-      </TouchableWithoutFeedback>
+        {/* Footer text */}
+        <View style={styles.footerWrap}>
+          <Text style={styles.footer}>Terms & Conditions Apply*</Text>
+        </View>
+      </Animated.View>
     </SafeAreaView>
   )
-}
-
-const brandRowStyle = {
-  flexDirection: 'row' as const,
-  alignItems: 'center' as const,
-  marginTop: 14,
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#371F80',
+    backgroundColor: '#FFFFFF',
   },
   animatedContainer: {
     flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
+    backgroundColor: '#FFFFFF',
   },
   hero: {
-    backgroundColor: '#371F80',
-    paddingTop: 56,
-    paddingHorizontal: 32,
-    paddingBottom: 36,
-  },
-  heroTextBlock: {
-    marginTop: 8,
-  },
-  heroGreeting: {
-    color: '#FFFFFF',
-    fontSize: 32,
-    fontWeight: '800',
-    lineHeight: 40,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F2F2F7',
   },
   heroBrand: {
-    color: '#FFFFFF',
-    fontSize: 56,
+    color: '#371F80',
+    fontSize: 20,
     fontWeight: '900',
-    letterSpacing: 1,
+    letterSpacing: 1.2,
   },
-  heroMark: {
-    width: 122,
-    height: 122,
-    marginLeft: -4,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 56,
-    borderTopRightRadius: 56,
-    paddingHorizontal: 28,
-    paddingTop: 36,
-    paddingBottom: 32,
-    minHeight: '100%',
-    marginTop: -24,
-  },
-  webViewContainer: {
+  webViewWrapper: {
+    flex: 1,
     width: '100%',
-    height: 420,
-    borderRadius: 24,
-    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
   },
   signingInOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -230,8 +147,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 20,
-    borderTopLeftRadius: 56,
-    borderTopRightRadius: 56,
   },
   signingInText: {
     marginTop: 12,
@@ -240,12 +155,15 @@ const styles = StyleSheet.create({
     color: '#371F80',
   },
   footerWrap: {
-    marginTop: 32,
+    paddingVertical: 16,
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#F2F2F7',
   },
   footer: {
-    fontSize: 12,
-    color: '#371F80',
+    fontSize: 11,
+    color: '#8E8E93',
     textAlign: 'center',
   },
 })

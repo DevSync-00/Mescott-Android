@@ -158,8 +158,8 @@ export default function TelegramLoginScreen({ onAuthResult }: TelegramLoginScree
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  webview: { flex: 1, backgroundColor: '#FFFFFF' },
+  container: { flex: 1, width: '100%', height: '100%', backgroundColor: '#FFFFFF' },
+  webview: { flex: 1, width: '100%', height: '100%', backgroundColor: '#FFFFFF' },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#FFFFFF',
