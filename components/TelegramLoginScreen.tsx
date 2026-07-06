@@ -39,73 +39,14 @@ function decodeTgAuthResult(raw: string): Record<string, any> {
 
 const INJECTED_JS = `
 (function() {
-  function checkHash(url) {
-    var match = url.match(/#tgAuthResult=([^&]*)/);
+  function checkHash() {
+    var match = window.location.hash.match(/#tgAuthResult=([^&]*)/);
     if (match && match[1]) {
-      window.ReactNativeWebView.postMessage(JSON.stringify({ tgAuthResult: match[1] }));
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'tgAuthResult', data: match[1] }));
     }
   }
-
-  var origPush = history.pushState.bind(history);
-  history.pushState = function(state, title, url) {
-    origPush(state, title, url);
-    if (url) checkHash(String(url));
-  };
-  window.addEventListener('hashchange', function() { checkHash(window.location.href); });
-  checkHash(window.location.href);
-
-  var style = document.createElement('style');
-  style.textContent = \`
-    .tgme_widget_login_wrap > .tgme_widget_login_header,
-    .tgme_widget_login_wrap > p,
-    .tgme_widget_login_wrap > .tgme_widget_login_row:not(:last-child),
-    .tgme_widget_login > .tgme_widget_login_header,
-    .tgme_widget_login > p,
-    .widget_login_header,
-    .widget_login_description,
-    .tgme_widget_login_icon,
-    .tgme_widget_login_row.tgme_widget_login_row_phone {
-      display: none !important;
-    }
-
-    body, html { background: #ffffff !important; margin: 0; padding: 0; }
-    .tgme_widget_login_wrap, .tgme_widget_login {
-      display: flex !important;
-      flex-direction: column !important;
-      align-items: center !important;
-      justify-content: center !important;
-      min-height: 100vh !important;
-      padding: 0 !important;
-      background: #ffffff !important;
-    }
-
-    .tgme_widget_login_btn,
-    a[href*="tg://"],
-    .tgme_widget_login_button {
-      background: #229ED9 !important;
-      color: #ffffff !important;
-      border-radius: 25px !important;
-      border: none !important;
-      padding: 14px 40px !important;
-      font-size: 16px !important;
-      font-weight: 600 !important;
-      font-family: -apple-system, sans-serif !important;
-      text-decoration: none !important;
-      display: inline-block !important;
-      min-width: 220px !important;
-      text-align: center !important;
-      cursor: pointer !important;
-    }
-
-    .tgme_widget_login_wrap > *:not(.tgme_widget_login_row:last-child) {
-      display: none !important;
-    }
-  \`;
-  document.head.appendChild(style);
-
-  setTimeout(function() { document.head.appendChild(style.cloneNode(true)); }, 800);
-  setTimeout(function() { document.head.appendChild(style.cloneNode(true)); }, 1800);
-
+  window.addEventListener('hashchange', checkHash);
+  checkHash();
   true;
 })();
 `;
@@ -172,8 +113,8 @@ export default function TelegramLoginScreen({ onAuthResult, onCancel }: Telegram
     if (resolvedRef.current) return;
     try {
       const msg = JSON.parse(event.nativeEvent.data);
-      if (msg?.tgAuthResult) {
-        const data = decodeTgAuthResult(msg.tgAuthResult) as TelegramAuthData;
+      if (msg?.type === 'tgAuthResult' && msg?.data) {
+        const data = decodeTgAuthResult(msg.data) as TelegramAuthData;
         if (data?.hash) {
           resolvedRef.current = true;
           onAuthResult(data);

@@ -11,7 +11,6 @@ import {
   Keyboard,
   Platform,
   ActivityIndicator,
-  Modal,
 } from 'react-native'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import { Image } from 'expo-image'
@@ -20,7 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import { useToast } from '../contexts/ToastContext'
-import { FontAwesome, Ionicons } from '@expo/vector-icons'
+import { FontAwesome } from '@expo/vector-icons'
 import TelegramLoginScreen, { TelegramAuthData } from '../components/TelegramLoginScreen'
 
 export default function Auth() {
@@ -188,47 +187,61 @@ export default function Auth() {
 
             {/* Card */}
             <View style={styles.card}>
-              <View style={styles.introContainer}>
-                <Text style={styles.title}>Frictionless Login</Text>
-                <Text style={styles.subtitle}>Sign in securely using your Telegram account</Text>
-
-                {/* How It Works Card */}
-                <View style={styles.howItWorksCard}>
-                  <Text style={styles.howItWorksTitle}>- HOW IT WORKS -</Text>
-                  <View style={styles.stepRow}>
-                    <View style={styles.stepBadge}>
-                      <Text style={styles.stepBadgeText}>1</Text>
-                    </View>
-                    <Text style={styles.stepText}>Tap "Continue with Telegram" below</Text>
+              {showWebView ? (
+                <View style={styles.webViewContainer}>
+                  <View style={styles.webViewHeader}>
+                    <Text style={styles.webViewTitle}>Sign in with Telegram</Text>
+                    <TouchableOpacity onPress={handleCancel} style={styles.webViewCancelBtn}>
+                      <FontAwesome name="times-circle" size={22} color="#371F80" />
+                    </TouchableOpacity>
                   </View>
-                  <View style={styles.stepRow}>
-                    <View style={styles.stepBadge}>
-                      <Text style={styles.stepBadgeText}>2</Text>
-                    </View>
-                    <Text style={styles.stepText}>Tap "Confirm" in Telegram's service notification</Text>
-                  </View>
-                  <View style={styles.stepRow}>
-                    <View style={styles.stepBadge}>
-                      <Text style={styles.stepBadgeText}>3</Text>
-                    </View>
-                    <Text style={styles.stepText}>You're signed in — no password needed!</Text>
+                  <View style={styles.webViewFrame}>
+                    <TelegramLoginScreen onAuthResult={handleAuthResult} onCancel={handleCancel} />
                   </View>
                 </View>
+              ) : (
+                <View style={styles.introContainer}>
+                  <Text style={styles.title}>Frictionless Login</Text>
+                  <Text style={styles.subtitle}>Sign in securely using your Telegram account</Text>
 
-                <TouchableOpacity
-                  style={[styles.telegramButton, loading && styles.buttonDisabled]}
-                  onPress={handleContinueWithTelegram}
-                  disabled={loading}
-                  activeOpacity={0.85}
-                >
-                  <View style={styles.telegramBtnContent}>
-                    <FontAwesome name="telegram" size={24} color="#FFF" style={styles.telegramIcon} />
-                    <Text style={styles.telegramButtonText}>
-                      {loading ? 'SIGNING IN...' : 'CONTINUE WITH TELEGRAM'}
-                    </Text>
+                  {/* How It Works Card */}
+                  <View style={styles.howItWorksCard}>
+                    <Text style={styles.howItWorksTitle}>- HOW IT WORKS -</Text>
+                    <View style={styles.stepRow}>
+                      <View style={styles.stepBadge}>
+                        <Text style={styles.stepBadgeText}>1</Text>
+                      </View>
+                      <Text style={styles.stepText}>Tap "Continue with Telegram" below</Text>
+                    </View>
+                    <View style={styles.stepRow}>
+                      <View style={styles.stepBadge}>
+                        <Text style={styles.stepBadgeText}>2</Text>
+                      </View>
+                      <Text style={styles.stepText}>Tap "Confirm" in Telegram's service notification</Text>
+                    </View>
+                    <View style={styles.stepRow}>
+                      <View style={styles.stepBadge}>
+                        <Text style={styles.stepBadgeText}>3</Text>
+                      </View>
+                      <Text style={styles.stepText}>You're signed in — no password needed!</Text>
+                    </View>
                   </View>
-                </TouchableOpacity>
-              </View>
+
+                  <TouchableOpacity
+                    style={[styles.telegramButton, loading && styles.buttonDisabled]}
+                    onPress={handleContinueWithTelegram}
+                    disabled={loading}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.telegramBtnContent}>
+                      <FontAwesome name="telegram" size={24} color="#FFF" style={styles.telegramIcon} />
+                      <Text style={styles.telegramButtonText}>
+                        {loading ? 'SIGNING IN...' : 'CONTINUE WITH TELEGRAM'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              )}
 
               <View style={styles.footerWrap}>
                 <Text style={styles.footer}>Terms & Conditions Apply*</Text>
@@ -237,29 +250,6 @@ export default function Auth() {
           </KeyboardAwareScrollView>
         </Animated.View>
       </TouchableWithoutFeedback>
-
-      {/* ── Telegram WebView Modal ── */}
-      <Modal
-        visible={showWebView}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={handleCancel}
-      >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalHeaderTitle}>Sign in with Telegram</Text>
-            <TouchableOpacity
-              onPress={handleCancel}
-              style={styles.closeButton}
-              accessibilityLabel="Close Telegram login"
-              accessibilityRole="button"
-            >
-              <Ionicons name="close" size={22} color="#333333" />
-            </TouchableOpacity>
-          </View>
-          <TelegramLoginScreen onAuthResult={handleAuthResult} onCancel={handleCancel} />
-        </SafeAreaView>
-      </Modal>
     </SafeAreaView>
   )
 }
@@ -462,30 +452,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
+  webViewContainer: {
+    width: '100%',
+    height: 420,
   },
-  modalHeader: {
+  webViewHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EFEFEF',
+    justifyContent: 'space-between',
+    marginBottom: 16,
   },
-  modalHeaderTitle: {
-    flex: 1,
+  webViewTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#1A1A1A',
-    textAlign: 'center',
-    marginLeft: 38,
+    fontWeight: '700',
+    color: '#371F80',
   },
-  closeButton: {
-    position: 'absolute',
-    right: 16,
+  webViewCancelBtn: {
     padding: 4,
+  },
+  webViewFrame: {
+    flex: 1,
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E8E8F0',
   },
 })

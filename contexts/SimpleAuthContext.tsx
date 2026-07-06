@@ -4,26 +4,14 @@ import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SimpleUserProfile } from '../types/SimpleUserProfile';
 import { ProfileSyncService } from '../services/ProfileSyncService';
-import { TelegramAuthService, TelegramWidgetAuthData, requestTelegramSession, verifyTelegramCode } from '../services/TelegramAuthService';
-import { signInWithTelegramOidc } from '../services/TelegramLoginService';
+import { TelegramAuthService, TelegramWidgetAuthData } from '../services/TelegramAuthService';
 
 interface AuthContextType {
   user: SimpleUserProfile | null;
   isAuthenticated: boolean;
   loading: boolean;
   isLoading: boolean; // Add this for backward compatibility
-  initiateTelegramAuth: (deviceInfo?: Record<string, any>) => Promise<{ success: boolean; session_token: string; telegram_link: string; fallback_link: string; } | null>;
-  handleTelegramCallback: (jwtPayload: any) => Promise<{ success: boolean; message?: string }>;
-  signInWithTelegram: () => Promise<{ success: boolean; message: string; isNewUser?: boolean }>;
-  loginWithTelegram: (telegramAuthData: any) => Promise<void>;
-  sendTelegramVerification: (phone: string) => Promise<{
-    success: boolean;
-    message: string;
-    sessionToken?: string;
-    deepLink?: string;
-    botUsername?: string;
-  }>;
-  verifyTelegramOtp: (phone: string, code: string, sessionToken: string) => Promise<{ success: boolean; message: string; isNewUser?: boolean }>;
+  loginWithTelegram: (telegramAuthData: TelegramWidgetAuthData) => Promise<void>;
   logout: () => Promise<void>;
   refreshUserProfile: () => Promise<void>;
   switchMode: () => Promise<void>;
@@ -226,173 +214,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const initiateTelegramAuth = async (deviceInfo: Record<string, any> = {}) => {
-    return await TelegramAuthService.fetchDeepLink(deviceInfo);
-  };
-
-  const handleTelegramCallback = async (jwtPayload: any) => {
-    try {
-      const { access_token, refresh_token } = jwtPayload;
-      if (!access_token || !refresh_token) {
-        throw new Error('Invalid JWT payload from Telegram auth');
-      }
-
-      const { error } = await supabase.auth.setSession({
-        access_token,
-        refresh_token,
-      });
-
-      if (error) throw error;
-
-      if (jwtPayload.user?.user_id) {
-        await loadUserProfile(jwtPayload.user.user_id);
-      } else {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          await loadUserProfile(session.user.id);
-        } else {
-          throw new Error('No user session found after setting tokens');
-        }
-      }
-      return { success: true };
-    } catch (err: any) {
-      console.error('Error handling Telegram callback:', err);
-      return { success: false, message: err.message };
-    }
-  };
-
-  const ensureProfileAfterAuth = async (authUserId: string, normalized: string) => {
-    let isNewUser = false;
-    const { data: existingProfile, error: checkError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', authUserId)
-      .maybeSingle();
-
-    if (checkError) {
-      console.error('Error checking user existence during sign-in:', checkError);
-      await supabase.auth.signOut();
-      setUser(null);
-      return { success: false as const, message: 'Error verifying user. Please try again.' };
-    }
-
-    if (!existingProfile) {
-      const usernameSeed = normalized.replace(/\D/g, '').slice(-4) || '0000';
-      const { error: createError } = await supabase
-        .from('profiles')
-        .insert({
-          user_id: authUserId,
-          full_name: '',
-          username: `user-${usernameSeed}`,
-          phone: normalized,
-          role: 'customer',
-          current_mode: 'customer',
-        })
-        .select()
-        .single();
-
-      if (createError) {
-        console.error('Profile creation error:', createError);
-        return { success: false as const, message: createError.message };
-      }
-      isNewUser = true;
-    }
-
-    await loadUserProfile(authUserId);
-    return {
-      success: true as const,
-      message: isNewUser ? 'Signed in. Please complete your profile.' : 'Signed in successfully',
-      isNewUser,
-    };
-  };
-
-  const signInWithTelegram = async () => {
-    try {
-      const result = await signInWithTelegramOidc();
-
-      if (!result.ok || !result.session) {
-        return { success: false, message: result.error || 'Telegram sign-in failed' };
-      }
-
-      const { error: sessionError } = await supabase.auth.setSession({
-        access_token: result.session.access_token,
-        refresh_token: result.session.refresh_token,
-      });
-
-      if (sessionError) {
-        return { success: false, message: sessionError.message };
-      }
-
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
-
-      if (!authUser) {
-        return { success: false, message: 'Telegram sign-in failed' };
-      }
-
-      const phone = result.phone || authUser.phone || '';
-      return ensureProfileAfterAuth(authUser.id, phone ? normalizePhone(phone) : '+');
-    } catch (error) {
-      console.error('Unexpected error in signInWithTelegram:', error);
-      return { success: false, message: 'An unexpected error occurred. Please try again.' };
-    }
-  };
-
-  const sendTelegramVerification = async (phone: string) => {
-    try {
-      const normalized = normalizePhone(phone);
-      const result = await requestTelegramSession(normalized, 'sign_in');
-      if (!result.ok) {
-        return { success: false, message: result.error || 'Failed to start Telegram verification' };
-      }
-      return {
-        success: true,
-        message: 'Telegram session created',
-        sessionToken: result.sessionToken,
-        deepLink: result.deepLink,
-        botUsername: result.botUsername,
-      };
-    } catch (error: any) {
-      console.error('Error in sendTelegramVerification:', error);
-      return { success: false, message: error.message || 'An unexpected error occurred' };
-    }
-  };
-
-  const verifyTelegramOtp = async (phone: string, code: string, sessionToken: string) => {
-    try {
-      const normalized = normalizePhone(phone);
-      const result = await verifyTelegramCode(normalized, code, sessionToken);
-
-      if (!result.ok || !result.session) {
-        return { success: false, message: result.error || 'Verification failed' };
-      }
-
-      // Login using the returned session
-      const { error: sessionError } = await supabase.auth.setSession({
-        access_token: result.session.access_token,
-        refresh_token: result.session.refresh_token,
-      });
-
-      if (sessionError) {
-        return { success: false, message: sessionError.message };
-      }
-
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
-
-      if (!authUser) {
-        return { success: false, message: 'Telegram sign-in failed' };
-      }
-
-      return ensureProfileAfterAuth(authUser.id, normalized);
-    } catch (error: any) {
-      console.error('Error in verifyTelegramOtp:', error);
-      return { success: false, message: error.message || 'An unexpected error occurred' };
-    }
-  };
-
   const refreshUserProfile = async () => {
     if (!user) return;
     
@@ -508,12 +329,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     isAuthenticated,
     loading,
     isLoading: loading,
-    initiateTelegramAuth,
-    handleTelegramCallback,
-    signInWithTelegram,
     loginWithTelegram,
-    sendTelegramVerification,
-    verifyTelegramOtp,
     logout,
     refreshUserProfile,
     switchMode,
