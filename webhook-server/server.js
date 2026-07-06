@@ -191,6 +191,9 @@ app.post('/api/telegram/send', (req, res) => telegramSendHandler(req, res));
 const telegramMessagesHandler = require('./api/telegram/messages');
 app.get('/api/telegram/messages', (req, res) => telegramMessagesHandler(req, res));
 
+const telegramInitiateHandler = require('./api/auth/telegram/initiate');
+app.post('/api/auth/telegram/initiate', (req, res) => telegramInitiateHandler(req, res));
+
 // Main webhook endpoint
 app.post('/webhook', async (req, res) => {
   try {
