@@ -1,6 +1,10 @@
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
+const { loadEnv } = require('./lib/loadEnv');
+
+// Load environment variables
+loadEnv();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
