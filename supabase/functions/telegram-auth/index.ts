@@ -263,6 +263,17 @@ Deno.serve(async (req) => {
       }
 
       const telegramUserId = String(authData.id);
+
+      // DEBUG: Retrieve and inspect all existing profiles in the database
+      const { data: allProfiles, error: debugError } = await supabaseAdmin
+        .from('profiles')
+        .select('*');
+      if (debugError) {
+        console.error('[DEBUG] Failed to list profiles:', debugError.message);
+      } else {
+        console.log('[DEBUG] Existing profiles in database:', JSON.stringify(allProfiles, null, 2));
+      }
+
       const email = `tg_${telegramUserId}@telegram.mescott.co`;
       const password = await derivePassword(Number(telegramUserId));
       const fullName = [authData.first_name, authData.last_name].filter(Boolean).join(' ') || 'Telegram User';
