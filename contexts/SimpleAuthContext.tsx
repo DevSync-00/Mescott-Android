@@ -172,9 +172,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const loadUserProfile = async (userId: string, retries = 3, delay = 800): Promise<void> => {
+  const loadUserProfile = async (userId: string, retries = 1, delay = 300): Promise<void> => {
     try {
-      console.log(`[Auth] Fetching profile row for UID: ${userId}. Retries remaining: ${retries}`);
+      console.log(`[Auth] Fetching profile for UID: ${userId}${retries < 1 ? ' (final attempt)' : ''}`);
 
       const { data: profile, error } = await supabase
         .from('profiles')
@@ -184,15 +184,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       if (error) throw new Error(`Database error: ${error.message}`);
 
-      // Profile row not yet written by the DB trigger — give it a grace window
+      // Edge Function guarantees the row exists — this retry is a minor replication-lag safety net
       if (!profile) {
         if (retries > 0) {
-          console.log(`[Auth] Profile row not ready yet. Retrying in ${delay}ms... (${retries} left)`);
+          console.log(`[Auth] Profile not found yet — waiting ${delay}ms for replication...`);
           await new Promise<void>((resolve) => setTimeout(resolve, delay));
           return loadUserProfile(userId, retries - 1, delay);
         }
-        // All retries exhausted — sign out cleanly
-        console.warn('[Auth] Profile row missing after all retries — signing out clean.');
+        console.warn('[Auth] Profile row missing after retry — signing out clean.');
         await supabase.auth.signOut();
         setUser(null);
         setLoading(false);
@@ -201,7 +200,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       console.log('[Auth] Profile loaded successfully:', profile.full_name);
 
-      // Set user profile state seamlessly — preserve all fields
+      // Set user profile state — preserve all fields
       setUser({
         id: profile.id,
         user_id: profile.user_id,
@@ -218,7 +217,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         avatar_url: profile.avatar_url,
         profile,
       });
-      // CRITICAL: Release the app-wide root layout loading blocker
+      // Release the app-wide root layout loading blocker
       setLoading(false);
     } catch (error) {
       console.error('[Auth] Critical exception inside loadUserProfile:', error);
@@ -226,6 +225,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setLoading(false);
     }
   };
+
 
 
   const refreshUserProfile = async () => {

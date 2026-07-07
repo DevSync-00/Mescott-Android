@@ -280,11 +280,11 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (existingProfile) {
-        // User already has a profile row. Let's retrieve their auth.users account email to authenticate.
+        // User already has a profile row. Retrieve their auth.users email to authenticate.
         const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(existingProfile.user_id);
         const existingEmail = (!userError && userData?.user?.email) ? userData.user.email : email;
 
-        // Force-update the credentials on the auth.users account so signInWithPassword works
+        // Force-update the credentials so signInWithPassword works
         const { error: updateErr } = await supabaseAdmin.auth.admin.updateUserById(existingProfile.user_id, {
           email: existingEmail,
           password: password,
@@ -312,16 +312,8 @@ Deno.serve(async (req) => {
         session = signInData.session;
         user = signInData.user;
 
-        // Update profile fields
-        await supabaseAdmin
-          .from('profiles')
-          .update({
-            telegram_username: username,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('user_id', user.id);
       } else {
-        // Standard flow: check if password login succeeds for default email
+        // Standard flow: try sign-in first (user may already exist without a profile row)
         const { data: signInData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
           email,
           password,
@@ -331,15 +323,6 @@ Deno.serve(async (req) => {
           session = signInData.session;
           user = signInData.user;
 
-          // Update profile fields
-          await supabaseAdmin
-            .from('profiles')
-            .update({
-              telegram_chat_id: telegramUserId,
-              telegram_username: username,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('user_id', user.id);
         } else {
           // Create new user in Supabase Auth
           const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
@@ -373,26 +356,42 @@ Deno.serve(async (req) => {
 
           session = freshSignIn.session;
           user = freshSignIn.user;
+        }
+      }
 
-          // Create profile
-          const { error: profileErr } = await supabaseAdmin.from('profiles').insert([{
+      // ─────────────────────────────────────────────────────────────────────
+      // CONSOLIDATED PROFILE UPSERT — runs synchronously for ALL paths above.
+      // The profile row is guaranteed to exist before tokens reach the client.
+      // onConflict: 'telegram_chat_id' handles both new and returning users.
+      // ─────────────────────────────────────────────────────────────────────
+      console.log(`[telegram-auth] Upserting profile for user ${user.id} (Telegram ID: ${telegramUserId})`);
+
+      const { error: profileUpsertErr } = await supabaseAdmin
+        .from('profiles')
+        .upsert(
+          {
             user_id: user.id,
             full_name: fullName,
-            username,
-            phone: '',
+            username: username,
+            phone: user.phone || '',
             telegram_chat_id: telegramUserId,
             telegram_username: username,
             role: 'customer',
             current_mode: 'customer',
-          }]);
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'telegram_chat_id' }
+        );
 
-          if (profileErr) {
-            console.error('[telegram-auth] Profile creation database error:', profileErr.message);
-          }
-        }
+      if (profileUpsertErr) {
+        console.error('[telegram-auth] Profile upsert failed:', profileUpsertErr.message);
+        return new Response(
+          JSON.stringify({ success: false, error: 'Profile provisioning failed. Please try again.' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
 
-      console.log(`[telegram-auth] Successful widget login for Telegram ID: ${telegramUserId}`);
+      console.log(`[telegram-auth] Profile upsert successful. Returning tokens for Telegram ID: ${telegramUserId}`);
 
       return new Response(JSON.stringify({
         success: true,
@@ -410,6 +409,7 @@ Deno.serve(async (req) => {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+
 
     } catch (err: any) {
       console.error('[telegram-auth] Root handler error:', err);
