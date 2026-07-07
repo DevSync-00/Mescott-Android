@@ -82,7 +82,7 @@ export default function Auth() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F4F5F7" translucent={false} />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent={false} />
 
       {/* Decorative Top-Right Vector Shape */}
       <View style={styles.vectorTopRight} />
@@ -110,11 +110,9 @@ export default function Auth() {
           <Text style={styles.heroSubtitle}>Ethiopia's Leading Marketplace Platform</Text>
         </View>
 
-        {/* Elevated Workspace Card containing the WebView widget */}
-        <View style={styles.cardContainer}>
-          <View style={styles.webViewWrapper}>
-            <TelegramLoginScreen onAuthResult={handleAuthResult} />
-          </View>
+        {/* Flat, seamless Telegram WebView integration */}
+        <View style={styles.webViewWrapper}>
+          <TelegramLoginScreen onAuthResult={handleAuthResult} />
         </View>
 
         {/* Signing In Overlay State */}
@@ -138,7 +136,7 @@ export default function Auth() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F4F5F7',
+    backgroundColor: '#FFFFFF',
   },
   vectorTopRight: {
     position: 'absolute',
@@ -163,6 +161,7 @@ const styles = StyleSheet.create({
   animatedContainer: {
     flex: 1,
     zIndex: 1,
+    backgroundColor: '#FFFFFF',
   },
   hero: {
     paddingTop: 32,
@@ -200,22 +199,6 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     marginTop: 6,
     fontWeight: '500',
-  },
-  cardContainer: {
-    flex: 1,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 24,
-    backgroundColor: '#FFFFFF',
-    overflow: 'hidden',
-    // Elegant soft shadow for modern aesthetics
-    shadowColor: '#371F80',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(242, 242, 247, 0.8)',
   },
   webViewWrapper: {
     flex: 1,

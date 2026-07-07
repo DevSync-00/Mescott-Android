@@ -88,10 +88,8 @@ const INJECTED_JS = `
   // 6. Base styles — white background and clean layout for seamless integration
   var style = document.createElement('style');
   style.innerHTML = [
-    'body, html { background-color: #FFFFFF !important; background: #FFFFFF !important; margin: 0 !important; padding: 0 !important; }',
-    '.login_page { background-color: #FFFFFF !important; }',
-    '.tgme_widget_login_wrap { background-color: #FFFFFF !important; padding-top: 16px !important; }',
-    // Force-hide the phone input form when the confirmation form is active
+    'html, body, .tgme_widget_login_wrap, .tgme_widget_login { background: #FFFFFF !important; background-color: #FFFFFF !important; box-shadow: none !important; border: none !important; margin: 0 !important; padding: 12px 0 0 0 !important; }',
+    '.tgme_widget_login_box { box-shadow: none !important; border: none !important; background: transparent !important; }',
     'body:has(#login-form:not(.hide)) #send-form { display: none !important; }'
   ].join(' ');
   document.head.appendChild(style);
