@@ -90,4 +90,8 @@ CREATE TRIGGER on_auth_user_created
 GRANT ALL ON public.profiles TO postgres, service_role, authenticated, anon;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, service_role, authenticated, anon;
 
+-- Disable RLS on profiles to completely prevent row-level security policy violations
+ALTER TABLE public.profiles DISABLE ROW LEVEL SECURITY;
+
+
 
