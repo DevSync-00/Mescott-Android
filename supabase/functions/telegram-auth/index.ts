@@ -360,16 +360,47 @@ Deno.serve(async (req) => {
       }
 
       // ─────────────────────────────────────────────────────────────────────
-      // CONSOLIDATED PROFILE UPSERT — runs synchronously for ALL paths above.
-      // The profile row is guaranteed to exist before tokens reach the client.
-      // onConflict: 'telegram_chat_id' handles both new and returning users.
+      // PROFILE WRITE — explicit UPDATE-then-INSERT, avoids all constraint races.
+      //
+      // Strategy:
+      //   1. Try to UPDATE any existing profile row that owns this telegram_chat_id.
+      //      This re-binds user_id if the DB trigger created the row first, or if
+      //      a prior auth attempt left a stale row.
+      //   2. If UPDATE touched 0 rows (truly new identity), INSERT a fresh row.
+      //
+      // This pattern is immune to BOTH unique constraint conflicts (user_id PK and
+      // telegram_chat_id UNIQUE) that PostgREST's upsert resolution fails to handle
+      // simultaneously.
       // ─────────────────────────────────────────────────────────────────────
-      console.log(`[telegram-auth] Upserting profile for user ${user.id} (Telegram ID: ${telegramUserId})`);
+      console.log(`[telegram-auth] Writing profile for user ${user.id} (Telegram ID: ${telegramUserId})`);
 
-      const { error: profileUpsertErr } = await supabaseAdmin
+      const profilePayload = {
+        full_name: fullName,
+        username: username,
+        telegram_username: username,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Step 1: UPDATE existing row by telegram_chat_id (catches trigger-created rows)
+      const { data: updatedRows, error: updateErr } = await supabaseAdmin
         .from('profiles')
-        .upsert(
-          {
+        .update({ ...profilePayload, user_id: user.id })
+        .eq('telegram_chat_id', telegramUserId)
+        .select('id');
+
+      if (updateErr) {
+        console.error('[telegram-auth] Profile UPDATE failed:', updateErr.message);
+        return new Response(
+          JSON.stringify({ success: false, error: `Profile update failed: ${updateErr.message}` }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (!updatedRows || updatedRows.length === 0) {
+        // Step 2: No existing row — INSERT fresh profile
+        const { error: insertErr } = await supabaseAdmin
+          .from('profiles')
+          .insert({
             user_id: user.id,
             full_name: fullName,
             username: username,
@@ -378,20 +409,21 @@ Deno.serve(async (req) => {
             telegram_username: username,
             role: 'customer',
             current_mode: 'customer',
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id' }  // Primary key — PostgREST resolves on the table PK
-        );
+          });
 
-      if (profileUpsertErr) {
-        console.error('[telegram-auth] Profile upsert failed:', profileUpsertErr.message);
-        return new Response(
-          JSON.stringify({ success: false, error: `Profile provisioning failed: ${profileUpsertErr.message}` }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        if (insertErr) {
+          console.error('[telegram-auth] Profile INSERT failed:', insertErr.message);
+          return new Response(
+            JSON.stringify({ success: false, error: `Profile insert failed: ${insertErr.message}` }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        console.log(`[telegram-auth] Profile INSERT successful for Telegram ID: ${telegramUserId}`);
+      } else {
+        console.log(`[telegram-auth] Profile UPDATE successful for Telegram ID: ${telegramUserId} (re-bound to user ${user.id})`);
       }
 
-      console.log(`[telegram-auth] Profile upsert successful. Returning tokens for Telegram ID: ${telegramUserId}`);
+
 
       return new Response(JSON.stringify({
         success: true,
