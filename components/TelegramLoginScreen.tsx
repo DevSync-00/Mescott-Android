@@ -142,6 +142,13 @@ export default function TelegramLoginScreen({ onAuthResult }: TelegramLoginScree
         setNonce(generateNonce());
       }
     });
+
+    // Safety fallback: dismiss spinner after 2.2 seconds regardless of network speed
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 2200);
+
+    return () => clearTimeout(timer);
   }, []);
 
   function tryExtractResult(url: string): void {
@@ -219,6 +226,11 @@ export default function TelegramLoginScreen({ onAuthResult }: TelegramLoginScree
         onMessage={handleMessage}
         onLoadStart={() => setLoading(true)}
         onLoadEnd={() => setLoading(false)}
+        onLoadProgress={({ nativeEvent }) => {
+          if (nativeEvent.progress >= 0.7) {
+            setLoading(false);
+          }
+        }}
         style={styles.webview}
       />
     </View>
