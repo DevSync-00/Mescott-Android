@@ -374,14 +374,50 @@ Deno.serve(async (req) => {
       }
 
       // ─────────────────────────────────────────────────────────────────────
-      // PROFILE UPSERT — target onConflict: 'telegram_chat_id'
+      // PROFILE PROVISIONING — bulletproof cleanup and write flow.
+      // Resolves all unique index conflicts (user_id and telegram_chat_id).
       // ─────────────────────────────────────────────────────────────────────
-      console.log(`[telegram-auth] Upserting profile for user ${targetedUserId} (Telegram ID: ${telegramUserId})`);
+      console.log(`[telegram-auth] Provisioning profile for user ${targetedUserId} (Telegram ID: ${telegramUserId})`);
 
-      const { error: profileError } = await supabaseAdmin
+      // 1. Pre-emptively delete any redundant profile row holding this targetedUserId
+      //    but having a different telegram_chat_id (e.g. from automatic DB triggers)
+      //    to clear the primary key (user_id) constraint.
+      const { error: deleteErr } = await supabaseAdmin
         .from('profiles')
-        .upsert(
-          {
+        .delete()
+        .eq('user_id', targetedUserId)
+        .neq('telegram_chat_id', telegramUserId);
+
+      if (deleteErr) {
+        console.warn('[telegram-auth] Pre-flight delete warning:', deleteErr.message);
+      }
+
+      // 2. Attempt to update the existing profile row that owns this telegram_chat_id
+      const { data: updatedRows, error: updateErr } = await supabaseAdmin
+        .from('profiles')
+        .update({
+          user_id: targetedUserId,
+          full_name: fullName,
+          username: username,
+          telegram_username: username,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('telegram_chat_id', telegramUserId)
+        .select('id');
+
+      if (updateErr) {
+        console.error('[telegram-auth] Profile update failed:', updateErr.message);
+        return new Response(
+          JSON.stringify({ success: false, error: `Profile update failed: ${updateErr.message}` }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // 3. If no row exists with this telegram_chat_id, insert a fresh profile row
+      if (!updatedRows || updatedRows.length === 0) {
+        const { error: insertErr } = await supabaseAdmin
+          .from('profiles')
+          .insert({
             user_id: targetedUserId,
             full_name: fullName,
             username: username,
@@ -390,20 +426,21 @@ Deno.serve(async (req) => {
             telegram_username: username,
             role: 'customer',
             current_mode: 'customer',
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'telegram_chat_id' }
-        );
+          });
 
-      if (profileError) {
-        console.error('[telegram-auth] Profile upsert failed:', profileError.message);
-        return new Response(
-          JSON.stringify({ success: false, error: `Profile provisioning failed: ${profileError.message}` }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        if (insertErr) {
+          console.error('[telegram-auth] Profile insert failed:', insertErr.message);
+          return new Response(
+            JSON.stringify({ success: false, error: `Profile insert failed: ${insertErr.message}` }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        console.log(`[telegram-auth] Profile insert successful for Telegram ID: ${telegramUserId}`);
+      } else {
+        console.log(`[telegram-auth] Profile update successful for Telegram ID: ${telegramUserId}`);
       }
 
-      console.log(`[telegram-auth] Profile upsert successful. Returning tokens for Telegram ID: ${telegramUserId}`);
+      console.log(`[telegram-auth] Profile provisioning successful. Returning tokens for Telegram ID: ${telegramUserId}`);
 
       return new Response(JSON.stringify({
         success: true,
