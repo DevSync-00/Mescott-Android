@@ -268,24 +268,33 @@ Deno.serve(async (req) => {
       const fullName = [authData.first_name, authData.last_name].filter(Boolean).join(' ') || 'Telegram User';
       const username = authData.username || `tg_${telegramUserId}`;
 
-      // 2. Find or create Supabase user
+      // 2. Find or resolve existing profile to prevent unique constraint conflicts
       let session: any = null;
       let user: any = null;
+      let targetedUserId: string;
 
-      // Check if a profile with this telegram_chat_id already exists in profiles table
-      const { data: existingProfile } = await supabaseAdmin
+      // Pre-flight check: see if this Telegram Chat ID already has a row in profiles
+      const { data: existingProfile, error: lookupError } = await supabaseAdmin
         .from('profiles')
-        .select('*')
+        .select('user_id')
         .eq('telegram_chat_id', telegramUserId)
         .maybeSingle();
 
-      if (existingProfile) {
-        // User already has a profile row. Retrieve their auth.users email to authenticate.
-        const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(existingProfile.user_id);
+      if (lookupError) {
+        console.error('[telegram-auth] Database pre-flight lookup failed:', lookupError.message);
+      }
+
+      if (existingProfile?.user_id) {
+        // If a profile row already exists, link the login session to this existing User UUID
+        targetedUserId = existingProfile.user_id;
+        console.log(`[telegram-auth] Account mapping found. Routing session to existing UID: ${targetedUserId}`);
+
+        // Retrieve their auth.users account email to authenticate
+        const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(targetedUserId);
         const existingEmail = (!userError && userData?.user?.email) ? userData.user.email : email;
 
-        // Force-update the credentials so signInWithPassword works
-        const { error: updateErr } = await supabaseAdmin.auth.admin.updateUserById(existingProfile.user_id, {
+        // Force-update the credentials on the auth.users account so signInWithPassword works
+        const { error: updateErr } = await supabaseAdmin.auth.admin.updateUserById(targetedUserId, {
           email: existingEmail,
           password: password,
           email_confirm: true,
@@ -311,9 +320,8 @@ Deno.serve(async (req) => {
 
         session = signInData.session;
         user = signInData.user;
-
       } else {
-        // Standard flow: try sign-in first (user may already exist without a profile row)
+        // Standard flow: try sign-in first (user may already exist in auth.users without a profile row)
         const { data: signInData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
           email,
           password,
@@ -322,19 +330,24 @@ Deno.serve(async (req) => {
         if (!signInError && signInData?.session) {
           session = signInData.session;
           user = signInData.user;
-
+          targetedUserId = user.id;
         } else {
           // Create new user in Supabase Auth
           const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
             email,
             password,
             email_confirm: true,
-            user_metadata: { telegram_id: telegramUserId },
+            user_metadata: {
+              telegram_id: telegramUserId,
+              first_name: authData.first_name,
+              last_name: authData.last_name || '',
+              username: authData.username || `tg_${telegramUserId}`
+            },
           });
 
           if (createError && !createError.message.includes('already registered')) {
             console.error('[telegram-auth] Failed to create user:', createError.message);
-            return new Response(JSON.stringify({ success: false, error: 'Failed to create user account' }), {
+            return new Response(JSON.stringify({ success: false, error: createError.message }), {
               status: 500,
               headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
@@ -356,74 +369,41 @@ Deno.serve(async (req) => {
 
           session = freshSignIn.session;
           user = freshSignIn.user;
+          targetedUserId = user.id;
         }
       }
 
       // ─────────────────────────────────────────────────────────────────────
-      // PROFILE WRITE — explicit UPDATE-then-INSERT, avoids all constraint races.
-      //
-      // Strategy:
-      //   1. Try to UPDATE any existing profile row that owns this telegram_chat_id.
-      //      This re-binds user_id if the DB trigger created the row first, or if
-      //      a prior auth attempt left a stale row.
-      //   2. If UPDATE touched 0 rows (truly new identity), INSERT a fresh row.
-      //
-      // This pattern is immune to BOTH unique constraint conflicts (user_id PK and
-      // telegram_chat_id UNIQUE) that PostgREST's upsert resolution fails to handle
-      // simultaneously.
+      // PROFILE UPSERT — target onConflict: 'telegram_chat_id'
       // ─────────────────────────────────────────────────────────────────────
-      console.log(`[telegram-auth] Writing profile for user ${user.id} (Telegram ID: ${telegramUserId})`);
+      console.log(`[telegram-auth] Upserting profile for user ${targetedUserId} (Telegram ID: ${telegramUserId})`);
 
-      const profilePayload = {
-        full_name: fullName,
-        username: username,
-        telegram_username: username,
-        updated_at: new Date().toISOString(),
-      };
-
-      // Step 1: UPDATE existing row by telegram_chat_id (catches trigger-created rows)
-      const { data: updatedRows, error: updateErr } = await supabaseAdmin
+      const { error: profileError } = await supabaseAdmin
         .from('profiles')
-        .update({ ...profilePayload, user_id: user.id })
-        .eq('telegram_chat_id', telegramUserId)
-        .select('id');
-
-      if (updateErr) {
-        console.error('[telegram-auth] Profile UPDATE failed:', updateErr.message);
-        return new Response(
-          JSON.stringify({ success: false, error: `Profile update failed: ${updateErr.message}` }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      if (!updatedRows || updatedRows.length === 0) {
-        // Step 2: No existing row — INSERT fresh profile
-        const { error: insertErr } = await supabaseAdmin
-          .from('profiles')
-          .insert({
-            user_id: user.id,
+        .upsert(
+          {
+            user_id: targetedUserId,
             full_name: fullName,
             username: username,
-            phone: user.phone || '',
+            phone: user?.phone || '',
             telegram_chat_id: telegramUserId,
             telegram_username: username,
             role: 'customer',
             current_mode: 'customer',
-          });
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'telegram_chat_id' }
+        );
 
-        if (insertErr) {
-          console.error('[telegram-auth] Profile INSERT failed:', insertErr.message);
-          return new Response(
-            JSON.stringify({ success: false, error: `Profile insert failed: ${insertErr.message}` }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-        console.log(`[telegram-auth] Profile INSERT successful for Telegram ID: ${telegramUserId}`);
-      } else {
-        console.log(`[telegram-auth] Profile UPDATE successful for Telegram ID: ${telegramUserId} (re-bound to user ${user.id})`);
+      if (profileError) {
+        console.error('[telegram-auth] Profile upsert failed:', profileError.message);
+        return new Response(
+          JSON.stringify({ success: false, error: `Profile provisioning failed: ${profileError.message}` }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
 
-
+      console.log(`[telegram-auth] Profile upsert successful. Returning tokens for Telegram ID: ${telegramUserId}`);
 
       return new Response(JSON.stringify({
         success: true,
