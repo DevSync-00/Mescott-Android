@@ -86,3 +86,8 @@ CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user_profile();
 
+-- Grant all permissions on profiles table and sequences to prevent permission denied errors
+GRANT ALL ON public.profiles TO postgres, service_role, authenticated, anon;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, service_role, authenticated, anon;
+
+
