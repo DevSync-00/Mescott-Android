@@ -380,13 +380,13 @@ Deno.serve(async (req) => {
             current_mode: 'customer',
             updated_at: new Date().toISOString(),
           },
-          { onConflict: 'telegram_chat_id' }
+          { onConflict: 'user_id' }  // Primary key — PostgREST resolves on the table PK
         );
 
       if (profileUpsertErr) {
         console.error('[telegram-auth] Profile upsert failed:', profileUpsertErr.message);
         return new Response(
-          JSON.stringify({ success: false, error: 'Profile provisioning failed. Please try again.' }),
+          JSON.stringify({ success: false, error: `Profile provisioning failed: ${profileUpsertErr.message}` }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }

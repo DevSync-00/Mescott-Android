@@ -85,13 +85,40 @@ const INJECTED_JS = `
   // 5. Run immediately in case we are already on the result page
   checkUrlForAuth();
 
-  // 6. Blend background for seamless white integration
+  // 6. Base styles — white background for seamless integration
   var style = document.createElement('style');
   style.innerHTML = [
-    'body, html { background-color: #ffffff !important; background: #ffffff !important; }',
-    '.tgme_widget_login_page { background-color: #ffffff !important; }'
+    'body, html { background-color: #ffffff !important; background: #ffffff !important; margin: 0; padding: 0; }',
+    '.tgme_widget_login_page { background-color: #ffffff !important; }',
+    // When the confirmation row is visible, hide the phone row to prevent dual-state overlap
+    '.tgme_widget_login_row_phone_sent ~ .tgme_widget_login_row_phone { display: none !important; }',
+    // Also hide any leftover action rows (Cancel/Continue) once in confirmation step
+    '.tgme_widget_login_row_phone_sent ~ .tgme_widget_login_row_actions { display: none !important; }'
   ].join(' ');
   document.head.appendChild(style);
+
+  // 7. MutationObserver: dynamically hide phone step when confirmation step appears
+  //    (Telegram widget transitions via class changes, not page navigation)
+  var observer = new MutationObserver(function() {
+    var sentRow = document.querySelector('.tgme_widget_login_row_phone_sent');
+    var phoneRow = document.querySelector('.tgme_widget_login_row_phone');
+    var actionsRow = document.querySelector('.tgme_widget_login_row_actions');
+    if (sentRow) {
+      // Confirmation step is now active — collapse phone step elements
+      if (phoneRow) phoneRow.style.display = 'none';
+      if (actionsRow) actionsRow.style.display = 'none';
+    } else {
+      // Back to phone entry — restore visibility
+      if (phoneRow) phoneRow.style.display = '';
+      if (actionsRow) actionsRow.style.display = '';
+    }
+  });
+  observer.observe(document.body || document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class', 'style']
+  });
 
   true;
 })();
