@@ -775,20 +775,17 @@ export default function Onboarding() {
           pointerEvents={currentIndex === 2 ? 'none' : 'auto'}
         >
           {slides.map((_, index) => {
-            const segW = scrollX.interpolate({
-              inputRange: [(index - 1) * width, index * width, (index + 1) * width],
-              outputRange: [12, 28, 12],
-              extrapolate: 'clamp',
-            })
-            const segC = scrollX.interpolate({
-              inputRange: [(index - 1) * width, index * width, (index + 1) * width],
-              outputRange: ['#E0E0E0', '#24A1DE', '#E0E0E0'],
-              extrapolate: 'clamp',
-            })
+            const isActive = currentIndex === index
             return (
-              <Animated.View
+              <View
                 key={index}
-                style={[styles.indicator, { width: segW, backgroundColor: segC }]}
+                style={[
+                  styles.indicator,
+                  {
+                    width: isActive ? 28 : 12,
+                    backgroundColor: isActive ? '#24A1DE' : '#E0E0E0',
+                  },
+                ]}
               />
             )
           })}
