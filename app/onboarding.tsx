@@ -43,20 +43,20 @@ export default function Onboarding() {
   const scrollViewRef = useRef<ScrollView>(null)
   const [currentIndex, setCurrentIndex] = useState(0)
 
-  // Floating Loop for Slide 1
+  // Floating Parallax Loop for Slide 1
   const floatAnim = useRef(new Animated.Value(0)).current
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
         Animated.timing(floatAnim, {
-          toValue: -8,
-          duration: 1800,
+          toValue: -12,
+          duration: 2000,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
         Animated.timing(floatAnim, {
           toValue: 0,
-          duration: 1800,
+          duration: 2000,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
@@ -64,20 +64,39 @@ export default function Onboarding() {
     ).start()
   }, [floatAnim])
 
+  // Spring Pulse for Brand Logo
+  const logoPulseAnim = useRef(new Animated.Value(1)).current
+  useEffect(() => {
+    logoPulseAnim.setValue(1)
+    Animated.spring(logoPulseAnim, {
+      toValue: 1.15,
+      friction: 3,
+      tension: 40,
+      useNativeDriver: true,
+    }).start(() => {
+      Animated.spring(logoPulseAnim, {
+        toValue: 1,
+        friction: 4,
+        tension: 30,
+        useNativeDriver: true,
+      }).start()
+    })
+  }, [currentIndex, logoPulseAnim])
+
   // Pulsing Loop for Slide 2
   const pulseAnim = useRef(new Animated.Value(1)).current
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.03,
-          duration: 1500,
+          toValue: 1.04,
+          duration: 1600,
           easing: Easing.inOut(Easing.quad),
           useNativeDriver: true,
         }),
         Animated.timing(pulseAnim, {
           toValue: 1,
-          duration: 1500,
+          duration: 1600,
           easing: Easing.inOut(Easing.quad),
           useNativeDriver: true,
         }),
@@ -85,7 +104,7 @@ export default function Onboarding() {
     ).start()
   }, [pulseAnim])
 
-  // Sliding coin animation for Slide 3
+  // Coin animation for Slide 3
   const coinAnim = useRef(new Animated.Value(-15)).current
   const coinOpacity = useRef(new Animated.Value(0)).current
   useEffect(() => {
@@ -140,7 +159,7 @@ export default function Onboarding() {
     }
   }
 
-  // Header and controls interpolations
+  // Header and bottom action opacity rules
   const skipOpacity = scrollX.interpolate({
     inputRange: [width, width * 1.5, width * 2],
     outputRange: [1, 0, 0],
@@ -169,6 +188,14 @@ export default function Onboarding() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent={false} />
 
+      {/* Depth Vectors Background */}
+      <View style={styles.bgGridContainer} pointerEvents="none">
+        <View style={styles.bgCircle1} />
+        <View style={styles.bgCircle2} />
+        <View style={[styles.bgLine, { top: height * 0.25 }]} />
+        <View style={[styles.bgLine, { top: height * 0.55 }]} />
+      </View>
+
       {/* Persistent Skip Button (Fades out on Slide 3) */}
       <Animated.View 
         style={[styles.headerContainer, { opacity: skipOpacity }]}
@@ -191,7 +218,6 @@ export default function Onboarding() {
         style={styles.carousel}
       >
         {slides.map((slide, index) => {
-          // Slide specific transitions driven by scrollX position
           const slideOpacity = scrollX.interpolate({
             inputRange: [(index - 1) * width, index * width, (index + 1) * width],
             outputRange: [0, 1, 0],
@@ -227,34 +253,47 @@ export default function Onboarding() {
               >
                 {index === 0 && (
                   <Animated.View style={[styles.slide1Container, { transform: [{ translateY: floatAnim }] }]}>
-                    {/* Background Nodes */}
-                    <View style={[styles.connectingLine, styles.line1]} />
-                    <View style={[styles.connectingLine, styles.line2]} />
-                    <View style={[styles.connectingLine, styles.line3]} />
-                    <View style={[styles.connectingLine, styles.line4]} />
+                    {/* Dashed exposed circuit/panel in the background */}
+                    <View style={styles.circuitGridPanel} />
 
-                    {/* Central Phone Mockup */}
-                    <View style={styles.phoneMock}>
+                    {/* Central Smartphone with Isometric skew */}
+                    <View style={styles.phoneIsometric}>
                       <View style={styles.phoneCamera} />
                       <View style={styles.phoneContent}>
-                        <View style={styles.phoneListBar} />
-                        <View style={[styles.phoneListBar, { width: '80%' }]} />
-                        <View style={[styles.phoneListBar, { width: '50%' }]} />
+                        <Text style={styles.isoMockHeader}>Services</Text>
+                        <View style={styles.isoMockCard}>
+                          <Ionicons name="construct" size={10} color="#7B42F6" />
+                          <View style={styles.isoMockLine} />
+                        </View>
+                        <View style={styles.isoMockCard}>
+                          <Ionicons name="cart" size={10} color="#24A1DE" />
+                          <View style={[styles.isoMockLine, { width: '55%' }]} />
+                        </View>
                       </View>
                     </View>
 
-                    {/* Surrounding Connected Circles */}
-                    <View style={[styles.circleNode, styles.nodeTopLeft]}>
-                      <Ionicons name="brush-outline" size={20} color="#24A1DE" />
+                    {/* Character 1: Customer (Front screen, gesturing) */}
+                    <View style={[styles.characterNode, styles.charCustomer]}>
+                      <Ionicons name="finger-print" size={18} color="#7B42F6" />
+                      <View style={styles.charBadge}>
+                        <Text style={styles.charBadgeText}>User</Text>
+                      </View>
                     </View>
-                    <View style={[styles.circleNode, styles.nodeTopRight]}>
-                      <FontAwesome6 name="wrench" size={16} color="#7B42F6" />
+
+                    {/* Character 2: Handyman (Sitting on phone bezel with wrench) */}
+                    <View style={[styles.characterNode, styles.charHandyman]}>
+                      <FontAwesome6 name="wrench" size={14} color="#24A1DE" />
+                      <View style={styles.charBadge}>
+                        <Text style={styles.charBadgeText}>Helper</Text>
+                      </View>
                     </View>
-                    <View style={[styles.circleNode, styles.nodeBottomLeft]}>
-                      <FontAwesome6 name="hammer" size={16} color="#7B42F6" />
-                    </View>
-                    <View style={[styles.circleNode, styles.nodeBottomRight]}>
-                      <Ionicons name="flash-outline" size={20} color="#24A1DE" />
+
+                    {/* Character 3: Specialized Technician (Rear work, wires panel) */}
+                    <View style={[styles.characterNode, styles.charTech]}>
+                      <Ionicons name="flash" size={16} color="#7B42F6" />
+                      <View style={styles.charBadge}>
+                        <Text style={styles.charBadgeText}>Tech</Text>
+                      </View>
                     </View>
                   </Animated.View>
                 )}
@@ -269,7 +308,7 @@ export default function Onboarding() {
                       <Ionicons name="shield-checkmark-outline" size={28} color="#24A1DE" />
                     </View>
 
-                    {/* Stylized Profile trust card */}
+                    {/* Stylized Trust Profile Card */}
                     <View style={styles.profileCard}>
                       <View style={styles.profileHeader}>
                         <View style={styles.avatar}>
@@ -310,7 +349,7 @@ export default function Onboarding() {
                       </View>
                     </View>
 
-                    {/* Wallet card overlay */}
+                    {/* Wallet Card */}
                     <View style={styles.walletCard}>
                       <View style={styles.walletHeader}>
                         <Ionicons name="wallet-outline" size={18} color="#7B42F6" />
@@ -322,7 +361,7 @@ export default function Onboarding() {
                         <Text style={styles.growthText}>+1,200 today</Text>
                       </View>
 
-                      {/* Sliding coin graphics */}
+                      {/* Coin graphics */}
                       <Animated.View style={[styles.coinIcon, { opacity: coinOpacity, transform: [{ translateY: coinAnim }] }]}>
                         <FontAwesome6 name="coins" size={16} color="#FBBF24" />
                       </Animated.View>
@@ -331,9 +370,21 @@ export default function Onboarding() {
                 )}
               </Animated.View>
 
-              {/* Text content card below graphic */}
+              {/* Text Content Block */}
               <View style={styles.textBlock}>
-                <Text style={styles.title}>{slide.title}</Text>
+                {index === 0 ? (
+                  <View style={styles.logoTitleRow}>
+                    <Text style={styles.welcomeText}>Welcome to </Text>
+                    <Text style={styles.logoTextInline}>MESCO</Text>
+                    <Animated.Image
+                      source={require('../assets/images/adaptive-icon.png')}
+                      style={[styles.inlineLogoImage, { transform: [{ scale: logoPulseAnim }] }]}
+                      resizeMode="contain"
+                    />
+                  </View>
+                ) : (
+                  <Text style={styles.title}>{slide.title}</Text>
+                )}
                 <Text style={styles.description}>{slide.description}</Text>
               </View>
             </View>
@@ -399,6 +450,39 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
+  bgGridContainer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+  },
+  bgCircle1: {
+    position: 'absolute',
+    top: height * 0.08,
+    left: -50,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    borderWidth: 1.5,
+    borderColor: '#7B42F6',
+    opacity: 0.05,
+  },
+  bgCircle2: {
+    position: 'absolute',
+    bottom: height * 0.22,
+    right: -60,
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    borderWidth: 1.5,
+    borderColor: '#24A1DE',
+    opacity: 0.05,
+  },
+  bgLine: {
+    position: 'absolute',
+    width: '100%',
+    height: 1,
+    backgroundColor: '#7B42F6',
+    opacity: 0.04,
+  },
   headerContainer: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -427,7 +511,7 @@ const styles = StyleSheet.create({
   },
   graphicBlock: {
     width: '100%',
-    height: height * 0.35,
+    height: height * 0.36,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -443,6 +527,30 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 16,
     letterSpacing: 0.3,
+  },
+  logoTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  welcomeText: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#7B42F6',
+    letterSpacing: 0.3,
+  },
+  logoTextInline: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#3D0F95',
+    letterSpacing: 0.8,
+  },
+  inlineLogoImage: {
+    width: 58,
+    height: 58,
+    marginLeft: -13,
+    marginTop: -2,
   },
   description: {
     fontSize: 15,
@@ -493,84 +601,87 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  /* Slide 1 - City Network Graphics */
+  /* Slide 1 - Isometric City Hub Graphics */
   slide1Container: {
     width: 220,
     height: 220,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  phoneMock: {
-    width: 80,
+  circuitGridPanel: {
+    position: 'absolute',
+    width: 90,
     height: 140,
+    right: 25,
+    top: 40,
+    borderStyle: 'dashed',
+    borderWidth: 1.5,
+    borderColor: 'rgba(123, 66, 246, 0.22)',
+    borderRadius: 12,
+    zIndex: -1,
+  },
+  phoneIsometric: {
+    width: 86,
+    height: 146,
     borderRadius: 16,
     borderWidth: 3,
-    borderColor: '#E8EAED',
+    borderColor: '#3D0F95',
     backgroundColor: '#FFFFFF',
-    padding: 8,
+    padding: 6,
     justifyContent: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
+    transform: [
+      { rotateX: '30deg' },
+      { rotateY: '-30deg' },
+      { rotateZ: '15deg' },
+    ],
+    shadowColor: '#3D0F95',
+    shadowOffset: { width: -8, height: 12 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 6,
   },
   phoneCamera: {
-    width: 30,
-    height: 4,
-    borderRadius: 2,
+    width: 24,
+    height: 3,
+    borderRadius: 1.5,
     backgroundColor: '#E8EAED',
     alignSelf: 'center',
     position: 'absolute',
-    top: 6,
+    top: 4,
   },
   phoneContent: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'flex-start',
+    paddingTop: 6,
   },
-  phoneListBar: {
-    height: 6,
-    borderRadius: 3,
+  isoMockHeader: {
+    fontSize: 7,
+    fontWeight: 'bold',
+    color: '#3D0F95',
+    marginBottom: 6,
+  },
+  isoMockCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#F3F0FF',
+    padding: 3,
+    borderRadius: 4,
     width: '100%',
-    marginBottom: 8,
+    marginBottom: 5,
   },
-  connectingLine: {
+  isoMockLine: {
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: '#9B7AFF',
+    width: '70%',
+    marginLeft: 3,
+  },
+  characterNode: {
     position: 'absolute',
-    height: 2,
-    backgroundColor: '#E5E7EB',
-    zIndex: -1,
-  },
-  line1: {
-    width: 70,
-    transform: [{ rotate: '-35deg' }],
-    top: 75,
-    left: 20,
-  },
-  line2: {
-    width: 70,
-    transform: [{ rotate: '35deg' }],
-    top: 75,
-    right: 20,
-  },
-  line3: {
-    width: 70,
-    transform: [{ rotate: '35deg' }],
-    bottom: 75,
-    left: 20,
-  },
-  line4: {
-    width: 70,
-    transform: [{ rotate: '-35deg' }],
-    bottom: 75,
-    right: 20,
-  },
-  circleNode: {
-    position: 'absolute',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
     justifyContent: 'center',
@@ -581,25 +692,35 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  nodeTopLeft: {
-    top: 20,
-    left: 10,
-    borderColor: '#E9E3FF',
+  charCustomer: {
+    bottom: 12,
+    left: 16,
+    borderColor: '#7B42F6',
   },
-  nodeTopRight: {
-    top: 20,
-    right: 10,
-    borderColor: '#E9E3FF',
+  charHandyman: {
+    top: -15,
+    right: 32,
+    borderColor: '#24A1DE',
   },
-  nodeBottomLeft: {
-    bottom: 20,
-    left: 10,
-    borderColor: '#E9E3FF',
+  charTech: {
+    bottom: 48,
+    right: 12,
+    borderColor: '#7B42F6',
   },
-  nodeBottomRight: {
-    bottom: 20,
-    right: 10,
-    borderColor: '#E9E3FF',
+  charBadge: {
+    position: 'absolute',
+    bottom: -6,
+    backgroundColor: '#FAFBFC',
+    borderWidth: 1,
+    borderColor: '#E8EAED',
+    borderRadius: 4,
+    paddingHorizontal: 3,
+    paddingVertical: 1,
+  },
+  charBadgeText: {
+    fontSize: 6,
+    fontWeight: 'bold',
+    color: '#4B5563',
   },
 
   /* Slide 2 - Customer Trust Profile Card */
