@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { View, Text, StatusBar, Animated, Easing } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Tabs, usePathname, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -539,8 +540,8 @@ function AppContent() {
   // IMPORTANT: gate on appIsReady so TabNavigator is fully mounted before we call replace()
   useEffect(() => {
     if (!appIsReady || isLoading || isTransitioning) return
-      // Only redirect if we're on the auth page and user is authenticated
-      if (pathname === '/auth' && isAuthenticated) {
+      // Only redirect if we're on the auth or onboarding page and user is authenticated
+      if ((pathname === '/auth' || pathname === '/onboarding') && isAuthenticated) {
         setIsTransitioning(true)
         // Fade out before navigation
         Animated.timing(fadeAnim, {
@@ -561,8 +562,8 @@ function AppContent() {
           }, 50)
         })
       }
-      // If not authenticated and not on auth page, redirect to auth
-      else if (!isAuthenticated && pathname !== '/auth') {
+      // If not authenticated and not on auth page or onboarding page, redirect
+      else if (!isAuthenticated && pathname !== '/auth' && pathname !== '/onboarding') {
         setIsTransitioning(true)
         // Fade out before navigation
         Animated.timing(fadeAnim, {
@@ -570,17 +571,26 @@ function AppContent() {
           duration: 180,
           useNativeDriver: true,
         }).start(() => {
-          router.replace('/auth')
-          // Fade back in after navigation
-          setTimeout(() => {
-            Animated.timing(fadeAnim, {
-              toValue: 1,
-              duration: 180,
-              useNativeDriver: true,
-            }).start(() => {
-              setIsTransitioning(false)
+          AsyncStorage.getItem('has_completed_onboarding')
+            .then((completed) => {
+              const target = completed === 'true' ? '/auth' : '/onboarding'
+              router.replace(target as any)
             })
-          }, 50)
+            .catch(() => {
+              router.replace('/auth')
+            })
+            .finally(() => {
+              // Fade back in after navigation
+              setTimeout(() => {
+                Animated.timing(fadeAnim, {
+                  toValue: 1,
+                  duration: 180,
+                  useNativeDriver: true,
+                }).start(() => {
+                  setIsTransitioning(false)
+                })
+              }, 50)
+            })
         })
       }
   }, [appIsReady, isLoading, isAuthenticated, pathname, router, isTransitioning, fadeAnim])

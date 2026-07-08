@@ -11,7 +11,9 @@ import {
   NativeSyntheticEvent,
   StatusBar,
   Animated,
+  ActivityIndicator,
 } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Image } from 'expo-image'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -36,6 +38,7 @@ export default function Index() {
   const insets = useSafeAreaInsets()
   const { unreadCount } = useNotifications()
   const [featuredTasks, setFeaturedTasks] = useState<Task[]>([])
+  const [checkingOnboarding, setCheckingOnboarding] = useState(true)
   const [loadingTasks, setLoadingTasks] = useState(true)
   const [notificationsVisible, setNotificationsVisible] = useState(false)
   const [showAllCategories, setShowAllCategories] = useState(false)
@@ -77,8 +80,25 @@ export default function Index() {
   }, [user])
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace('/auth')
+    if (!isLoading) {
+      if (isAuthenticated) {
+        setCheckingOnboarding(false)
+      } else {
+        AsyncStorage.getItem('has_completed_onboarding')
+          .then((completed) => {
+            if (completed === 'true') {
+              router.replace('/auth')
+            } else {
+              router.replace('/onboarding')
+            }
+          })
+          .catch(() => {
+            router.replace('/auth')
+          })
+          .finally(() => {
+            setCheckingOnboarding(false)
+          })
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, isAuthenticated])
@@ -100,8 +120,12 @@ export default function Index() {
 
   // Splash screen is handled in _layout.tsx
 
-  if (isLoading) {
-    return null // Let the native splash screen show
+  if (isLoading || checkingOnboarding) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#7B42F6" />
+      </View>
+    )
   }
 
   if (!isAuthenticated) {
