@@ -15,20 +15,7 @@ import { useRouter } from 'expo-router'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Ionicons, FontAwesome6, MaterialIcons } from '@expo/vector-icons'
 import { Image } from 'expo-image'
-import Svg, {
-  G,
-  Path,
-  Rect,
-  Circle,
-  Defs,
-  LinearGradient,
-  RadialGradient,
-  Stop,
-  ClipPath,
-  Ellipse,
-  Line,
-  Text as SvgText,
-} from 'react-native-svg'
+import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg'
 
 const { width, height } = Dimensions.get('window')
 
@@ -50,415 +37,26 @@ const slides = [
   },
 ]
 
-// ─────────────────────────────────────────────
-// Slide 1 – Inline SVG Illustration
-// viewBox 0 0 400 360, 5 layered groups
-// ─────────────────────────────────────────────
-function Slide1Illustration() {
-  return (
-    <Svg
-      width="100%"
-      height={300}
-      viewBox="0 0 400 360"
-      preserveAspectRatio="xMidYMid meet"
-    >
-      <Defs>
-        {/* Ambient radial gradient */}
-        <RadialGradient id="ambientGrad" cx="50%" cy="50%" r="50%">
-          <Stop offset="0%" stopColor="#7B42F6" stopOpacity="0.12" />
-          <Stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
-        </RadialGradient>
-        {/* Phone screen clip */}
-        <ClipPath id="screenClip">
-          <Rect x={157} y={73} width={96} height={178} rx={12} />
-        </ClipPath>
-        {/* Purple card gradient */}
-        <LinearGradient id="purpleCard" x1="0" y1="0" x2="1" y2="1">
-          <Stop offset="0%" stopColor="#8B5CF6" />
-          <Stop offset="100%" stopColor="#7B42F6" />
-        </LinearGradient>
-        {/* Green card gradient */}
-        <LinearGradient id="greenCard" x1="0" y1="0" x2="1" y2="1">
-          <Stop offset="0%" stopColor="#22C55E" />
-          <Stop offset="100%" stopColor="#16A34A" />
-        </LinearGradient>
-        {/* Drop shadow for phone */}
-        <LinearGradient id="shadowGrad" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0%" stopColor="#7B42F6" stopOpacity="0.15" />
-          <Stop offset="100%" stopColor="#7B42F6" stopOpacity="0" />
-        </LinearGradient>
-        {/* Tech vest gradient */}
-        <LinearGradient id="techVest" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0%" stopColor="#0EA5E9" />
-          <Stop offset="100%" stopColor="#0284C7" />
-        </LinearGradient>
-        {/* Casual shirt gradient */}
-        <LinearGradient id="casualShirt" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0%" stopColor="#7B42F6" />
-          <Stop offset="100%" stopColor="#5B21B6" />
-        </LinearGradient>
-      </Defs>
-
-      {/* ── LAYER 1: Background ambient & isometric grid ── */}
-      <G>
-        {/* Ambient radial glow */}
-        <Circle cx={200} cy={180} r={180} fill="url(#ambientGrad)" />
-        {/* Isometric grid lines — horizontal family */}
-        {[-20, 0, 20, 40, 60, 80, 100, 120, 140].map((offset, i) => (
-          <Line
-            key={`hg-${i}`}
-            x1={0}
-            y1={180 + offset}
-            x2={400}
-            y2={180 + offset}
-            stroke="#7B42F6"
-            strokeWidth={0.5}
-            opacity={0.08}
-          />
-        ))}
-        {/* Isometric grid lines — diagonal left family */}
-        {[0, 60, 120, 180, 240, 300, 360].map((offset, i) => (
-          <Line
-            key={`dl-${i}`}
-            x1={offset}
-            y1={0}
-            x2={offset - 200}
-            y2={360}
-            stroke="#7B42F6"
-            strokeWidth={0.5}
-            opacity={0.06}
-          />
-        ))}
-        {/* Isometric grid lines — diagonal right family */}
-        {[0, 60, 120, 180, 240, 300, 360].map((offset, i) => (
-          <Line
-            key={`dr-${i}`}
-            x1={offset}
-            y1={0}
-            x2={offset + 200}
-            y2={360}
-            stroke="#24A1DE"
-            strokeWidth={0.5}
-            opacity={0.05}
-          />
-        ))}
-        {/* Corner accent circles */}
-        <Circle cx={40} cy={60} r={28} stroke="#7B42F6" strokeWidth={1} fill="none" opacity={0.1} />
-        <Circle cx={360} cy={300} r={22} stroke="#24A1DE" strokeWidth={1} fill="none" opacity={0.1} />
-      </G>
-
-      {/* ── LAYER 2: Technician (rear-left, crouched, arms extending to phone) ── */}
-      <G>
-        {/* Body/torso — tech vest */}
-        <Path
-          d="M75 188 Q88 182 101 188 L105 228 Q88 234 71 228 Z"
-          fill="url(#techVest)"
-        />
-        {/* Vest pocket detail */}
-        <Rect x={84} y={196} width={10} height={7} rx={1.5} fill="#075985" opacity={0.5} />
-        {/* Tech pants */}
-        <Path
-          d="M71 228 L73 262 L84 262 L88 238 L92 262 L103 262 L105 228 Q88 234 71 228Z"
-          fill="#1E3A5F"
-        />
-        {/* Boots */}
-        <Ellipse cx={78} cy={264} rx={8} ry={4} fill="#0F172A" />
-        <Ellipse cx={98} cy={264} rx={8} ry={4} fill="#0F172A" />
-        {/* Neck */}
-        <Rect x={84} y={172} width={10} height={10} rx={5} fill="#F5B8A8" />
-        {/* Head */}
-        <Circle cx={89} cy={162} r={16} fill="#F5B8A8" />
-        {/* Hair */}
-        <Path
-          d="M73 160 Q76 145 89 143 Q102 145 105 160 Q102 152 89 150 Q76 152 73 160Z"
-          fill="#2D1B69"
-        />
-        {/* Eye left */}
-        <Circle cx={84} cy={162} r={2} fill="#1F2937" />
-        {/* Eye right */}
-        <Circle cx={94} cy={162} r={2} fill="#1F2937" />
-        {/* Mouth — focused expression */}
-        <Path d="M85 169 Q89 167 93 169" stroke="#C97B6B" strokeWidth={1.5} fill="none" strokeLinecap="round" />
-        {/* Left arm (down, relaxed) */}
-        <Path
-          d="M75 194 Q64 208 60 222"
-          stroke="#F5B8A8"
-          strokeWidth={9}
-          strokeLinecap="round"
-          fill="none"
-        />
-        {/* Right arm extending toward phone with stylus */}
-        <Path
-          d="M101 194 Q118 184 134 172"
-          stroke="#F5B8A8"
-          strokeWidth={9}
-          strokeLinecap="round"
-          fill="none"
-        />
-        {/* Stylus/tool in right hand */}
-        <Path
-          d="M134 172 L148 163"
-          stroke="#0EA5E9"
-          strokeWidth={4}
-          strokeLinecap="round"
-        />
-        <Circle cx={148} cy={162} r={3} fill="#0EA5E9" />
-        {/* Floating energy nodes from stylus */}
-        <Circle cx={151} cy={152} r={4} fill="#24A1DE" opacity={0.7} />
-        <Circle cx={157} cy={145} r={2.5} fill="#24A1DE" opacity={0.5} />
-        <Circle cx={145} cy={143} r={2} fill="#38BDF8" opacity={0.4} />
-        <Circle cx={154} cy={137} r={3} fill="#24A1DE" opacity={0.3} />
-        {/* Tool belt */}
-        <Rect x={71} y={224} width={34} height={6} rx={3} fill="#075985" />
-        <Rect x={78} y={222} width={8} height={8} rx={2} fill="#0EA5E9" />
-        <Circle cx={95} cy={226} r={3} fill="#0F172A" />
-      </G>
-
-      {/* ── LAYER 3: Central Smartphone & App UI ── */}
-      <G>
-        {/* Phone shadow */}
-        <Ellipse cx={205} cy={282} rx={58} ry={10} fill="url(#shadowGrad)" />
-        {/* Phone outer frame */}
-        <Rect
-          x={150}
-          y={58}
-          width={110}
-          height={218}
-          rx={24}
-          fill="#2D0D6B"
-        />
-        {/* Camera notch */}
-        <Rect x={189} y={65} width={32} height={5} rx={2.5} fill="#1A0050" />
-        <Circle cx={205} cy={67} r={2.5} fill="#0F0028" />
-        {/* Side button */}
-        <Rect x={259} y={115} width={4} height={22} rx={2} fill="#1A0050" />
-        {/* Screen background — white */}
-        <Rect
-          x={157}
-          y={73}
-          width={96}
-          height={178}
-          rx={12}
-          fill="#FFFFFF"
-          clipPath="url(#screenClip)"
-        />
-
-        {/* ── App UI Content (clipped to screen) ── */}
-        <G clipPath="url(#screenClip)">
-          {/* Status bar strip */}
-          <Rect x={157} y={73} width={96} height={8} fill="#F8F7FF" />
-
-          {/* Header bar */}
-          <Rect x={157} y={81} width={96} height={18} fill="#FFFFFF" />
-          {/* Brand — MESCO text */}
-          <SvgText
-            x={168}
-            y={94}
-            fontSize={9}
-            fontWeight="900"
-            fill="#3D0F95"
-            letterSpacing={0.5}
-          >
-            MESCO
-          </SvgText>
-          {/* "tt" logo — two interlocked circles with crossbar (simplified path) */}
-          <G>
-            {/* First "t" loop */}
-            <Circle cx={210} cy={91} r={5} stroke="#7B42F6" strokeWidth={1.8} fill="none" />
-            {/* Second "t" loop — offset, overlapping */}
-            <Circle cx={215} cy={91} r={5} stroke="#7B42F6" strokeWidth={1.8} fill="none" />
-            {/* Shared crossbar */}
-            <Line x1={205} y1={91} x2={220} y2={91} stroke="#7B42F6" strokeWidth={1.8} />
-          </G>
-          {/* Header divider */}
-          <Line x1={157} y1={99} x2={253} y2={99} stroke="#F0EDFF" strokeWidth={0.8} />
-
-          {/* Search bar */}
-          <Rect x={161} y={102} width={88} height={12} rx={6} fill="#F8F7FF" />
-          <Circle cx={168} cy={108} r={3} stroke="#8E8E93" strokeWidth={1} fill="none" />
-          <Line x1={170} y1={110} x2={172} y2={112} stroke="#8E8E93" strokeWidth={1} strokeLinecap="round" />
-          <SvgText x={175} y={112} fontSize={6} fill="#AAAAAA">
-            Search services...
-          </SvgText>
-
-          {/* Section label */}
-          <SvgText x={162} y={124} fontSize={6} fontWeight="700" fill="#8E8E93" letterSpacing={0.3}>
-            QUICK ACTIONS
-          </SvgText>
-
-          {/* Post a Task card — purple */}
-          <Rect x={161} y={127} width={40} height={38} rx={7} fill="url(#purpleCard)" />
-          {/* Plus icon */}
-          <Line x1={181} y1={138} x2={181} y2={148} stroke="#FFFFFF" strokeWidth={2.5} strokeLinecap="round" />
-          <Line x1={176} y1={143} x2={186} y2={143} stroke="#FFFFFF" strokeWidth={2.5} strokeLinecap="round" />
-          <SvgText x={163} y={160} fontSize={5} fontWeight="700" fill="#FFFFFF">
-            Post Task
-          </SvgText>
-
-          {/* Find Work card — green */}
-          <Rect x={205} y={127} width={44} height={38} rx={7} fill="url(#greenCard)" />
-          {/* Briefcase icon */}
-          <Rect x={218} y={140} width={14} height={10} rx={2} fill="#FFFFFF" opacity={0.9} />
-          <Path d="M221 140 L221 137 Q227 135 227 137 L227 140" stroke="#FFFFFF" strokeWidth={1.5} fill="none" strokeLinecap="round" />
-          <Line x1={222} y1={145} x2={236} y2={145} stroke="#16A34A" strokeWidth={1} />
-          <SvgText x={206} y={160} fontSize={5} fontWeight="700" fill="#FFFFFF">
-            Find Work
-          </SvgText>
-
-          {/* Featured Tasks label */}
-          <SvgText x={162} y={173} fontSize={6} fontWeight="700" fill="#8E8E93" letterSpacing={0.3}>
-            NEARBY TASKS
-          </SvgText>
-          {/* Task item 1 */}
-          <Rect x={161} y={176} width={88} height={14} rx={4} fill="#F8F7FF" />
-          <Circle cx={169} cy={183} r={4} fill="#E9E3FF" />
-          <Rect x={177} y={179} width={40} height={3} rx={1.5} fill="#C4B5FD" />
-          <Rect x={177} y={185} width={26} height={3} rx={1.5} fill="#E5E7EB" />
-          <SvgText x={226} y={185} fontSize={5.5} fontWeight="700" fill="#22C55E">850 ETB</SvgText>
-
-          {/* Task item 2 */}
-          <Rect x={161} y={193} width={88} height={14} rx={4} fill="#F8F7FF" />
-          <Circle cx={169} cy={200} r={4} fill="#DCFCE7" />
-          <Rect x={177} y={196} width={34} height={3} rx={1.5} fill="#86EFAC" />
-          <Rect x={177} y={202} width={20} height={3} rx={1.5} fill="#E5E7EB" />
-          <SvgText x={226} y={202} fontSize={5.5} fontWeight="700" fill="#7B42F6">1.2K ETB</SvgText>
-
-          {/* Bottom nav strip */}
-          <Rect x={157} y={239} width={96} height={12} fill="#FAFBFF" />
-          <Circle cx={178} cy={245} r={3} fill="#7B42F6" opacity={0.8} />
-          <Circle cx={196} cy={245} r={3} fill="#E5E7EB" />
-          <Circle cx={214} cy={245} r={3} fill="#E5E7EB" />
-          <Circle cx={232} cy={245} r={3} fill="#E5E7EB" />
-        </G>
-
-        {/* Phone bottom home indicator */}
-        <Rect x={192} y={270} width={26} height={4} rx={2} fill="#FFFFFF" opacity={0.3} />
-      </G>
-
-      {/* ── LAYER 4: Handyman (sitting on upper bezel) ── */}
-      <G>
-        {/* Hard hat brim */}
-        <Ellipse cx={205} cy={43} rx={20} ry={6} fill="#FCD34D" />
-        {/* Hard hat dome */}
-        <Path d="M185 43 Q185 26 205 24 Q225 26 225 43 Z" fill="#FBBF24" />
-        {/* Hard hat stripe */}
-        <Path d="M185 43 Q205 39 225 43" stroke="#F59E0B" strokeWidth={1.5} fill="none" />
-        {/* Head */}
-        <Circle cx={205} cy={53} r={14} fill="#FDBCB4" />
-        {/* Hair visible under hat */}
-        <Path d="M191 50 Q192 45 205 44 Q218 45 219 50" fill="#1A0050" />
-        {/* Left eye */}
-        <Circle cx={200} cy={53} r={2} fill="#1F2937" />
-        {/* Right eye */}
-        <Circle cx={210} cy={53} r={2} fill="#1F2937" />
-        {/* Smile */}
-        <Path d="M200 59 Q205 62 210 59" stroke="#C97B6B" strokeWidth={1.5} fill="none" strokeLinecap="round" />
-        {/* Denim overalls — bib part */}
-        <Path d="M193 67 Q205 63 217 67 L221 90 Q205 95 189 90 Z" fill="#1D4ED8" />
-        {/* Overall straps */}
-        <Rect x={197} y={65} width={5} height={18} rx={2.5} fill="#1E40AF" />
-        <Rect x={208} y={65} width={5} height={18} rx={2.5} fill="#1E40AF" />
-        {/* Overall bib pocket */}
-        <Rect x={201} y={72} width={9} height={7} rx={2} fill="#1E40AF" opacity={0.7} />
-        {/* Left leg draped over left side of phone */}
-        <Path d="M193 90 Q186 100 180 110 Q175 118 174 128" stroke="#1D4ED8" strokeWidth={12} strokeLinecap="round" fill="none" />
-        {/* Left foot/boot */}
-        <Ellipse cx={173} cy={132} rx={9} ry={5} fill="#0F172A" />
-        {/* Right leg draped over right side of phone */}
-        <Path d="M217 90 Q224 100 230 110 Q235 118 236 128" stroke="#1D4ED8" strokeWidth={12} strokeLinecap="round" fill="none" />
-        {/* Right foot/boot */}
-        <Ellipse cx={237} cy={132} rx={9} ry={5} fill="#0F172A" />
-        {/* Left arm — resting on phone frame left */}
-        <Path d="M193 78 Q180 82 170 88" stroke="#FDBCB4" strokeWidth={9} strokeLinecap="round" fill="none" />
-        {/* Right arm — holding wrench */}
-        <Path d="M217 78 Q228 76 240 72" stroke="#FDBCB4" strokeWidth={9} strokeLinecap="round" fill="none" />
-        {/* Wrench body */}
-        <Rect x={240} y={65} width={22} height={7} rx={3.5} fill="#6B7280" transform="rotate(-20, 251, 68)" />
-        {/* Wrench head open end */}
-        <Path d="M256 62 Q262 58 264 65 Q262 72 256 70 Z" fill="#4B5563" />
-        {/* Wrench handle end */}
-        <Circle cx={243} cy={73} r={4} fill="#374151" />
-        {/* Tool belt */}
-        <Path d="M189 90 Q205 95 221 90" stroke="#92400E" strokeWidth={5} strokeLinecap="round" fill="none" />
-        <Circle cx={196} cy={93} r={3} fill="#B45309" />
-        <Rect x={202} y={91} width={6} height={5} rx={1} fill="#92400E" />
-        <Circle cx={214} cy={92} r={2.5} fill="#B45309" />
-      </G>
-
-      {/* ── LAYER 5: Foreground User/Tasker (front-right, arm raised, finger pointing) ── */}
-      <G>
-        {/* Shadow under feet */}
-        <Ellipse cx={305} cy={330} rx={22} ry={6} fill="#7B42F6" opacity={0.08} />
-        {/* Legs */}
-        <Path d="M295 288 L291 328 L299 328 L305 304 L311 328 L319 328 L315 288 Z" fill="#1E3A5F" />
-        {/* Shoes */}
-        <Ellipse cx={295} cy={330} rx={9} ry={4} fill="#0F172A" />
-        <Ellipse cx={315} cy={330} rx={9} ry={4} fill="#0F172A" />
-        {/* Body — casual shirt */}
-        <Path d="M291 250 Q305 244 319 250 L323 290 Q305 296 287 290 Z" fill="url(#casualShirt)" />
-        {/* Shirt detail — collar */}
-        <Path d="M300 250 L305 258 L310 250" stroke="#5B21B6" strokeWidth={1.5} fill="none" />
-        {/* Right arm hanging down */}
-        <Path d="M319 256 Q330 270 333 288" stroke="#FDBCB4" strokeWidth={10} strokeLinecap="round" fill="none" />
-        {/* Right hand */}
-        <Circle cx={334} cy={291} r={6} fill="#FDBCB4" />
-        {/* LEFT ARM — raised, extended toward phone screen, pointing finger */}
-        <Path d="M291 256 Q270 234 245 205" stroke="#FDBCB4" strokeWidth={10} strokeLinecap="round" fill="none" />
-        {/* Left hand + extended index finger */}
-        <Circle cx={243} cy={203} r={6} fill="#FDBCB4" />
-        {/* Index finger pointing at phone */}
-        <Path d="M240 200 L228 190" stroke="#FDBCB4" strokeWidth={5} strokeLinecap="round" />
-        {/* Finger tip glow touching "Post Task" */}
-        <Circle cx={226} cy={189} r={4} fill="#7B42F6" opacity={0.3} />
-        <Circle cx={226} cy={189} r={2} fill="#7B42F6" opacity={0.8} />
-        {/* Tap pulse ring */}
-        <Circle cx={226} cy={189} r={7} stroke="#7B42F6" strokeWidth={1} fill="none" opacity={0.4} />
-        {/* Neck */}
-        <Rect x={300} y={232} width={10} height={12} rx={5} fill="#FDBCB4" />
-        {/* Head */}
-        <Circle cx={305} cy={222} r={16} fill="#FDBCB4" />
-        {/* Hair — modern casual */}
-        <Path d="M289 218 Q290 204 305 202 Q320 204 321 218 Q318 210 305 208 Q292 210 289 218Z" fill="#1A0050" />
-        {/* Side hair */}
-        <Path d="M289 218 Q287 224 290 228" stroke="#1A0050" strokeWidth={3} fill="none" strokeLinecap="round" />
-        {/* Left eye */}
-        <Circle cx={299} cy={222} r={2.2} fill="#1F2937" />
-        {/* Right eye */}
-        <Circle cx={311} cy={222} r={2.2} fill="#1F2937" />
-        {/* Raised brow (focused, reaching expression) */}
-        <Path d="M296 217 Q299 215 302 217" stroke="#1A0050" strokeWidth={1.2} fill="none" strokeLinecap="round" />
-        {/* Slight open mouth (engaging/excited) */}
-        <Path d="M301 229 Q305 232 309 229" stroke="#C97B6B" strokeWidth={1.5} fill="none" strokeLinecap="round" />
-        {/* Shirt collar back detail */}
-        <Path d="M295 250 L305 244 L315 250" stroke="#5B21B6" strokeWidth={1} fill="none" />
-        {/* Phone in right hand (partial) — the character has their right hand free, holding mini phone */}
-        <Rect x={336} y={285} width={16} height={26} rx={4} fill="#374151" opacity={0.7} />
-        <Rect x={338} y={288} width={12} height={20} rx={2} fill="#1D4ED8" opacity={0.5} />
-      </G>
-    </Svg>
-  )
-}
-
 export default function Onboarding() {
   const router = useRouter()
   const scrollX = useRef(new Animated.Value(0)).current
   const scrollViewRef = useRef<ScrollView>(null)
   const [currentIndex, setCurrentIndex] = useState(0)
 
-  // Continuous floating for slide 1 SVG
+  // Gentle float animation for Slide 1 graphic block
   const floatAnim = useRef(new Animated.Value(0)).current
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
         Animated.timing(floatAnim, {
           toValue: -8,
-          duration: 2000,
+          duration: 2200,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
         Animated.timing(floatAnim, {
           toValue: 0,
-          duration: 2000,
+          duration: 2200,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
@@ -466,26 +64,26 @@ export default function Onboarding() {
     ).start()
   }, [floatAnim])
 
-  // Spring pulse for brand logo
+  // Snappy elastic spring pulse animation for the branding logo
   const logoPulseAnim = useRef(new Animated.Value(1)).current
   useEffect(() => {
     logoPulseAnim.setValue(1)
     Animated.spring(logoPulseAnim, {
-      toValue: 1.15,
-      friction: 3,
-      tension: 40,
+      toValue: 1.12,
+      friction: 4,
+      tension: 38,
       useNativeDriver: true,
     }).start(() => {
       Animated.spring(logoPulseAnim, {
         toValue: 1,
         friction: 4,
-        tension: 30,
+        tension: 38,
         useNativeDriver: true,
       }).start()
     })
   }, [currentIndex, logoPulseAnim])
 
-  // Slide 2 entrance
+  // Slide 2 card entrance
   const slide2Anim = useRef(new Animated.Value(0)).current
   useEffect(() => {
     if (currentIndex === 1) {
@@ -499,7 +97,7 @@ export default function Onboarding() {
     }
   }, [currentIndex, slide2Anim])
 
-  // Slide 3 entrance
+  // Slide 3 cards entrance
   const slide3Anim = useRef(new Animated.Value(0)).current
   useEffect(() => {
     if (currentIndex === 2) {
@@ -513,17 +111,30 @@ export default function Onboarding() {
     }
   }, [currentIndex, slide3Anim])
 
-  // Coin animation for Slide 3
+  // Floating coin loop animation for Slide 3
   const coinAnim = useRef(new Animated.Value(-15)).current
   const coinOpacity = useRef(new Animated.Value(0)).current
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
         Animated.parallel([
-          Animated.timing(coinAnim, { toValue: 12, duration: 1200, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-          Animated.timing(coinOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+          Animated.timing(coinAnim, {
+            toValue: 12,
+            duration: 1200,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(coinOpacity, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
         ]),
-        Animated.timing(coinOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
+        Animated.timing(coinOpacity, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        }),
         Animated.delay(300),
       ])
     ).start()
@@ -552,6 +163,7 @@ export default function Onboarding() {
     }
   }
 
+  // Interlocked scroll transitions
   const skipOpacity = scrollX.interpolate({
     inputRange: [width, width * 1.5, width * 2],
     outputRange: [1, 0, 0],
@@ -577,7 +189,7 @@ export default function Onboarding() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent={false} />
 
-      {/* Subtle background depth vectors */}
+      {/* Background depth vectors */}
       <View style={styles.bgContainer} pointerEvents="none">
         <View style={styles.bgCircle1} />
         <View style={styles.bgCircle2} />
@@ -585,7 +197,7 @@ export default function Onboarding() {
         <View style={[styles.bgHLine, { top: height * 0.54 }]} />
       </View>
 
-      {/* Skip link */}
+      {/* Skip button */}
       <Animated.View
         style={[styles.headerContainer, { opacity: skipOpacity }]}
         pointerEvents={currentIndex === 2 ? 'none' : 'auto'}
@@ -595,7 +207,7 @@ export default function Onboarding() {
         </TouchableOpacity>
       </Animated.View>
 
-      {/* Carousel */}
+      {/* Swipeable Carousel */}
       <ScrollView
         ref={scrollViewRef}
         horizontal
@@ -620,7 +232,7 @@ export default function Onboarding() {
 
           return (
             <View style={styles.slide} key={index}>
-              {/* ── Graphic zone ── */}
+              {/* Graphic Zone */}
               {index === 0 && (
                 <Animated.View
                   style={[
@@ -631,7 +243,30 @@ export default function Onboarding() {
                     },
                   ]}
                 >
-                  <Slide1Illustration />
+                  <View style={styles.slide1ImageContainer}>
+                    {/* SVG background radial gradient and simple floating circles */}
+                    <Svg style={StyleSheet.absoluteFillObject} viewBox="0 0 320 300">
+                      <Defs>
+                        <RadialGradient id="bgGlow" cx="50%" cy="50%" r="50%">
+                          <Stop offset="0%" stopColor="#7B42F6" stopOpacity="0.08" />
+                          <Stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
+                        </RadialGradient>
+                      </Defs>
+                      <Circle cx={160} cy={150} r={130} fill="url(#bgGlow)" />
+                      {/* Simple decorative vectors to frame the isometric image */}
+                      <Circle cx={35} cy={60} r={5} fill="#7B42F6" opacity={0.15} />
+                      <Circle cx={285} cy={45} r={8} fill="#24A1DE" opacity={0.12} />
+                      <Circle cx={55} cy={225} r={6} fill="#24A1DE" opacity={0.1} />
+                      <Circle cx={275} cy={210} r={4} fill="#7B42F6" opacity={0.2} />
+                    </Svg>
+
+                    {/* Vetted Isometric Mockup Asset */}
+                    <Image
+                      source={require('../assets/images/onboarding_hub.png')}
+                      style={styles.onboardingImage}
+                      contentFit="contain"
+                    />
+                  </View>
                 </Animated.View>
               )}
 
@@ -743,7 +378,7 @@ export default function Onboarding() {
                 </Animated.View>
               )}
 
-              {/* ── Text zone ── */}
+              {/* Text Zone */}
               <View style={styles.textBlock}>
                 {index === 0 ? (
                   <View style={styles.logoTitleRow}>
@@ -855,6 +490,16 @@ const styles = StyleSheet.create({
     height: height * 0.37,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  slide1ImageContainer: {
+    width: 320,
+    height: 300,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  onboardingImage: {
+    width: 290,
+    height: 270,
   },
   textBlock: { width: '100%', alignItems: 'center', paddingBottom: 16 },
 
