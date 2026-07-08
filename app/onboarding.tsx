@@ -501,10 +501,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerLogoInline: {
-    width: 32,
-    height: 32,
-    marginLeft: -4,
+    width: 52,
+    height: 52,
+    marginLeft: -10,
     marginTop: 2,
+    tintColor: '#FFFFFF',
   },
   headerBrand: {
     fontSize: 24,
