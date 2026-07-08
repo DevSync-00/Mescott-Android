@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Ionicons, FontAwesome6, MaterialIcons } from '@expo/vector-icons'
+import { Image } from 'expo-image'
 
 const { width, height } = Dimensions.get('window')
 
@@ -43,20 +44,20 @@ export default function Onboarding() {
   const scrollViewRef = useRef<ScrollView>(null)
   const [currentIndex, setCurrentIndex] = useState(0)
 
-  // Floating Parallax Loop for Slide 1
+  // Floating Loop for Slide 1
   const floatAnim = useRef(new Animated.Value(0)).current
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
         Animated.timing(floatAnim, {
-          toValue: -12,
-          duration: 2000,
+          toValue: -10,
+          duration: 1800,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
         Animated.timing(floatAnim, {
           toValue: 0,
-          duration: 2000,
+          duration: 1800,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
@@ -83,28 +84,35 @@ export default function Onboarding() {
     })
   }, [currentIndex, logoPulseAnim])
 
-  // Pulsing Loop for Slide 2
-  const pulseAnim = useRef(new Animated.Value(1)).current
+  // Slide 2 Custom slide-up animation trigger
+  const slide2Anim = useRef(new Animated.Value(0)).current
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.04,
-          duration: 1600,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1600,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start()
-  }, [pulseAnim])
+    if (currentIndex === 1) {
+      slide2Anim.setValue(0)
+      Animated.timing(slide2Anim, {
+        toValue: 1,
+        duration: 500,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }).start()
+    }
+  }, [currentIndex, slide2Anim])
 
-  // Coin animation for Slide 3
+  // Slide 3 custom entrance trigger
+  const slide3Anim = useRef(new Animated.Value(0)).current
+  useEffect(() => {
+    if (currentIndex === 2) {
+      slide3Anim.setValue(0)
+      Animated.timing(slide3Anim, {
+        toValue: 1,
+        duration: 500,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }).start()
+    }
+  }, [currentIndex, slide3Anim])
+
+  // Sliding coin animation for Slide 3
   const coinAnim = useRef(new Animated.Value(-15)).current
   const coinOpacity = useRef(new Animated.Value(0)).current
   useEffect(() => {
@@ -135,6 +143,25 @@ export default function Onboarding() {
     ).start()
   }, [coinAnim, coinOpacity])
 
+  // Tap helper pulse for Slide 1
+  const tapPulseAnim = useRef(new Animated.Value(1)).current
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(tapPulseAnim, {
+          toValue: 1.5,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(tapPulseAnim, {
+          toValue: 1,
+          duration: 0,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start()
+  }, [tapPulseAnim])
+
   const handleScroll = Animated.event(
     [{ nativeEvent: { contentOffset: { x: scrollX } } }],
     {
@@ -159,7 +186,7 @@ export default function Onboarding() {
     }
   }
 
-  // Header and bottom action opacity rules
+  // Header and controls opacity
   const skipOpacity = scrollX.interpolate({
     inputRange: [width, width * 1.5, width * 2],
     outputRange: [1, 0, 0],
@@ -188,15 +215,15 @@ export default function Onboarding() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent={false} />
 
-      {/* Depth Vectors Background */}
+      {/* Depth Background Vectors (Visible on all slides) */}
       <View style={styles.bgGridContainer} pointerEvents="none">
         <View style={styles.bgCircle1} />
         <View style={styles.bgCircle2} />
-        <View style={[styles.bgLine, { top: height * 0.25 }]} />
-        <View style={[styles.bgLine, { top: height * 0.55 }]} />
+        <View style={[styles.bgLine, { top: height * 0.23 }]} />
+        <View style={[styles.bgLine, { top: height * 0.53 }]} />
       </View>
 
-      {/* Persistent Skip Button (Fades out on Slide 3) */}
+      {/* Skip button fades out on final page */}
       <Animated.View 
         style={[styles.headerContainer, { opacity: skipOpacity }]}
         pointerEvents={currentIndex === 2 ? 'none' : 'auto'}
@@ -206,7 +233,7 @@ export default function Onboarding() {
         </TouchableOpacity>
       </Animated.View>
 
-      {/* Main horizontal swiping carousel */}
+      {/* Main swiper */}
       <ScrollView
         ref={scrollViewRef}
         horizontal
@@ -238,7 +265,7 @@ export default function Onboarding() {
 
           return (
             <View style={styles.slide} key={index}>
-              {/* Flexible Graphic Container */}
+              {/* Center Graphic Block */}
               <Animated.View
                 style={[
                   styles.graphicBlock,
@@ -253,34 +280,57 @@ export default function Onboarding() {
               >
                 {index === 0 && (
                   <Animated.View style={[styles.slide1Container, { transform: [{ translateY: floatAnim }] }]}>
-                    {/* Dashed exposed circuit/panel in the background */}
+                    {/* Circuit panel working area */}
                     <View style={styles.circuitGridPanel} />
 
-                    {/* Central Smartphone with Isometric skew */}
-                    <View style={styles.phoneIsometric}>
+                    {/* Smartphone Mockup */}
+                    <View style={styles.phoneFrame}>
                       <View style={styles.phoneCamera} />
                       <View style={styles.phoneContent}>
-                        <Text style={styles.isoMockHeader}>Services</Text>
-                        <View style={styles.isoMockCard}>
-                          <Ionicons name="construct" size={10} color="#7B42F6" />
-                          <View style={styles.isoMockLine} />
+                        {/* Mock Header Row */}
+                        <View style={styles.mockHeaderRow}>
+                          <Text style={styles.mockLogoText}>MESCO</Text>
+                          <Image
+                            source={require('../assets/images/adaptive-icon.png')}
+                            style={styles.mockLogoImage}
+                            contentFit="contain"
+                          />
                         </View>
-                        <View style={styles.isoMockCard}>
-                          <Ionicons name="cart" size={10} color="#24A1DE" />
-                          <View style={[styles.isoMockLine, { width: '55%' }]} />
+                        {/* Mock Search Bar */}
+                        <View style={styles.mockSearchBar}>
+                          <Ionicons name="search" size={9} color="#8E8E93" style={{ marginRight: 4 }} />
+                          <Text style={styles.mockSearchText}>Search for services...</Text>
+                        </View>
+                        {/* Mock Quick Actions Grid */}
+                        <Text style={styles.mockSectionTitle}>Quick Actions</Text>
+                        <View style={styles.mockActionsGrid}>
+                          <View style={styles.mockActionCardPurple}>
+                            <Ionicons name="add-circle" size={13} color="#7B42F6" />
+                            <Text style={styles.mockActionLabelPurple}>Post Task</Text>
+                          </View>
+                          <View style={styles.mockActionCardGreen}>
+                            <Ionicons name="briefcase" size={12} color="#22C55E" />
+                            <Text style={styles.mockActionLabelGreen}>Find Work</Text>
+                          </View>
                         </View>
                       </View>
                     </View>
 
-                    {/* Character 1: Customer (Front screen, gesturing) */}
+                    {/* Character 1: User (Tapping on screen) */}
                     <View style={[styles.characterNode, styles.charCustomer]}>
-                      <Ionicons name="finger-print" size={18} color="#7B42F6" />
+                      <Ionicons name="person" size={16} color="#7B42F6" />
                       <View style={styles.charBadge}>
                         <Text style={styles.charBadgeText}>User</Text>
                       </View>
                     </View>
+                    {/* Visual Finger tapping indicator line and pulse */}
+                    <View style={styles.tapConnectorLine} />
+                    <View style={styles.tapIndicatorPulseContainer}>
+                      <Animated.View style={[styles.tapPulseCircle, { transform: [{ scale: tapPulseAnim }], opacity: tapPulseAnim.interpolate({ inputRange: [1, 1.5], outputRange: [0.6, 0] }) }]} />
+                      <View style={styles.tapTargetDot} />
+                    </View>
 
-                    {/* Character 2: Handyman (Sitting on phone bezel with wrench) */}
+                    {/* Character 2: Handyman (Sitting on top of bezel with Wrench) */}
                     <View style={[styles.characterNode, styles.charHandyman]}>
                       <FontAwesome6 name="wrench" size={14} color="#24A1DE" />
                       <View style={styles.charBadge}>
@@ -288,9 +338,9 @@ export default function Onboarding() {
                       </View>
                     </View>
 
-                    {/* Character 3: Specialized Technician (Rear work, wires panel) */}
+                    {/* Character 3: Tech (Lower rear working on exposed grid) */}
                     <View style={[styles.characterNode, styles.charTech]}>
-                      <Ionicons name="flash" size={16} color="#7B42F6" />
+                      <Ionicons name="construct" size={15} color="#7B42F6" />
                       <View style={styles.charBadge}>
                         <Text style={styles.charBadgeText}>Tech</Text>
                       </View>
@@ -299,8 +349,29 @@ export default function Onboarding() {
                 )}
 
                 {index === 1 && (
-                  <Animated.View style={[styles.slide2Container, { transform: [{ scale: pulseAnim }] }]}>
-                    {/* Background Elements */}
+                  <Animated.View
+                    style={[
+                      styles.slide2Container,
+                      {
+                        opacity: slide2Anim,
+                        transform: [
+                          {
+                            translateY: slide2Anim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [20, 0],
+                            }),
+                          },
+                          {
+                            scale: slide2Anim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0.95, 1],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    {/* Background floating icons */}
                     <View style={[styles.floatingSparkle, styles.sparkle1]}>
                       <Ionicons name="bulb-outline" size={24} color="#FBBF24" />
                     </View>
@@ -308,7 +379,7 @@ export default function Onboarding() {
                       <Ionicons name="shield-checkmark-outline" size={28} color="#24A1DE" />
                     </View>
 
-                    {/* Stylized Trust Profile Card */}
+                    {/* Striking Profile Card */}
                     <View style={styles.profileCard}>
                       <View style={styles.profileHeader}>
                         <View style={styles.avatar}>
@@ -335,7 +406,22 @@ export default function Onboarding() {
                 )}
 
                 {index === 2 && (
-                  <View style={styles.slide3Container}>
+                  <Animated.View
+                    style={[
+                      styles.slide3Container,
+                      {
+                        opacity: slide3Anim,
+                        transform: [
+                          {
+                            translateY: slide3Anim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [20, 0],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  >
                     {/* Booking Card */}
                     <View style={styles.bookingCard}>
                       <Text style={styles.bookingTitle}>Incoming Bookings</Text>
@@ -361,16 +447,16 @@ export default function Onboarding() {
                         <Text style={styles.growthText}>+1,200 today</Text>
                       </View>
 
-                      {/* Coin graphics */}
+                      {/* Floating coin graphics */}
                       <Animated.View style={[styles.coinIcon, { opacity: coinOpacity, transform: [{ translateY: coinAnim }] }]}>
                         <FontAwesome6 name="coins" size={16} color="#FBBF24" />
                       </Animated.View>
                     </View>
-                  </View>
+                  </Animated.View>
                 )}
               </Animated.View>
 
-              {/* Text Content Block */}
+              {/* Text content card */}
               <View style={styles.textBlock}>
                 {index === 0 ? (
                   <View style={styles.logoTitleRow}>
@@ -392,9 +478,9 @@ export default function Onboarding() {
         })}
       </ScrollView>
 
-      {/* Bottom Control Container */}
+      {/* Bottom controls */}
       <View style={styles.footer}>
-        {/* Progress Indicators (Slide 1 & 2) */}
+        {/* Pagination indicators (Slide 1 & 2) */}
         <Animated.View style={[styles.indicatorContainer, { opacity: indicatorsOpacity }]} pointerEvents={currentIndex === 2 ? 'none' : 'auto'}>
           {slides.map((_, index) => {
             const segmentWidth = scrollX.interpolate({
@@ -440,6 +526,17 @@ export default function Onboarding() {
             <Text style={styles.actionButtonText}>Get Started</Text>
           </TouchableOpacity>
         </Animated.View>
+
+        {/* Custom inline footer logo brand row */}
+        <View style={styles.footerWrap}>
+          <Text style={styles.footerText}>© {new Date().getFullYear()} MESCO</Text>
+          <Image
+            source={require('../assets/images/adaptive-icon.png')}
+            style={styles.footerLogoImage}
+            contentFit="contain"
+          />
+          <Text style={styles.footerText}>. All rights reserved.</Text>
+        </View>
       </View>
     </SafeAreaView>
   )
@@ -467,7 +564,7 @@ const styles = StyleSheet.create({
   },
   bgCircle2: {
     position: 'absolute',
-    bottom: height * 0.22,
+    bottom: height * 0.24,
     right: -60,
     width: 260,
     height: 260,
@@ -503,7 +600,7 @@ const styles = StyleSheet.create({
   },
   slide: {
     width: width,
-    height: height * 0.72,
+    height: height * 0.70,
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 36,
@@ -518,7 +615,7 @@ const styles = StyleSheet.create({
   textBlock: {
     width: '100%',
     alignItems: 'center',
-    paddingBottom: 24,
+    paddingBottom: 16,
   },
   title: {
     fontSize: 24,
@@ -547,9 +644,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   inlineLogoImage: {
-    width: 58,
-    height: 58,
-    marginLeft: -13,
+    width: 60,
+    height: 60,
+    marginLeft: -14,
     marginTop: -2,
   },
   description: {
@@ -560,8 +657,8 @@ const styles = StyleSheet.create({
     fontWeight: '400',
   },
   footer: {
-    height: 120,
-    justifyContent: 'center',
+    height: 140,
+    justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 24,
     paddingBottom: 16,
@@ -570,7 +667,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'absolute',
+    marginTop: 12,
   },
   indicator: {
     height: 6,
@@ -580,7 +677,7 @@ const styles = StyleSheet.create({
   actionButtonContainer: {
     width: '100%',
     paddingHorizontal: 8,
-    position: 'absolute',
+    top: 4,
   },
   actionButton: {
     backgroundColor: '#7B42F6',
@@ -600,8 +697,27 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.5,
   },
+  footerWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+  },
+  footerText: {
+    fontSize: 11,
+    color: '#8E8E93',
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  footerLogoImage: {
+    width: 26,
+    height: 26,
+    marginLeft: -6,
+    marginRight: 2,
+    marginTop: -1,
+  },
 
-  /* Slide 1 - Isometric City Hub Graphics */
+  /* Slide 1 - Smartphone Mock & 3 Characters */
   slide1Container: {
     width: 220,
     height: 220,
@@ -612,7 +728,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 90,
     height: 140,
-    right: 25,
+    right: 20,
     top: 40,
     borderStyle: 'dashed',
     borderWidth: 1.5,
@@ -620,30 +736,25 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     zIndex: -1,
   },
-  phoneIsometric: {
-    width: 86,
-    height: 146,
-    borderRadius: 16,
+  phoneFrame: {
+    width: 104,
+    height: 174,
+    borderRadius: 20,
     borderWidth: 3,
-    borderColor: '#3D0F95',
+    borderColor: '#7B42F6',
     backgroundColor: '#FFFFFF',
     padding: 6,
-    justifyContent: 'center',
-    transform: [
-      { rotateX: '30deg' },
-      { rotateY: '-30deg' },
-      { rotateZ: '15deg' },
-    ],
-    shadowColor: '#3D0F95',
-    shadowOffset: { width: -8, height: 12 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 6,
+    justifyContent: 'flex-start',
+    shadowColor: '#7B42F6',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   phoneCamera: {
-    width: 24,
-    height: 3,
-    borderRadius: 1.5,
+    width: 26,
+    height: 4,
+    borderRadius: 2,
     backgroundColor: '#E8EAED',
     alignSelf: 'center',
     position: 'absolute',
@@ -651,59 +762,114 @@ const styles = StyleSheet.create({
   },
   phoneContent: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-    paddingTop: 6,
+    paddingTop: 8,
   },
-  isoMockHeader: {
-    fontSize: 7,
-    fontWeight: 'bold',
-    color: '#3D0F95',
-    marginBottom: 6,
-  },
-  isoMockCard: {
+  mockHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F0FF',
-    padding: 3,
-    borderRadius: 4,
-    width: '100%',
-    marginBottom: 5,
+    justifyContent: 'center',
+    height: 22,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F0FF',
+    paddingBottom: 2,
   },
-  isoMockLine: {
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: '#9B7AFF',
-    width: '70%',
-    marginLeft: 3,
+  mockLogoText: {
+    fontSize: 8.5,
+    fontWeight: '900',
+    color: '#3D0F95',
+    letterSpacing: 0.3,
+  },
+  mockLogoImage: {
+    width: 20,
+    height: 20,
+    marginLeft: -4.5,
+    marginTop: -0.5,
+  },
+  mockSearchBar: {
+    height: 16,
+    borderRadius: 5,
+    backgroundColor: '#FAFBFC',
+    borderWidth: 0.5,
+    borderColor: '#E8EAED',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    marginVertical: 6,
+  },
+  mockSearchText: {
+    fontSize: 6,
+    color: '#8E8E93',
+  },
+  mockSectionTitle: {
+    fontSize: 6.5,
+    fontWeight: '800',
+    color: '#8E8E93',
+    textTransform: 'uppercase',
+    marginBottom: 4,
+    marginLeft: 2,
+  },
+  mockActionsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  mockActionCardPurple: {
+    width: '47%',
+    height: 40,
+    backgroundColor: '#F3F0FF',
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 2,
+  },
+  mockActionLabelPurple: {
+    fontSize: 5.5,
+    fontWeight: 'bold',
+    color: '#7B42F6',
+    marginTop: 2,
+  },
+  mockActionCardGreen: {
+    width: '47%',
+    height: 40,
+    backgroundColor: '#DCFCE7',
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 2,
+  },
+  mockActionLabelGreen: {
+    fontSize: 5.5,
+    fontWeight: 'bold',
+    color: '#16A34A',
+    marginTop: 2,
   },
   characterNode: {
     position: 'absolute',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: '#FFFFFF',
-    borderWidth: 2,
+    borderWidth: 1.5,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
-    shadowRadius: 4,
+    shadowRadius: 3,
     elevation: 3,
+    zIndex: 5,
   },
   charCustomer: {
     bottom: 12,
-    left: 16,
+    left: 10,
     borderColor: '#7B42F6',
   },
   charHandyman: {
-    top: -15,
-    right: 32,
+    top: -18,
+    left: 45,
     borderColor: '#24A1DE',
   },
   charTech: {
-    bottom: 48,
+    bottom: 36,
     right: 12,
     borderColor: '#7B42F6',
   },
@@ -711,16 +877,53 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: -6,
     backgroundColor: '#FAFBFC',
-    borderWidth: 1,
+    borderWidth: 0.5,
     borderColor: '#E8EAED',
-    borderRadius: 4,
-    paddingHorizontal: 3,
-    paddingVertical: 1,
+    borderRadius: 3,
+    paddingHorizontal: 2.5,
+    paddingVertical: 0.5,
   },
   charBadgeText: {
-    fontSize: 6,
+    fontSize: 5,
     fontWeight: 'bold',
     color: '#4B5563',
+  },
+  tapConnectorLine: {
+    position: 'absolute',
+    left: 42,
+    bottom: 40,
+    width: 32,
+    height: 52,
+    borderLeftWidth: 1,
+    borderTopWidth: 1,
+    borderColor: '#7B42F6',
+    borderStyle: 'dotted',
+    borderTopLeftRadius: 6,
+    opacity: 0.5,
+    zIndex: 1,
+  },
+  tapIndicatorPulseContainer: {
+    position: 'absolute',
+    left: 70,
+    bottom: 88,
+    width: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 4,
+  },
+  tapTargetDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#7B42F6',
+  },
+  tapPulseCircle: {
+    position: 'absolute',
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#7B42F6',
   },
 
   /* Slide 2 - Customer Trust Profile Card */
