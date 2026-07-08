@@ -18,6 +18,7 @@ import { Image } from 'expo-image'
 import Svg, { Path, Defs, LinearGradient, Stop } from 'react-native-svg'
 
 const { width, height } = Dimensions.get('window')
+const svgWidth = width + 120
 
 const slides = [
   {
@@ -36,97 +37,6 @@ const slides = [
       'List your services, manage working schedules, access live local job postings, and withdraw earnings straight to your wallet.',
   },
 ]
-
-// ─────────────────────────────────────────────
-// Custom Wave Header SVG Components (Inspired by eCommerce layouts)
-// ─────────────────────────────────────────────
-
-function Slide1Header() {
-  return (
-    <View style={styles.waveHeaderWrapper}>
-      <Svg width={width} height={210} viewBox={`0 0 375 210`} preserveAspectRatio="none" style={StyleSheet.absoluteFill}>
-        <Defs>
-          <LinearGradient id="wave1Grad" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0%" stopColor="#7B42F6" />
-            <Stop offset="100%" stopColor="#24A1DE" />
-          </LinearGradient>
-        </Defs>
-        <Path d="M0 0 H375 V130 C250 200, 125 180, 0 210 Z" fill="url(#wave1Grad)" />
-      </Svg>
-      <SafeAreaView style={styles.headerContent} edges={['top']}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.headerBrand}>Mescott App</Text>
-            <Text style={styles.headerTagline}>Professional Services platform</Text>
-          </View>
-          <Image
-            source={require('../assets/images/adaptive-icon.png')}
-            style={styles.headerLogo}
-            contentFit="contain"
-          />
-        </View>
-      </SafeAreaView>
-    </View>
-  )
-}
-
-function Slide2Header() {
-  return (
-    <View style={styles.waveHeaderWrapper}>
-      <Svg width={width} height={210} viewBox={`0 0 375 210`} preserveAspectRatio="none" style={StyleSheet.absoluteFill}>
-        <Defs>
-          <LinearGradient id="wave2Grad" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0%" stopColor="#7B42F6" />
-            <Stop offset="100%" stopColor="#24A1DE" />
-          </LinearGradient>
-        </Defs>
-        <Path d="M0 0 H375 V210 C250 180, 125 200, 0 130 Z" fill="url(#wave2Grad)" />
-      </Svg>
-      <SafeAreaView style={styles.headerContent} edges={['top']}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.headerBrand}>Mescott App</Text>
-            <Text style={styles.headerTagline}>Vetted neighborhood experts</Text>
-          </View>
-          <Image
-            source={require('../assets/images/adaptive-icon.png')}
-            style={styles.headerLogo}
-            contentFit="contain"
-          />
-        </View>
-      </SafeAreaView>
-    </View>
-  )
-}
-
-function Slide3Header() {
-  return (
-    <View style={styles.waveHeaderWrapper}>
-      <Svg width={width} height={210} viewBox={`0 0 375 210`} preserveAspectRatio="none" style={StyleSheet.absoluteFill}>
-        <Defs>
-          <LinearGradient id="wave3Grad" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0%" stopColor="#7B42F6" />
-            <Stop offset="100%" stopColor="#24A1DE" />
-          </LinearGradient>
-        </Defs>
-        <Path d="M0 0 H375 V140 Q187.5 205 0 140 Z" fill="url(#wave3Grad)" />
-      </Svg>
-      <SafeAreaView style={styles.headerContent} edges={['top']}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.headerBrand}>Mescott App</Text>
-            <Text style={styles.headerTagline}>Grow your local business</Text>
-          </View>
-          <Image
-            source={require('../assets/images/adaptive-icon.png')}
-            style={styles.headerLogo}
-            contentFit="contain"
-          />
-        </View>
-      </SafeAreaView>
-    </View>
-  )
-}
 
 export default function Onboarding() {
   const router = useRouter()
@@ -235,7 +145,7 @@ export default function Onboarding() {
     }
   }
 
-  // Header and CTA opacity transitions
+  // Header, Taglines, and CTA opacity/translation transitions
   const skipOpacity = scrollX.interpolate({
     inputRange: [width, width * 1.5, width * 2],
     outputRange: [1, 0, 0],
@@ -257,11 +167,87 @@ export default function Onboarding() {
     extrapolate: 'clamp',
   })
 
+  // Taglines cross-fading based on horizontal scroll
+  const tagline1Opacity = scrollX.interpolate({
+    inputRange: [0, width * 0.5, width],
+    outputRange: [1, 0, 0],
+    extrapolate: 'clamp',
+  })
+  const tagline2Opacity = scrollX.interpolate({
+    inputRange: [0, width, width * 2],
+    outputRange: [0, 1, 0],
+    extrapolate: 'clamp',
+  })
+  const tagline3Opacity = scrollX.interpolate({
+    inputRange: [width, width * 1.5, width * 2],
+    outputRange: [0, 0, 1],
+    extrapolate: 'clamp',
+  })
+
+  // Parallax horizontal movement of the Svg background curves
+  const waveTranslateX = scrollX.interpolate({
+    inputRange: [0, width, width * 2],
+    outputRange: [0, -60, -120],
+    extrapolate: 'clamp',
+  })
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      {/* Skip button pinned at top-right over the wave headers */}
+      {/* ─────────────────────────────────────────────
+          Unified Curved Header Wave Background (Parallax Dynamic Curves)
+          ───────────────────────────────────────────── */}
+      <Animated.View
+        style={[
+          styles.waveHeaderWrapper,
+          {
+            transform: [{ translateX: waveTranslateX }],
+          },
+        ]}
+      >
+        <Svg width={svgWidth} height={210} viewBox={`0 0 ${svgWidth} 210`} preserveAspectRatio="none" style={StyleSheet.absoluteFillObject}>
+          <Defs>
+            <LinearGradient id="headerGrad" x1="0" y1="0" x2="1" y2="1">
+              <Stop offset="0%" stopColor="#7B42F6" />
+              <Stop offset="100%" stopColor="#24A1DE" />
+            </LinearGradient>
+          </Defs>
+          <Path d={`M0 0 L0 150 Q${svgWidth * 0.5} 220, ${svgWidth} 150 L${svgWidth} 0 Z`} fill="url(#headerGrad)" />
+        </Svg>
+      </Animated.View>
+
+      {/* ─────────────────────────────────────────────
+          Static Branding Overlay Content (Logo on Left, Tagline Transitions)
+          ───────────────────────────────────────────── */}
+      <View style={styles.staticHeaderContainer} pointerEvents="none">
+        <SafeAreaView style={styles.staticHeaderContent} edges={['top']}>
+          <View style={styles.headerRow}>
+            {/* Logo on top-left, clean and separate from Skip button */}
+            <Image
+              source={require('../assets/images/adaptive-icon.png')}
+              style={styles.headerLogo}
+              contentFit="contain"
+            />
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.headerBrand}>Mescott</Text>
+              <View style={styles.taglineWrapper}>
+                <Animated.Text style={[styles.headerTagline, { opacity: tagline1Opacity }]}>
+                  Everyday services at your fingertips
+                </Animated.Text>
+                <Animated.Text style={[styles.headerTagline, { opacity: tagline2Opacity, position: 'absolute', left: 0, right: 0 }]}>
+                  Vetted neighborhood experts
+                </Animated.Text>
+                <Animated.Text style={[styles.headerTagline, { opacity: tagline3Opacity, position: 'absolute', left: 0, right: 0 }]}>
+                  Grow your local business
+                </Animated.Text>
+              </View>
+            </View>
+          </View>
+        </SafeAreaView>
+      </View>
+
+      {/* Skip button pinned at top-right, completely separate from Logo */}
       <Animated.View
         style={[styles.headerContainer, { opacity: skipOpacity }]}
         pointerEvents={currentIndex === 2 ? 'none' : 'auto'}
@@ -296,11 +282,6 @@ export default function Onboarding() {
 
           return (
             <View style={styles.slide} key={index}>
-              {/* Dynamic Sliding Curved Wave Header */}
-              {index === 0 && <Slide1Header />}
-              {index === 1 && <Slide2Header />}
-              {index === 2 && <Slide3Header />}
-
               <View style={styles.slideBody}>
                 {/* Graphic/Illustration Area */}
                 {index === 0 && (
@@ -489,29 +470,46 @@ export default function Onboarding() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
 
-  // Wave Headers styling
+  // Wave Background styling (Parallax translation)
   waveHeaderWrapper: {
-    width: width,
+    width: svgWidth,
     height: 210,
     position: 'absolute',
     top: 0,
     left: 0,
     zIndex: 1,
   },
-  headerContent: {
+
+  // Static Branding overlay on top of wave
+  staticHeaderContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+  },
+  staticHeaderContent: {
     paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingTop: 12,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     width: '100%',
     paddingTop: 8,
   },
-  headerLeft: {
+  headerLogo: {
+    width: 44,
+    height: 44,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    borderRadius: 22,
+    padding: 6,
+    marginRight: 14,
+  },
+  headerTextContainer: {
     flex: 1,
-    paddingRight: 16,
+    height: 44,
+    justifyContent: 'center',
   },
   headerBrand: {
     fontSize: 22,
@@ -519,25 +517,22 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: 0.5,
   },
+  taglineWrapper: {
+    height: 18,
+    marginTop: 2,
+    position: 'relative',
+  },
   headerTagline: {
     fontSize: 13,
     color: '#F3F0FF',
-    marginTop: 4,
     fontWeight: '500',
     opacity: 0.9,
-  },
-  headerLogo: {
-    width: 48,
-    height: 48,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 24,
-    padding: 6,
   },
 
   // Skip button layout
   headerContainer: {
     position: 'absolute',
-    top: StatusBar.currentHeight ? StatusBar.currentHeight + 10 : 44,
+    top: StatusBar.currentHeight ? StatusBar.currentHeight + 12 : 44,
     right: 20,
     zIndex: 99,
   },
@@ -545,7 +540,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#FFFFFF',
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
     paddingVertical: 6,
     paddingHorizontal: 16,
     borderRadius: 20,
