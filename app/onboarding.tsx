@@ -22,9 +22,9 @@ const svgWidth = width + 120
 
 const slides = [
   {
-    title: 'On-Demand Service Hub',
+    title: 'All Local Services, Solved',
     description:
-      'Your neighborhood companion for daily tasks. Get elite services and specialized home maintenance right when you need it.',
+      'Connect instantly with trusted local experts for any home task, technical repair, or maintenance project. Reliable help is just a tap away.',
   },
   {
     title: 'Find Vetted Providers',
@@ -213,35 +213,35 @@ export default function Onboarding() {
               <Stop offset="100%" stopColor="#24A1DE" />
             </LinearGradient>
           </Defs>
-          <Path d={`M0 0 L0 150 Q${svgWidth * 0.5} 220, ${svgWidth} 150 L${svgWidth} 0 Z`} fill="url(#headerGrad)" />
+          <Path d={`M0 0 L0 130 C${svgWidth * 0.35} 235, ${svgWidth * 0.65} 235, ${svgWidth} 130 L${svgWidth} 0 Z`} fill="url(#headerGrad)" />
         </Svg>
       </Animated.View>
 
       {/* ─────────────────────────────────────────────
-          Static Branding Overlay Content (Logo on Left, Tagline Transitions)
+          Static Branding Overlay Content (Logo after Mesco to complete Mescott)
           ───────────────────────────────────────────── */}
       <View style={styles.staticHeaderContainer} pointerEvents="none">
         <SafeAreaView style={styles.staticHeaderContent} edges={['top']}>
-          <View style={styles.headerRow}>
-            {/* Logo on top-left, clean and separate from Skip button */}
-            <Image
-              source={require('../assets/images/adaptive-icon.png')}
-              style={styles.headerLogo}
-              contentFit="contain"
-            />
-            <View style={styles.headerTextContainer}>
-              <Text style={styles.headerBrand}>Mescott</Text>
-              <View style={styles.taglineWrapper}>
-                <Animated.Text style={[styles.headerTagline, { opacity: tagline1Opacity }]}>
-                  Everyday services at your fingertips
-                </Animated.Text>
-                <Animated.Text style={[styles.headerTagline, { opacity: tagline2Opacity, position: 'absolute', left: 0, right: 0 }]}>
-                  Vetted neighborhood experts
-                </Animated.Text>
-                <Animated.Text style={[styles.headerTagline, { opacity: tagline3Opacity, position: 'absolute', left: 0, right: 0 }]}>
-                  Grow your local business
-                </Animated.Text>
-              </View>
+          <View style={styles.headerColumn}>
+            <View style={styles.brandRow}>
+              <Text style={styles.headerBrand}>Mesco</Text>
+              {/* Logo comes immediately after Mesco to form the Mescott brand mark */}
+              <Image
+                source={require('../assets/images/adaptive-icon.png')}
+                style={styles.headerLogoInline}
+                contentFit="contain"
+              />
+            </View>
+            <View style={styles.taglineWrapper}>
+              <Animated.Text style={[styles.headerTagline, { opacity: tagline1Opacity }]}>
+                Everyday services at your fingertips
+              </Animated.Text>
+              <Animated.Text style={[styles.headerTagline, { opacity: tagline2Opacity, position: 'absolute', left: 0, right: 0 }]}>
+                Vetted neighborhood experts
+              </Animated.Text>
+              <Animated.Text style={[styles.headerTagline, { opacity: tagline3Opacity, position: 'absolute', left: 0, right: 0 }]}>
+                Grow your local business
+              </Animated.Text>
             </View>
           </View>
         </SafeAreaView>
@@ -492,27 +492,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 12,
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  headerColumn: {
     width: '100%',
     paddingTop: 8,
   },
-  headerLogo: {
-    width: 44,
-    height: 44,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    borderRadius: 22,
-    padding: 6,
-    marginRight: 14,
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  headerTextContainer: {
-    flex: 1,
-    height: 44,
-    justifyContent: 'center',
+  headerLogoInline: {
+    width: 32,
+    height: 32,
+    marginLeft: -4,
+    marginTop: 2,
   },
   headerBrand: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: 0.5,
