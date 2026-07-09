@@ -8,18 +8,31 @@ import {
   Animated,
   Easing,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  ScrollView,
+  Platform,
+  TextInput,
+  TouchableOpacity,
 } from 'react-native'
 import { Image } from 'expo-image'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
 import TelegramLoginScreen, { TelegramAuthData } from '../components/TelegramLoginScreen'
+import { IS_SANDBOX_BUILD, checkBypassCredentials } from '../services/TelegramAuthService'
 
 export default function Auth() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
 
-  const { loginWithTelegram, isAuthenticated, loading: isLoading } = useAuth()
+  const { loginWithTelegram, loginWithBypass, isAuthenticated, loading: isLoading } = useAuth()
+  
+  // Staging Reviewer Bypass States
+  const [reviewerMode, setReviewerMode] = useState(false)
+  const [reviewerPhone, setReviewerPhone] = useState('')
+  const [reviewerToken, setReviewerToken] = useState('')
+  const [reviewerError, setReviewerError] = useState('')
+
   const fadeAnim = useRef(new Animated.Value(0)).current
   const slideAnim = useRef(new Animated.Value(16)).current
 
@@ -80,55 +93,176 @@ export default function Auth() {
     }
   }
 
+  const handleReviewerSubmit = async () => {
+    if (!reviewerPhone.trim() && !reviewerToken.trim()) {
+      setReviewerError('Phone number and security bypass token are required')
+      return
+    }
+    if (!reviewerPhone.trim()) {
+      setReviewerError('Phone number is required')
+      return
+    }
+    if (!reviewerToken.trim()) {
+      setReviewerError('Security bypass token is required')
+      return
+    }
+    
+    setReviewerError('')
+    setLoading(true)
+    
+    try {
+      // 1. Intercept inputs to check if they match the reviewer parameters
+      const isBypass = await checkBypassCredentials(reviewerPhone.trim(), reviewerToken.trim())
+      if (isBypass) {
+        // 2. Shortcut/bypass standard Telegram flow and call direct Supabase sign-in
+        await loginWithBypass(reviewerPhone.trim(), reviewerToken.trim())
+        setLoading(false)
+        router.replace('/')
+      } else {
+        setLoading(false)
+        Alert.alert('Bypass Denied', 'Invalid Google Reviewer credentials or sandbox configuration mismatch.')
+      }
+    } catch (err: any) {
+      console.error('[Auth] Reviewer bypass error:', err)
+      setLoading(false)
+      Alert.alert('Bypass Error', err.message || 'An error occurred during verification.')
+    }
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent={false} />
 
       {/* Decorative Top-Right Vector Shape */}
-      <View style={styles.vectorTopRight} />
+      <View style={styles.vectorTopRight} pointerEvents="none" />
 
       {/* Decorative Bottom-Left Vector Shape */}
-      <View style={styles.vectorBottomLeft} />
+      <View style={styles.vectorBottomLeft} pointerEvents="none" />
 
-      <Animated.View
-        style={[
-          styles.animatedContainer,
-          { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-        ]}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
       >
-        {/* Modern Branding Header with Connected Logo */}
-        <View style={styles.hero}>
-          <Text style={styles.heroTitle}>Welcome to</Text>
-          <View style={styles.logoRow}>
-            <Text style={styles.logoText}>MESCO</Text>
-            <Image
-              source={require('../assets/images/adaptive-icon.png')}
-              style={styles.logoImage}
-              contentFit="contain"
-            />
-          </View>
-          <Text style={styles.heroSubtitle}>Ethiopia's Leading Marketplace Platform</Text>
-        </View>
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'space-between' }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Animated.View
+            style={[
+              styles.animatedContainer,
+              { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+            ]}
+          >
+            {/* Modern Branding Header with Connected Logo */}
+            <View style={styles.hero}>
+              <Text style={styles.heroTitle}>Welcome to</Text>
+              <View style={styles.logoRow}>
+                <Text style={styles.logoText}>MESCO</Text>
+                <Image
+                  source={require('../assets/images/adaptive-icon.png')}
+                  style={styles.logoImage}
+                  contentFit="contain"
+                />
+              </View>
+              <Text style={styles.heroSubtitle}>Ethiopia's Leading Marketplace Platform</Text>
+            </View>
 
-        {/* Flat, seamless Telegram WebView integration */}
-        <View style={styles.webViewWrapper}>
-          <TelegramLoginScreen onAuthResult={handleAuthResult} />
-        </View>
+            {reviewerMode ? (
+              <View style={styles.reviewerFormContainer}>
+                <Text style={styles.reviewerTitle}>Google Play Reviewer Sign-In</Text>
+                <Text style={styles.reviewerSubtitle}>
+                  Please enter the test account phone number and security token provided.
+                </Text>
 
-        {/* Signing In Overlay State */}
-        {loading && (
-          <View style={styles.signingInOverlay}>
-            <ActivityIndicator size="large" color="#7B42F6" />
-            <Text style={styles.signingInText}>Securing Session...</Text>
-          </View>
-        )}
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Reviewer Phone Number</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="+12025550199"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="phone-pad"
+                    value={reviewerPhone}
+                    onChangeText={(text) => {
+                      setReviewerPhone(text)
+                      if (reviewerError) setReviewerError('')
+                    }}
+                  />
+                </View>
 
-        {/* Footer info text */}
-        <View style={styles.footerWrap}>
-          <Text style={styles.footer}>© {new Date().getFullYear()} Mescott. All rights reserved.</Text>
-          <Text style={styles.footerSub}>Terms & Conditions Apply*</Text>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Security Bypass Token</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Enter bypass token"
+                    placeholderTextColor="#9CA3AF"
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    value={reviewerToken}
+                    onChangeText={(text) => {
+                      setReviewerToken(text)
+                      if (reviewerError) setReviewerError('')
+                    }}
+                  />
+                </View>
+
+                {reviewerError ? (
+                  <Text style={styles.formErrorText}>{reviewerError}</Text>
+                ) : null}
+
+                <TouchableOpacity
+                  style={styles.primaryButton}
+                  onPress={handleReviewerSubmit}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.primaryButtonText}>Sign In securely</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={() => {
+                    setReviewerMode(false)
+                    setReviewerError('')
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.secondaryButtonText}>Return to Telegram Sign-In</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              /* Flat, seamless Telegram WebView integration */
+              <View style={styles.webViewWrapper}>
+                <TelegramLoginScreen onAuthResult={handleAuthResult} />
+              </View>
+            )}
+
+            {/* Google Reviewer access hook for staging / dev environments */}
+            {IS_SANDBOX_BUILD && !reviewerMode && (
+              <TouchableOpacity
+                style={styles.reviewerAccessButton}
+                onPress={() => setReviewerMode(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.reviewerAccessButtonText}>Google Play Reviewer Access</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Footer info text */}
+            <View style={styles.footerWrap}>
+              <Text style={styles.footer}>© {new Date().getFullYear()} Mescott. All rights reserved.</Text>
+              <Text style={styles.footerSub}>Terms & Conditions Apply*</Text>
+            </View>
+          </Animated.View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* Signing In Overlay State */}
+      {loading && (
+        <View style={styles.signingInOverlay}>
+          <ActivityIndicator size="large" color="#7B42F6" />
+          <Text style={styles.signingInText}>Securing Session...</Text>
         </View>
-      </Animated.View>
+      )}
     </SafeAreaView>
   )
 }
@@ -161,7 +295,7 @@ const styles = StyleSheet.create({
   animatedContainer: {
     flex: 1,
     zIndex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
   },
   hero: {
     paddingTop: 32,
@@ -203,6 +337,7 @@ const styles = StyleSheet.create({
   webViewWrapper: {
     flex: 1,
     width: '100%',
+    minHeight: 400,
     backgroundColor: '#FFFFFF',
   },
   signingInOverlay: {
@@ -237,5 +372,97 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: 'center',
   },
+  reviewerFormContainer: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    justifyContent: 'center',
+  },
+  reviewerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#3D0F95',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  reviewerSubtitle: {
+    fontSize: 14,
+    color: '#8E8E93',
+    marginBottom: 24,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  inputContainer: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#3D0F95',
+    marginBottom: 6,
+  },
+  textInput: {
+    backgroundColor: '#FAFAFA',
+    borderWidth: 1,
+    borderColor: '#E8EAED',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#111827',
+    minHeight: 48,
+  },
+  formErrorText: {
+    color: '#FF3B30',
+    fontSize: 12,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  primaryButton: {
+    backgroundColor: '#7B42F6',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    marginTop: 12,
+  },
+  primaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  secondaryButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: '#7B42F6',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    marginTop: 12,
+  },
+  secondaryButtonText: {
+    color: '#7B42F6',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  reviewerAccessButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: '#7B42F6',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 40,
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  reviewerAccessButtonText: {
+    color: '#7B42F6',
+    fontSize: 14,
+    fontWeight: '600',
+  },
 })
-

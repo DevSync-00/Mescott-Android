@@ -87,3 +87,34 @@ export class TelegramAuthService {
     return json as TelegramHMACAuthResult;
   }
 }
+
+// 1. Enforce strict cryptographic sandbox guard checking environmental variables
+export const IS_SANDBOX_BUILD = process.env.EXPO_PUBLIC_APP_ENV === 'staging' || (typeof __DEV__ !== 'undefined' && __DEV__);
+
+// 2. Controlled validation credentials (Inject via process.env variables, never hardcode plaintext)
+const GOOGLE_REVIEW_PHONE = process.env.EXPO_PUBLIC_REVIEW_PHONE; // e.g., '+12025550199'
+const GOOGLE_REVIEW_BYPASS = process.env.EXPO_PUBLIC_REVIEW_BYPASS_TOKEN; // e.g., 'TEST_BYPASS'
+
+export async function checkBypassCredentials(phoneNumber: string, tokenInput: string): Promise<boolean> {
+  const cleanInputPhone = phoneNumber.trim().replace(/\s+/g, '');
+  const cleanEnvPhone = (GOOGLE_REVIEW_PHONE || '').trim().replace(/\s+/g, '');
+  const cleanInputToken = tokenInput.trim();
+  const cleanEnvToken = (GOOGLE_REVIEW_BYPASS || '').trim();
+
+  console.log('[checkBypassCredentials] Input phone (cleaned):', cleanInputPhone, 'Input token (cleaned):', cleanInputToken);
+  console.log('[checkBypassCredentials] Env phone (cleaned):', cleanEnvPhone, 'Env token (cleaned):', cleanEnvToken);
+  console.log('[checkBypassCredentials] IS_SANDBOX_BUILD:', IS_SANDBOX_BUILD);
+  
+  if (!IS_SANDBOX_BUILD) {
+    console.log('[checkBypassCredentials] Denied: Not a sandbox build');
+    return false;
+  }
+  
+  const matches = (
+    cleanInputPhone === cleanEnvPhone && 
+    cleanInputToken === cleanEnvToken
+  );
+  
+  console.log('[checkBypassCredentials] Matches:', matches);
+  return matches;
+}

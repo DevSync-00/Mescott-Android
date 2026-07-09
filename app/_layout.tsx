@@ -346,6 +346,14 @@ function TabNavigator() {
           href: null, // Hide from tab bar
         }}
       />
+
+      {/* CRITICAL ROUTE FIX: EXCLUDE ONBOARDING FROM BOTTOM NAVIGATION ROW */}
+      <Tabs.Screen
+        name="onboarding"
+        options={{
+          href: null, // This completely removes it from the visible layout tree
+        }}
+      />
     </Tabs>
   )
 }
