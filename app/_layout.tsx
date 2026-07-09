@@ -116,7 +116,7 @@ function TabNavigator() {
         tabBarStyle:
           isAuthenticated && !shouldHideTabs
             ? {
-                backgroundColor: '#fff',
+                backgroundColor: '#ffffff',
                 borderTopWidth: 1,
                 borderTopColor: Colors.neutral[200],
                 paddingTop: 2,
