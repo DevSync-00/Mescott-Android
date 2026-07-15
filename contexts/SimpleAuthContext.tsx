@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SimpleUserProfile } from '../types/SimpleUserProfile';
 import { ProfileSyncService } from '../services/ProfileSyncService';
-import { TelegramAuthService, TelegramWidgetAuthData } from '../services/TelegramAuthService';
+import { TelegramAuthService, TelegramWidgetAuthData, IS_SANDBOX_BUILD } from '../services/TelegramAuthService';
 
 interface AuthContextType {
   user: SimpleUserProfile | null;
@@ -371,6 +371,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const loginWithBypass = async (phoneNumber: string, tokenInput: string): Promise<void> => {
+    if (!IS_SANDBOX_BUILD) {
+      throw new Error('Bypass authentication is disabled in production builds.');
+    }
     try {
       console.log('🔑 BYPASS LOGIN - Starting for phone:', phoneNumber);
 

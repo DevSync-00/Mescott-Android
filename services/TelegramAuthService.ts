@@ -89,7 +89,7 @@ export class TelegramAuthService {
 }
 
 // 1. Enforce strict cryptographic sandbox guard checking environmental variables
-export const IS_SANDBOX_BUILD = process.env.EXPO_PUBLIC_APP_ENV === 'staging' || (typeof __DEV__ !== 'undefined' && __DEV__);
+export const IS_SANDBOX_BUILD = process.env.EXPO_PUBLIC_APP_ENV !== 'production' && (process.env.EXPO_PUBLIC_APP_ENV === 'staging' || (typeof __DEV__ !== 'undefined' && __DEV__));
 
 // 2. Controlled validation credentials (Inject via process.env variables, never hardcode plaintext)
 const GOOGLE_REVIEW_PHONE = process.env.EXPO_PUBLIC_REVIEW_PHONE; // e.g., '+12025550199'
