@@ -6,9 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Dimensions,
-  Modal,
   StatusBar,
-  ActivityIndicator,
 } from 'react-native'
 import { Image } from 'expo-image'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -23,7 +21,7 @@ import { PaymentService } from '../services/PaymentService'
 import ChapaPaymentModal from '../components/ChapaPaymentModal'
 import { Colors } from '../constants/Colors'
 import { SkeletonCard } from '../components/SkeletonLoader'
-import { showConfirmation, showInfoAlert, showErrorAlert, showSuccessAlert } from '../utils/alertHelper'
+import { showConfirmation, showInfoAlert } from '../utils/alertHelper'
 import TextureBackground from '../components/TextureBackground'
 import FullScreenImageViewer from '../components/FullScreenImageViewer'
 
@@ -89,7 +87,7 @@ export default function TaskDetail() {
     } finally {
       setLoading(false)
     }
-  }, [taskId, user])
+  }, [taskId, user, showError])
 
   const loadPendingPayments = useCallback(async () => {
     if (!user) return

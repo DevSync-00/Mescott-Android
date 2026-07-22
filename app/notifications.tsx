@@ -41,10 +41,6 @@ export default function Notifications() {
     }
   }, [isAuthenticated, isLoading, router])
 
-  const handleMarkAsRead = async (notificationId: string) => {
-    await markAsRead(notificationId)
-  }
-
   const handleNotificationPress = useCallback(async (notification: Notification) => {
     // Mark as read first
     if (!notification.is_read) {

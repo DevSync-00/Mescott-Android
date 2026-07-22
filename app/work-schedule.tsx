@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useToast } from '../contexts/ToastContext'
 import { Colors } from '../constants/Colors'
-import { showConfirmation, showSuccessAlert } from '../utils/alertHelper'
+import { showConfirmation } from '../utils/alertHelper'
 
 interface TimeSlot {
   id: string

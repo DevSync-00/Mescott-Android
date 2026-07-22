@@ -11,7 +11,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import { useToast } from '../contexts/ToastContext'
 import { Colors } from '../constants/Colors'
 import { showInfoAlert, showSuccessAlert } from '../utils/alertHelper'
 

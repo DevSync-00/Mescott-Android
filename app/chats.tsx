@@ -496,7 +496,7 @@ export default function Chats() {
         />
       )
     },
-    [handleChatSelect, handleDeleteChat],
+    [ChatItem, handleChatSelect, handleDeleteChat],
   )
 
   if (isLoading) {

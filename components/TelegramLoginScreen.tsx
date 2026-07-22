@@ -27,7 +27,7 @@ function decodeTgAuthResult(raw: string): Record<string, any> {
   try {
     const urlDecoded = decodeURIComponent(str);
     if (urlDecoded.trimStart().startsWith('{')) return JSON.parse(urlDecoded);
-  } catch (_) {}
+  } catch {}
 
   const base64 = str.replace(/-/g, '+').replace(/_/g, '/');
   const padded = base64 + '=='.slice(0, (4 - (base64.length % 4)) % 4);
@@ -201,7 +201,7 @@ export default function TelegramLoginScreen({ onAuthResult }: TelegramLoginScree
           onAuthResult(data);
         }
       }
-    } catch (_) {
+    } catch {
       // Suppress non-critical structural parse noise from other postMessage senders
     }
   }

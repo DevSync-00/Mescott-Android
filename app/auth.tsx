@@ -164,7 +164,7 @@ export default function Auth() {
                   contentFit="contain"
                 />
               </View>
-              <Text style={styles.heroSubtitle}>Ethiopia's Leading Marketplace Platform</Text>
+              <Text style={styles.heroSubtitle}>Ethiopia&apos;s Leading Marketplace Platform</Text>
             </View>
 
             {reviewerMode ? (

@@ -62,7 +62,7 @@ const BottomSheet = forwardRef<BottomSheetRef, BottomSheetProps>(
     useEffect(() => {
       topInset.value = insets.top
       bottomInset.value = insets.bottom
-    }, [insets.top, insets.bottom])
+    }, [insets.top, insets.bottom, topInset, bottomInset])
 
     // Calculate snap positions based on full screen height (safe area handled via padding/SafeAreaView)
     const getSnapPosition = useCallback((snapPoint: number) => {

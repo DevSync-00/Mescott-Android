@@ -9,7 +9,7 @@ import {
   Modal,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { SearchService, SearchFilters, SearchSuggestion } from '../services/SearchService'
+import { SearchService, SearchFilters } from '../services/SearchService'
 import { Colors } from '../constants/Colors'
 
 interface AdvancedSearchProps {
@@ -55,19 +55,19 @@ export default function AdvancedSearch({
     setFilters({})
   }
 
-  const handleSuggestionSelect = (suggestion: SearchSuggestion) => {
-    switch (suggestion.type) {
-      case 'category':
-        setFilters((prev) => ({ ...prev, category: suggestion.id.replace('category_', '') }))
-        break
-      case 'location':
-        setFilters((prev) => ({ ...prev, location: suggestion.text }))
-        break
-      case 'task':
-        setFilters((prev) => ({ ...prev, query: suggestion.text }))
-        break
-    }
-  }
+  // const _handleSuggestionSelect = (suggestion: SearchSuggestion) => {
+  //   switch (suggestion.type) {
+  //     case 'category':
+  //       setFilters((prev) => ({ ...prev, category: suggestion.id.replace('category_', '') }))
+  //       break
+  //     case 'location':
+  //       setFilters((prev) => ({ ...prev, location: suggestion.text }))
+  //       break
+  //     case 'task':
+  //       setFilters((prev) => ({ ...prev, query: suggestion.text }))
+  //       break
+  //   }
+  // }
 
   if (!visible) return null
 
