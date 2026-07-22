@@ -279,7 +279,8 @@ export class ChapaPaymentService {
         customerUserId,
         calculation,
         resolvedTxRef,
-        'pending'
+        'pending',
+        task.tasker_id
       )
 
       return {
@@ -368,37 +369,38 @@ export class ChapaPaymentService {
   }
 
   // Process successful payment and credit tasker wallet
-  private static async processSuccessfulPayment(
+  static async processSuccessfulPayment(
     txRef: string,
     taskerId: string,
     amount: number,
     meta: any
   ): Promise<void> {
     try {
-      // Get tasker's user_id from profile
-      const { data: taskerProfile, error: profileError } = await supabase
+      // Resolve tasker auth user_id (whether taskerId is profile ID or auth.users.id)
+      let taskerAuthUserId = taskerId
+      const { data: taskerProfile } = await supabase
         .from('profiles')
         .select('user_id')
         .eq('id', taskerId)
-        .single()
+        .maybeSingle()
 
-      if (profileError || !taskerProfile) {
-        throw new Error('Tasker profile not found')
+      if (taskerProfile?.user_id) {
+        taskerAuthUserId = taskerProfile.user_id
       }
 
       // Get or create tasker wallet
       let { data: wallet, error: walletError } = await supabase
         .from('wallets')
         .select('*')
-        .eq('user_id', taskerProfile.user_id)
-        .single()
+        .eq('user_id', taskerAuthUserId)
+        .maybeSingle()
 
-      if (walletError && walletError.code === 'PGRST116') {
+      if (!wallet) {
         // Wallet doesn't exist, create it
         const { data: newWallet, error: createError } = await supabase
           .from('wallets')
           .insert([{
-            user_id: taskerProfile.user_id,
+            user_id: taskerAuthUserId,
             balance: 0,
             currency: CHAPA_CONFIG.currency,
             is_active: true
@@ -408,12 +410,10 @@ export class ChapaPaymentService {
 
         if (createError) throw createError
         wallet = newWallet
-      } else if (walletError) {
-        throw walletError
       }
 
       // Calculate net amount to credit (after platform fee)
-      const netAmount = meta.net_amount || (amount - (amount * CHAPA_CONFIG.platformFeeRate))
+      const netAmount = meta?.net_amount || (amount - (amount * CHAPA_CONFIG.platformFeeRate))
 
       // Update wallet balance
       const { error: updateWalletError } = await supabase
@@ -430,7 +430,8 @@ export class ChapaPaymentService {
       const { error: transactionError } = await supabase
         .from('transactions')
         .insert([{
-          user_id: taskerProfile.user_id,
+          user_id: taskerAuthUserId,
+          task_id: meta?.task_id,
           type: 'deposit',
           amount: netAmount,
           currency: CHAPA_CONFIG.currency,
@@ -438,9 +439,9 @@ export class ChapaPaymentService {
           description: `Payment received for task completion`,
           metadata: {
             tx_ref: txRef,
-            task_id: meta.task_id,
-            platform_fee: meta.platform_fee,
-            vat_amount: meta.vat_amount,
+            task_id: meta?.task_id,
+            platform_fee: meta?.platform_fee || (amount * CHAPA_CONFIG.platformFeeRate),
+            vat_amount: meta?.vat_amount || (amount * CHAPA_CONFIG.vatRate),
             source: 'chapa_payment'
           }
         }])
@@ -448,7 +449,7 @@ export class ChapaPaymentService {
       if (transactionError) throw transactionError
 
       // Update task payment status
-      if (meta.task_id) {
+      if (meta?.task_id) {
         await supabase
           .from('tasks')
           .update({
@@ -471,9 +472,20 @@ export class ChapaPaymentService {
     customerUserId: string,
     calculation: PaymentCalculation,
     txRef: string,
-    status: string
+    status: string,
+    taskerId?: string
   ): Promise<void> {
     try {
+      let tasker_id = taskerId
+      if (!tasker_id) {
+        const { data: task } = await supabase
+          .from('tasks')
+          .select('tasker_id')
+          .eq('id', taskId)
+          .maybeSingle()
+        tasker_id = task?.tasker_id
+      }
+
       const { error } = await supabase
         .from('transactions')
         .insert([{
@@ -486,6 +498,12 @@ export class ChapaPaymentService {
           description: `Task payment via Chapa`,
           metadata: {
             tx_ref: txRef,
+            task_id: taskId,
+            tasker_id: tasker_id,
+            customer_id: customerUserId,
+            net_amount: calculation.netAmount,
+            vat_amount: calculation.vatAmount,
+            platform_fee: calculation.platformFee,
             payment_gateway: 'chapa',
             breakdown: calculation.breakdown,
             vat_rate: CHAPA_CONFIG.vatRate,

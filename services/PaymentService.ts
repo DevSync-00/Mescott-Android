@@ -538,6 +538,16 @@ export class PaymentService {
       }
 
       const taskId = chapaTransaction.task_id
+      const customerUserId = chapaTransaction.user_id
+
+      // Fetch task details to get title and tasker_id
+      const { data: task } = await supabase
+        .from('tasks')
+        .select('id, title, tasker_id, customer_id')
+        .eq('id', taskId)
+        .maybeSingle()
+
+      const taskerId = chapaTransaction.metadata?.tasker_id || task?.tasker_id
 
       // Mark the Chapa transaction as completed (preserve existing metadata)
       const { error: updateError } = await supabase
@@ -574,12 +584,42 @@ export class PaymentService {
         })
         .eq('id', taskId)
 
+      // Process Tasker wallet balance credit & deposit ledger creation
+      if (taskerId) {
+        try {
+          await ChapaPaymentService.processSuccessfulPayment(
+            txRef,
+            taskerId,
+            chapaTransaction.amount,
+            {
+              ...chapaTransaction.metadata,
+              task_id: taskId,
+              tasker_id: taskerId,
+            }
+          )
+        } catch (walletError) {
+          console.error('Error crediting tasker wallet in processChapaPayment:', walletError)
+        }
+      }
+
+      // Notify customer of successful payment
       await UnifiedNotificationService.notifyPaymentProcessed(
-        chapaTransaction.user_id,
+        customerUserId,
         chapaTransaction.amount,
-        'Task Payment',
+        task?.title || 'Task Payment',
         'success',
       )
+
+      // Notify tasker that payment is ready and credited
+      if (taskerId) {
+        const netAmount = chapaTransaction.metadata?.net_amount || (chapaTransaction.amount * 0.95)
+        await UnifiedNotificationService.notifyTaskerPaymentReady(
+          taskId,
+          task?.title || 'Completed Task',
+          taskerId,
+          netAmount
+        )
+      }
 
       return true
     } catch (error) {
