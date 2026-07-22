@@ -52,10 +52,10 @@ export class NotificationService {
     body: string,
     data?: Record<string, any>,
   ) {
-    return SimpleNotificationService.sendNotification(userId, title, body, data)
+    return SimpleNotificationService.addNotification(title, body, 'system', data)
   }
 
   static async registerPushToken(userId: string, token: string) {
-    return PushNotificationService.registerPushToken(userId, token)
+    return PushNotificationService.savePushTokenToProfile(userId, token)
   }
 }
