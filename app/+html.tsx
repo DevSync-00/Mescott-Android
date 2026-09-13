@@ -13,7 +13,7 @@ export default function Root({ children }: PropsWithChildren) {
         />
         <meta name="theme-color" content="#371F80" />
         <meta name="description" content="Mescott — find trusted taskers and get things done." />
-        <script src="https://telegram.org/js/telegram-web-app.js?59" />
+        <script src="https://telegram.org/js/telegram-web-app.js?63" />
         <ScrollViewStyleReset />
         <style dangerouslySetInnerHTML={{ __html: globalStyles }} />
       </head>
@@ -23,9 +23,15 @@ export default function Root({ children }: PropsWithChildren) {
 }
 
 const globalStyles = `
-html, body, #root { width: 100%; min-height: 100%; margin: 0; }
+html, body, #root { width: 100%; height: 100%; margin: 0; }
 html { background: #ffffff; overscroll-behavior: none; }
 body { overflow: hidden; background: var(--tg-theme-bg-color, #ffffff); }
+#root {
+  height: var(--tg-viewport-stable-height, 100dvh);
+  max-height: var(--tg-viewport-stable-height, 100dvh);
+  padding: var(--mescott-tg-safe-top, 0px) var(--mescott-tg-safe-right, 0px)
+    var(--mescott-tg-safe-bottom, 0px) var(--mescott-tg-safe-left, 0px);
+}
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 @media (min-width: 720px) {
   #root { max-width: 520px; margin: 0 auto; box-shadow: 0 0 36px rgba(34, 20, 74, 0.12); }

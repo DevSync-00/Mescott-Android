@@ -6,8 +6,42 @@ type TelegramWebApp = {
   expand: () => void
   setHeaderColor?: (color: string) => void
   setBackgroundColor?: (color: string) => void
+  setBottomBarColor?: (color: string) => void
   disableVerticalSwipes?: () => void
+  requestFullscreen?: () => void
+  lockOrientation?: () => void
+  isVersionAtLeast?: (version: string) => boolean
+  onEvent?: (event: string, callback: () => void) => void
+  offEvent?: (event: string, callback: () => void) => void
+  BackButton?: {
+    show: () => void
+    hide: () => void
+    onClick: (callback: () => void) => void
+    offClick: (callback: () => void) => void
+  }
+  safeAreaInset?: TelegramInsets
+  contentSafeAreaInset?: TelegramInsets
   themeParams?: Record<string, string | undefined>
+}
+
+type TelegramInsets = { top?: number; bottom?: number; left?: number; right?: number }
+
+export function isTelegramMiniAppLaunch() {
+  if (Platform.OS !== 'web') return false
+  return Boolean(window.Telegram?.WebApp?.initData || getTelegramMiniAppInitData())
+}
+
+export function configureTelegramBackButton(visible: boolean, onPress: () => void) {
+  if (Platform.OS !== 'web') return () => {}
+  const backButton = window.Telegram?.WebApp?.BackButton
+  if (!backButton) return () => {}
+  if (visible) {
+    backButton.show()
+    backButton.onClick(onPress)
+  } else {
+    backButton.hide()
+  }
+  return () => backButton.offClick(onPress)
 }
 
 export function getTelegramMiniAppInitData() {
@@ -52,11 +86,32 @@ export function initializeTelegramMiniApp() {
     const webApp = window.Telegram?.WebApp
     if (!webApp) return
 
+    const applyInsets = () => {
+      const insets = webApp.contentSafeAreaInset || webApp.safeAreaInset || {}
+      const root = document.documentElement
+      root.style.setProperty('--mescott-tg-safe-top', `${insets.top || 0}px`)
+      root.style.setProperty('--mescott-tg-safe-bottom', `${insets.bottom || 0}px`)
+      root.style.setProperty('--mescott-tg-safe-left', `${insets.left || 0}px`)
+      root.style.setProperty('--mescott-tg-safe-right', `${insets.right || 0}px`)
+    }
+
     webApp.ready()
     webApp.expand()
     webApp.setHeaderColor?.('#371F80')
     webApp.setBackgroundColor?.('#FFFFFF')
+    webApp.setBottomBarColor?.('#FFFFFF')
     webApp.disableVerticalSwipes?.()
+    if (webApp.isVersionAtLeast?.('8.0')) {
+      try {
+        webApp.requestFullscreen?.()
+        webApp.lockOrientation?.()
+      } catch {
+        // Older Telegram clients may expose a method before supporting the call.
+      }
+    }
+    applyInsets()
+    webApp.onEvent?.('safeAreaChanged', applyInsets)
+    webApp.onEvent?.('contentSafeAreaChanged', applyInsets)
 
     const root = document.documentElement
     for (const [name, value] of Object.entries(webApp.themeParams || {})) {
@@ -78,7 +133,7 @@ export function initializeTelegramMiniApp() {
 
   const script = document.createElement('script')
   script.id = 'telegram-web-app-sdk'
-  script.src = 'https://telegram.org/js/telegram-web-app.js?59'
+  script.src = 'https://telegram.org/js/telegram-web-app.js?63'
   script.addEventListener('load', connect, { once: true })
   document.head.appendChild(script)
 }

@@ -295,7 +295,7 @@ export default function Onboarding() {
                     ]}
                   >
                     <Image
-                      source={require('../assets/images/onboarding_hub.png')}
+                      source={require('../assets/images/adaptive-icon.png')}
                       style={styles.onboardingImage}
                       contentFit="contain"
                     />

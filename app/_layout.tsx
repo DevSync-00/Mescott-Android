@@ -24,7 +24,11 @@ import { useAppStore } from '../state/store'
 import { ChatService } from '../services/ChatService'
 import { TaskService } from '../services/TaskService'
 import { Colors } from '../constants/Colors'
-import { initializeTelegramMiniApp } from '../lib/telegram'
+import {
+  configureTelegramBackButton,
+  initializeTelegramMiniApp,
+  isTelegramMiniAppLaunch,
+} from '../lib/telegram'
 
 // KeyboardProvider is owned by react-native-gifted-chat on the chat-detail screen.
 // Avoid wrapping the entire app to prevent double keyboard inset adjustment.
@@ -374,6 +378,14 @@ function AppContent() {
   const splashScale = useRef(new Animated.Value(0.92)).current
   const SPLASH_MAX_DURATION = 3000 // ms guardrail so all animation completes within 3s
 
+  useEffect(() => {
+    const isRootScreen = pathname === '/' || pathname === '/index' || pathname === '/auth'
+    return configureTelegramBackButton(!isRootScreen, () => {
+      if (router.canGoBack()) router.back()
+      else router.replace('/')
+    })
+  }, [pathname, router])
+
   // Subscribe to alert service
   useEffect(() => {
     const unsubscribe = alertService.subscribe((state) => {
@@ -582,7 +594,11 @@ function AppContent() {
         }).start(() => {
           AsyncStorage.getItem('has_completed_onboarding')
             .then((completed) => {
-              const target = completed === 'true' ? '/auth' : '/onboarding'
+              const target = isTelegramMiniAppLaunch()
+                ? '/auth'
+                : completed === 'true'
+                  ? '/auth'
+                  : '/onboarding'
               router.replace(target as any)
             })
             .catch(() => {
@@ -601,6 +617,8 @@ function AppContent() {
               }, 50)
             })
         })
+      } else if (!isAuthenticated && pathname === '/onboarding' && isTelegramMiniAppLaunch()) {
+        router.replace('/auth')
       }
   }, [appIsReady, isLoading, isAuthenticated, pathname, router, isTransitioning, fadeAnim])
 
