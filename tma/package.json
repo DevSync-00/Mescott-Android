@@ -1,0 +1,9 @@
+{
+  "name": "@mescott/telegram-mini-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Vercel deployment workspace for the Mescott Telegram Mini App",
+  "scripts": {
+    "build": "npm --prefix .. run build:tma"
+  }
+}
