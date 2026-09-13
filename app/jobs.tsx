@@ -74,8 +74,7 @@ export default function Jobs() {
   const router = useRouter()
 
   const [searchQuery] = useState('')
-  const [selectedCategoryAvailable, setSelectedCategoryAvailable] = useState('All')
-  const [selectedCategoryMyTasks, setSelectedCategoryMyTasks] = useState('All')
+  const [selectedCategory, setSelectedCategory] = useState('All')
   const [activeTab, setActiveTab] = useState('available')
 
   const [tasks, setTasks] = useState<Task[]>([])
@@ -343,8 +342,6 @@ export default function Jobs() {
         task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         task.description.toLowerCase().includes(searchQuery.toLowerCase())
 
-      const selectedCategory =
-        activeTab === 'available' ? selectedCategoryAvailable : selectedCategoryMyTasks
       const matchesCategory =
         selectedCategory === 'All' ||
         task.category_name?.toLowerCase() === selectedCategory.toLowerCase()
@@ -489,13 +486,7 @@ export default function Jobs() {
             overScrollMode="never"
           >
             {categories.map((category) => {
-              const selectedCategory =
-                activeTab === 'available' ? selectedCategoryAvailable : selectedCategoryMyTasks
               const isActive = selectedCategory === category
-              const setSelectedCategory =
-                activeTab === 'available'
-                  ? setSelectedCategoryAvailable
-                  : setSelectedCategoryMyTasks
 
               return (
                 <TouchableOpacity
