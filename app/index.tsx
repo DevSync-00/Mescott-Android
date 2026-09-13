@@ -27,6 +27,7 @@ import NotificationsSheet from '../components/NotificationsSheet'
 import CategorySearchSheet from '../components/CategorySearchSheet'
 import { CATEGORIES } from '../constants/Categories'
 import TextureBackground from '../components/TextureBackground'
+import { isTelegramMiniAppLaunch } from '../lib/telegram'
 // import TaskDetailSheet from '../components/TaskDetailSheet'
 
 // Splash screen is handled in _layout.tsx
@@ -157,7 +158,12 @@ export default function Index() {
           <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
           <View style={styles.containerContent}>
         {/* Fixed Header */}
-        <View style={[styles.headerWrapper, { paddingTop: 8 + insets.top }]}>
+        <View
+          style={[
+            styles.headerWrapper,
+            { paddingTop: 8 + (isTelegramMiniAppLaunch() ? 0 : insets.top) },
+          ]}
+        >
           <View style={styles.header}>
             <View style={styles.headerTop}>
               <View style={styles.greetingContainer}>

@@ -55,6 +55,7 @@ function TabNavigator() {
   const { totalUnreadCount } = useChatUnread()
   const pathname = usePathname()
   const insets = useSafeAreaInsets()
+  const isTelegramLaunch = isTelegramMiniAppLaunch()
 
   // Debug logging for Android safe area
   console.log('🔍 Android Safe Area Debug:', {
@@ -125,8 +126,8 @@ function TabNavigator() {
                 borderTopWidth: 1,
                 borderTopColor: Colors.neutral[200],
                 paddingTop: 2,
-                height: 56 + insets.bottom,
-                paddingBottom: insets.bottom,
+                height: 56 + (isTelegramLaunch ? 0 : insets.bottom),
+                paddingBottom: isTelegramLaunch ? 0 : insets.bottom,
               }
             : { display: 'none' }, // Hide tabs during authentication or on sub-pages
         headerShown: false,
