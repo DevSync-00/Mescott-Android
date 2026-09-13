@@ -60,8 +60,11 @@ export class UnifiedNotificationService {
     try {
       this.currentUserId = userId
       
-      // Register for push notifications
-      await PushNotificationService.registerForPushNotifications()
+      // Register for push notifications and save to user profile
+      const pushToken = await PushNotificationService.registerForPushNotifications()
+      if (pushToken && userId) {
+        await PushNotificationService.savePushTokenToProfile(userId, pushToken)
+      }
       
       // Subscribe to real-time notifications
       await this.subscribeToNotifications()
@@ -734,25 +737,42 @@ export class UnifiedNotificationService {
     const title = 'Payment Ready'
     const message = `Payment of ${amount} ETB is ready for your completed task: "${taskTitle}"`
 
-    // Get the user_id from the tasker's profile ID
-    const { data: taskerProfile, error: profileError } = await supabase
+    // Try resolving tasker profile by id or user_id
+    let { data: taskerProfile } = await supabase
       .from('profiles')
-      .select('user_id')
+      .select('user_id, push_token')
       .eq('id', taskerProfileId)
-      .single()
+      .maybeSingle()
 
-    if (profileError || !taskerProfile) {
-      console.error('UnifiedNotificationService: Tasker profile not found for ID:', taskerProfileId, profileError)
-      return
+    if (!taskerProfile) {
+      const { data: profileByUserId } = await supabase
+        .from('profiles')
+        .select('user_id, push_token')
+        .eq('user_id', taskerProfileId)
+        .maybeSingle()
+      taskerProfile = profileByUserId
     }
 
+    const authUserId = taskerProfile?.user_id || taskerProfileId
+
+    // Insert in-app notification record (triggers Supabase Realtime)
     await this.createNotification(
-      taskerProfile.user_id, // Use auth.users.id
+      authUserId,
       title,
       message,
       'payment',
       { task_id: taskId, amount, task_title: taskTitle, action: 'tasker_payment_ready' }
     )
+
+    // Dispatch remote push notification if tasker has a registered push token
+    if (taskerProfile?.push_token) {
+      await PushNotificationService.sendPushNotification(
+        taskerProfile.push_token,
+        title,
+        message,
+        { task_id: taskId, amount, type: 'payment', action: 'tasker_payment_ready' }
+      )
+    }
   }
 
   // ===== SYSTEM NOTIFICATIONS =====

@@ -126,10 +126,10 @@ export default function PrivacyPolicy() {
           <Text style={styles.sectionText}>
             If you have any questions about this privacy policy or our data practices, please
             contact us at:{'\n'}
-            Email: privacy@mescott.com{'\n'}
+            Email: privacy@mescott.co{'\n'}
             Phone: +251-911-234-567{'\n'}
             Address: Addis Ababa, Ethiopia{'\n'}
-            Website: https://mescott.com
+            Website: https://mescott.co
           </Text>
         </View>
       </ScrollView>

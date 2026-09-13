@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   View,
   Text,
@@ -30,13 +30,7 @@ export default function TaskerProfileView({ taskerId, visible, onClose }: Tasker
     'overview',
   )
 
-  useEffect(() => {
-    if (visible && taskerId) {
-      loadPortfolio()
-    }
-  }, [visible, taskerId])
-
-  const loadPortfolio = async () => {
+  const loadPortfolio = useCallback(async () => {
     try {
       setLoading(true)
       console.log('Loading portfolio for tasker ID (profile ID):', taskerId)
@@ -57,7 +51,13 @@ export default function TaskerProfileView({ taskerId, visible, onClose }: Tasker
     } finally {
       setLoading(false)
     }
-  }
+  }, [taskerId])
+
+  useEffect(() => {
+    if (visible && taskerId) {
+      loadPortfolio()
+    }
+  }, [visible, taskerId, loadPortfolio])
 
   const handleLinkPress = async (url: string) => {
     try {

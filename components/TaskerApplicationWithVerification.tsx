@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   View,
   Text,
@@ -68,11 +68,7 @@ const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificat
   const [newCertification, setNewCertification] = useState('')
   const [agreedToTerms, setAgreedToTerms] = useState(false)
 
-  useEffect(() => {
-    checkApplicationEligibility()
-  }, [userId])
-
-  const checkApplicationEligibility = async () => {
+  const checkApplicationEligibility = useCallback(async () => {
     try {
       setLoading(true)
 
@@ -95,7 +91,11 @@ const TaskerApplicationWithVerification: React.FC<TaskerApplicationWithVerificat
     } finally {
       setLoading(false)
     }
-  }
+  }, [userId, onVerificationComplete])
+
+  useEffect(() => {
+    checkApplicationEligibility()
+  }, [userId, checkApplicationEligibility])
 
   const handleImageUpload = async (type: 'front' | 'back') => {
     try {

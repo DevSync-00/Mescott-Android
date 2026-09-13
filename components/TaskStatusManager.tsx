@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   View,
   Text,
@@ -38,13 +38,7 @@ export default function TaskStatusManager({
   const [reason, setReason] = useState('')
   const [notes, setNotes] = useState('')
 
-  useEffect(() => {
-    if (showHistory) {
-      loadStatusHistory()
-    }
-  }, [taskId, showHistory])
-
-  const loadStatusHistory = async () => {
+  const loadStatusHistory = useCallback(async () => {
     try {
       setLoading(true)
       const history = await TaskStatusService.getTaskStatusHistory(taskId)
@@ -54,7 +48,13 @@ export default function TaskStatusManager({
     } finally {
       setLoading(false)
     }
-  }
+  }, [taskId])
+
+  useEffect(() => {
+    if (showHistory) {
+      loadStatusHistory()
+    }
+  }, [taskId, showHistory, loadStatusHistory])
 
   const getCurrentStep = () => {
     return TaskStatusService.getWorkflowStep(currentStatus)

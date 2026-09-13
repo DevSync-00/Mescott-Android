@@ -2,6 +2,7 @@ import * as Device from 'expo-device'
 import Constants from 'expo-constants'
 import { Platform } from 'react-native'
 import { SimpleNotificationService } from './SimpleNotificationService'
+import { supabase } from '../lib/supabase'
 import type { NotificationPermissionsStatus } from 'expo-notifications'
 
 type IOSPermissionShape = NonNullable<NotificationPermissionsStatus['ios']>
@@ -101,6 +102,29 @@ export class PushNotificationService {
   // Get the current push token
   static getPushToken(): string | null {
     return this.expoPushToken
+  }
+
+  // Save push token to user profile in Supabase
+  static async savePushTokenToProfile(userId: string, token?: string): Promise<boolean> {
+    try {
+      const pushToken = token || this.expoPushToken
+      if (!userId || !pushToken) return false
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ push_token: pushToken, updated_at: new Date().toISOString() })
+        .eq('user_id', userId)
+
+      if (error) {
+        console.error('Error saving push token to profile:', error)
+        return false
+      }
+      console.log('✅ Push token saved to profile for user:', userId)
+      return true
+    } catch (error) {
+      console.error('Error saving push token to profile:', error)
+      return false
+    }
   }
 
   // Send a local notification

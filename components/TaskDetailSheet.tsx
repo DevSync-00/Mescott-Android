@@ -7,7 +7,6 @@ import {
   ScrollView,
   Image,
   Dimensions,
-  Modal,
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native'
@@ -40,7 +39,7 @@ export default function TaskDetailSheet({ taskId, visible, onClose }: TaskDetail
   const [task, setTask] = useState<Task | null>(null)
   const [imageModalVisible, setImageModalVisible] = useState(false)
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
-  const [loading, setLoading] = useState(false)
+  const [, setLoading] = useState(false)
 
   useEffect(() => {
     if (visible && taskId) {

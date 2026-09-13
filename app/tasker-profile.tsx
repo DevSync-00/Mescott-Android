@@ -57,6 +57,12 @@ export default function TaskerProfile() {
     }
   }, [taskerId])
 
+  useEffect(() => {
+    if (taskerId) {
+      loadPortfolio()
+    }
+  }, [taskerId, loadPortfolio])
+
   const handleLinkPress = async (url: string) => {
     try {
       await Linking.openURL(url)

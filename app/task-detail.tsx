@@ -6,9 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Dimensions,
-  Modal,
   StatusBar,
-  ActivityIndicator,
 } from 'react-native'
 import { Image } from 'expo-image'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -24,7 +22,7 @@ import ChapaPaymentModal from '../components/ChapaPaymentModal'
 import { Colors } from '../constants/Colors'
 import { getPaymentStatusLabel, isPaymentPaid } from '../lib/paymentStatus'
 import { SkeletonCard } from '../components/SkeletonLoader'
-import { showConfirmation, showInfoAlert, showErrorAlert, showSuccessAlert } from '../utils/alertHelper'
+import { showConfirmation, showInfoAlert } from '../utils/alertHelper'
 import TextureBackground from '../components/TextureBackground'
 import FullScreenImageViewer from '../components/FullScreenImageViewer'
 
@@ -90,7 +88,7 @@ export default function TaskDetail() {
     } finally {
       setLoading(false)
     }
-  }, [taskId, user])
+  }, [taskId, user, showError])
 
   const loadPendingPayments = useCallback(async () => {
     if (!user) return
@@ -664,7 +662,7 @@ export default function TaskDetail() {
         payment={selectedPayment}
         onPaymentSuccess={handlePaymentSuccess}
         customerInfo={{
-          email: user?.profile?.email || 'customer@mescott.com',
+          email: user?.profile?.email || 'customer@mescott.co',
           firstName: user?.name?.split(' ')[0] || 'Customer',
           lastName: user?.name?.split(' ').slice(1).join(' ') || 'User',
           phone: user?.phone || '+251911234567',

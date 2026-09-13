@@ -111,6 +111,7 @@ export default function ChatDetail() {
 
   useEffect(() => {
     loadChat()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatId, user?.id])
 
   const mapServerMessages = useCallback(

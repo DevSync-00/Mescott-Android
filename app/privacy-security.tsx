@@ -19,7 +19,7 @@ export default function PrivacySecurity() {
   const { showError } = useToast()
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const [settings] = useState({
+  const [, setSettings] = useState({
     showLocation: true,
     showPhoneNumber: false,
     showEmail: false,

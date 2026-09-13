@@ -65,7 +65,7 @@ export default function WalletScreen() {
     } finally {
       setLoading(false)
     }
-  }, [user])
+  }, [user, showError])
 
   const handleRefresh = async () => {
     setRefreshing(true)

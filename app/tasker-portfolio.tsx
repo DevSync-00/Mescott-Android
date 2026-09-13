@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useCallback } from 'react'
 import {
   View,
   Text,
@@ -26,7 +26,7 @@ import {
 import { ImageService } from '../services/ImageService'
 import * as ImagePicker from 'expo-image-picker'
 import { Colors } from '../constants/Colors'
-import { showConfirmation, showSuccessAlert, showInfoAlert } from '../utils/alertHelper'
+import { showConfirmation, showInfoAlert } from '../utils/alertHelper'
 
 const SKILL_LEVELS = ['beginner', 'intermediate', 'advanced', 'expert'] as const
 
@@ -69,7 +69,7 @@ interface FormData {
 }
 
 export default function TaskerPortfolioPage() {
-  const { user, isAuthenticated } = useAuth()
+  const { user } = useAuth()
   const { showError, showSuccess } = useToast()
   const router = useRouter()
   const insets = useSafeAreaInsets()
@@ -172,7 +172,7 @@ export default function TaskerPortfolioPage() {
     } finally {
       setLoading(false)
     }
-  }, [user])
+  }, [user, showError])
 
   const handleSavePortfolio = async () => {
     if (!portfolio?.id) {

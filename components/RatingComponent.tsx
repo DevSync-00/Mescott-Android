@@ -50,14 +50,7 @@ export default function RatingComponent({
   const [showModal, setShowModal] = useState(false)
   const [reason, setReason] = useState('')
 
-  useEffect(() => {
-    if (user?.id) {
-      checkReviewPermissions()
-      loadExistingReview()
-    }
-  }, [user?.id, taskId, revieweeId, reviewType])
-
-  const checkReviewPermissions = async () => {
+  const checkReviewPermissions = useCallback(async () => {
     if (!user?.id) return
 
     try {
@@ -69,9 +62,9 @@ export default function RatingComponent({
       setCanReview(false)
       setReason('Error checking permissions')
     }
-  }
+  }, [taskId, user?.id, revieweeId, reviewType])
 
-  const loadExistingReview = async () => {
+  const loadExistingReview = useCallback(async () => {
     if (!user?.id) return
 
     try {
@@ -85,7 +78,14 @@ export default function RatingComponent({
     } catch (error) {
       console.error('Error loading existing review:', error)
     }
-  }
+  }, [taskId, user?.id, revieweeId, reviewType])
+
+  useEffect(() => {
+    if (user?.id) {
+      checkReviewPermissions()
+      loadExistingReview()
+    }
+  }, [user?.id, checkReviewPermissions, loadExistingReview])
 
   const handleSubmitReview = async () => {
     if (!user?.id || !canReview) return

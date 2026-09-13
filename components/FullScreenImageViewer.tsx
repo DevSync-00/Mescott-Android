@@ -16,7 +16,6 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
-  withTiming,
   runOnJS,
 } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -65,7 +64,7 @@ export default function FullScreenImageViewer({
     savedTranslateX.value = 0
     translateY.value = withSpring(0)
     savedTranslateY.value = 0
-  }, [])
+  }, [savedScale, savedTranslateX, savedTranslateY, scale, translateX, translateY])
 
   // Handle screen orientation and dimensions
   useEffect(() => {

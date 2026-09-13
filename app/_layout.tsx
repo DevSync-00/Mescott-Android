@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { View, Text, StatusBar, Animated, Easing } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Tabs, usePathname, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -116,7 +117,7 @@ function TabNavigator() {
         tabBarStyle:
           isAuthenticated && !shouldHideTabs
             ? {
-                backgroundColor: '#fff',
+                backgroundColor: '#ffffff',
                 borderTopWidth: 1,
                 borderTopColor: Colors.neutral[200],
                 paddingTop: 2,
@@ -346,6 +347,14 @@ function TabNavigator() {
           href: null, // Hide from tab bar
         }}
       />
+
+      {/* CRITICAL ROUTE FIX: EXCLUDE ONBOARDING FROM BOTTOM NAVIGATION ROW */}
+      <Tabs.Screen
+        name="onboarding"
+        options={{
+          href: null, // This completely removes it from the visible layout tree
+        }}
+      />
     </Tabs>
   )
 }
@@ -537,10 +546,11 @@ function AppContent() {
   }, [])
 
   // Handle initial navigation based on auth state after loading completes with smooth transitions
+  // IMPORTANT: gate on appIsReady so TabNavigator is fully mounted before we call replace()
   useEffect(() => {
-    if (!isLoading && !isTransitioning) {
-      // Only redirect if we're on the auth page and user is authenticated
-      if (pathname === '/auth' && isAuthenticated) {
+    if (!appIsReady || isLoading || isTransitioning) return
+      // Only redirect if we're on the auth or onboarding page and user is authenticated
+      if ((pathname === '/auth' || pathname === '/onboarding') && isAuthenticated) {
         setIsTransitioning(true)
         // Fade out before navigation
         Animated.timing(fadeAnim, {
@@ -561,8 +571,8 @@ function AppContent() {
           }, 50)
         })
       }
-      // If not authenticated and not on auth page, redirect to auth
-      else if (!isAuthenticated && pathname !== '/auth') {
+      // If not authenticated and not on auth page or onboarding page, redirect
+      else if (!isAuthenticated && pathname !== '/auth' && pathname !== '/onboarding') {
         setIsTransitioning(true)
         // Fade out before navigation
         Animated.timing(fadeAnim, {
@@ -570,57 +580,37 @@ function AppContent() {
           duration: 180,
           useNativeDriver: true,
         }).start(() => {
-          router.replace('/auth')
-          // Fade back in after navigation
-          setTimeout(() => {
-            Animated.timing(fadeAnim, {
-              toValue: 1,
-              duration: 180,
-              useNativeDriver: true,
-            }).start(() => {
-              setIsTransitioning(false)
+          AsyncStorage.getItem('has_completed_onboarding')
+            .then((completed) => {
+              const target = completed === 'true' ? '/auth' : '/onboarding'
+              router.replace(target as any)
             })
-          }, 50)
+            .catch(() => {
+              router.replace('/auth')
+            })
+            .finally(() => {
+              // Fade back in after navigation
+              setTimeout(() => {
+                Animated.timing(fadeAnim, {
+                  toValue: 1,
+                  duration: 180,
+                  useNativeDriver: true,
+                }).start(() => {
+                  setIsTransitioning(false)
+                })
+              }, 50)
+            })
         })
       }
-    }
-  }, [isLoading, isAuthenticated, pathname, router, isTransitioning, fadeAnim])
+  }, [appIsReady, isLoading, isAuthenticated, pathname, router, isTransitioning, fadeAnim])
 
   if (!appIsReady) {
     return null // Native splash screen is showing
   }
 
-  // While redirecting to auth after logout, show fading placeholder
-  if (!isAuthenticated && pathname !== '/auth' && !isTransitioning) {
-    return (
-      <Animated.View style={{ flex: 1, backgroundColor: '#ffffff', opacity: fadeAnim }}>
-        <SafeAreaView style={{ flex: 1 }} edges={[]} />
-        {showCustomSplash && (
-          <Animated.View
-            pointerEvents="none"
-            style={{
-              position: 'absolute',
-              inset: 0,
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: '#7B42F6',
-              opacity: splashOpacity,
-            }}
-          >
-            <Animated.Image
-              source={require('../assets/images/splash-icon-light.png')}
-              resizeMode="contain"
-              style={{
-                width: 200,
-                height: 200,
-                transform: [{ scale: splashScale }],
-              }}
-            />
-          </Animated.View>
-        )}
-      </Animated.View>
-    )
-  }
+  // While auth is loading or transitioning, TabNavigator is still mounted below
+  // We never short-circuit the return here because that would unmount
+  // TabNavigator and cause screen names to be unregistered before replace() fires.
 
   return (
     <Animated.View style={{ flex: 1, opacity: fadeAnim }}>

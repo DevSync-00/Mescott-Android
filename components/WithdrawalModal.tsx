@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import {
   View,
   Text,
@@ -41,13 +41,7 @@ export default function WithdrawalModal({
   const [amount, setAmount] = useState('')
   const [showAddMethod, setShowAddMethod] = useState(false)
 
-  useEffect(() => {
-    if (visible) {
-      loadPaymentMethods()
-    }
-  }, [visible])
-
-  const loadPaymentMethods = async () => {
+  const loadPaymentMethods = useCallback(async () => {
     try {
       const methods = await PaymentMethodService.getPaymentMethods(userId)
       setPaymentMethods(methods)
@@ -60,7 +54,13 @@ export default function WithdrawalModal({
     } catch (error) {
       console.error('Error loading payment methods:', error)
     }
-  }
+  }, [userId])
+
+  useEffect(() => {
+    if (visible) {
+      loadPaymentMethods()
+    }
+  }, [visible, loadPaymentMethods])
 
   const handlePaymentMethodAdded = (method: PaymentMethod) => {
     setPaymentMethods((prev) => [method, ...prev])

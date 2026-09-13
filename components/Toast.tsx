@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { Colors } from '../constants/Colors'
@@ -26,15 +26,24 @@ export default function Toast({
   const [fadeAnim] = useState(new Animated.Value(0))
   const [slideAnim] = useState(new Animated.Value(-100))
 
-  useEffect(() => {
-    if (visible) {
-      showToast()
-    } else {
-      hideToast()
-    }
-  }, [visible])
+  const hideToast = useCallback(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: -100,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      onHide?.()
+    })
+  }, [fadeAnim, slideAnim, onHide])
 
-  const showToast = () => {
+  const showToast = useCallback(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -53,24 +62,15 @@ export default function Toast({
         hideToast()
       }, duration)
     }
-  }
+  }, [fadeAnim, slideAnim, duration, hideToast])
 
-  const hideToast = () => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: -100,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      onHide?.()
-    })
-  }
+  useEffect(() => {
+    if (visible) {
+      showToast()
+    } else {
+      hideToast()
+    }
+  }, [visible, showToast, hideToast])
 
   const getToastStyle = () => {
     switch (type) {

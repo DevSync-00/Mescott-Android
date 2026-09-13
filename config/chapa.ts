@@ -1,5 +1,7 @@
 // Chapa Payment Gateway Configuration
 // Expo automatically loads .env files and makes EXPO_PUBLIC_* variables available via process.env
+import { MESCOTT_LOGO_URL, mescottApiUrl } from './mescott'
+
 const EXPO_PUBLIC_CHAPA_PUBLIC_KEY = process.env.EXPO_PUBLIC_CHAPA_PUBLIC_KEY
 const EXPO_PUBLIC_CHAPA_SECRET_KEY = process.env.EXPO_PUBLIC_CHAPA_SECRET_KEY
 const EXPO_PUBLIC_CHAPA_WEBHOOK_SECRET = process.env.EXPO_PUBLIC_CHAPA_WEBHOOK_SECRET
@@ -18,7 +20,7 @@ if (isProduction) {
 
   if (missing.length > 0) {
     throw new Error(
-      `Missing required Chapa environment variables: ${missing.join(', ')}. See .env.example for reference.`
+      `Missing required Chapa environment variables: ${missing.join(', ')}. See .env.example for reference.`,
     )
   }
 }
@@ -29,31 +31,17 @@ export const CHAPA_CONFIG = {
   webhookSecret: EXPO_PUBLIC_CHAPA_WEBHOOK_SECRET || '',
 
   companyName: 'Mescott',
-  companyLogo: 'https://mescott.com/logo.png',
+  companyLogo: MESCOTT_LOGO_URL,
 
   currency: 'ETB',
   vatRate: 0.15,
   platformFeeRate: 0.05,
 
   baseUrl: 'https://api.chapa.co/v1',
-  webhookUrl: EXPO_PUBLIC_API_URL ? `${EXPO_PUBLIC_API_URL}/api/webhook` : (() => {
-    if (isProduction) {
-      throw new Error('EXPO_PUBLIC_API_URL must be set in production')
-    }
-    return 'https://mchapaw.vercel.app/api/webhook'
-  })(),
-  // Chapa requires HTTPS return_url; our server instantly redirects into the app
+  webhookUrl: mescottApiUrl('/api/webhook'),
   appScheme: 'mescott',
-  getReturnUrl: (txRef: string) => {
-    const base = EXPO_PUBLIC_API_URL || EXPO_PUBLIC_APP_URL
-    if (!base) {
-      if (isProduction) {
-        throw new Error('EXPO_PUBLIC_API_URL must be set in production')
-      }
-      return `https://mchapaw.vercel.app/api/payment-return?tx_ref=${encodeURIComponent(txRef)}`
-    }
-    return `${base.replace(/\/$/, '')}/api/payment-return?tx_ref=${encodeURIComponent(txRef)}`
-  },
+  getReturnUrl: (txRef: string) =>
+    `${mescottApiUrl('/api/payment-return')}?tx_ref=${encodeURIComponent(txRef)}`,
   getAppDeepLink: (txRef: string) =>
     `mescott://payment-success?tx_ref=${encodeURIComponent(txRef)}`,
 }

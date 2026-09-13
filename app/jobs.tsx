@@ -975,7 +975,7 @@ export default function Jobs() {
           handlePaymentSuccess(payment)
         }}
         customerInfo={{
-          email: user?.profile?.email || 'customer@mescott.com',
+          email: user?.profile?.email || 'customer@mescott.co',
           firstName: user?.name?.split(' ')[0] || 'Customer',
           lastName: user?.name?.split(' ').slice(1).join(' ') || 'User',
           phone: user?.phone || '+251911234567',

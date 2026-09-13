@@ -17,7 +17,7 @@
     "primaryColor": "#7B42F6",
     "android": {
       "package": "com.mescott.app",
-      "versionCode": 606,
+      "versionCode": 609,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
@@ -83,6 +83,6 @@
         "projectId": "27ea2f57-78e0-41cd-8c6e-e3f56609c50b"
       }
     },
-    "owner": "berbir"
+    "owner": "BitLabs"
   }
 }

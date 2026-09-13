@@ -8,9 +8,9 @@ import {
   Image,
   NativeScrollEvent,
   NativeSyntheticEvent,
-} from 'react-native'
+ StatusBar } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
-import { StatusBar } from 'react-native'
+
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../contexts/SimpleAuthContext'
@@ -18,7 +18,7 @@ import { useToast } from '../contexts/ToastContext'
 import { Colors } from '../constants/Colors'
 import { supabase } from '../lib/supabase'
 import { SkeletonCard } from '../components/SkeletonLoader'
-import { showConfirmation, showInfoAlert, showErrorAlert, showSuccessAlert } from '../utils/alertHelper'
+import { showConfirmation, showInfoAlert } from '../utils/alertHelper'
 import TextureBackground from '../components/TextureBackground'
 
 export default function Profile() {
@@ -280,7 +280,7 @@ export default function Profile() {
         router.push('/settings')
         break
       case 'help':
-        showInfoAlert('Help & Support', 'For support, please contact us at support@mescott.com')
+        showInfoAlert('Help & Support', 'For support, please contact us at support@mescott.co')
         break
       case 'about':
         showInfoAlert('About Mescott', 'Version 1.0.0\n\nYour trusted marketplace for local services')

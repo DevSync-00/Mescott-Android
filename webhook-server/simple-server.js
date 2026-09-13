@@ -67,9 +67,10 @@ app.post('/webhook', async (req, res) => {
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Mescott Webhook Server running on port ${PORT}`);
-  console.log(`📍 Health check: http://localhost:${PORT}/`);
-  console.log(`🔗 Webhook endpoint: http://localhost:${PORT}/webhook`);
-  console.log(`🧪 Test endpoint: http://localhost:${PORT}/test`);
+  const { MESCOTT_API_URL, apiUrl } = require('./lib/mescottUrls');
+  console.log(`📍 Public API base: ${MESCOTT_API_URL}`);
+  console.log(`🔗 Webhook endpoint: ${apiUrl('/api/webhook')}`);
+  console.log(`🧪 Test endpoint: ${apiUrl('/api/test')}`);
 });
 
 module.exports = app;

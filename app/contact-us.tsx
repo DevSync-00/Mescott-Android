@@ -11,7 +11,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import { useToast } from '../contexts/ToastContext'
 import { Colors } from '../constants/Colors'
 import { showInfoAlert, showSuccessAlert } from '../utils/alertHelper'
 
@@ -31,7 +30,7 @@ const CONTACT_METHODS: ContactMethod[] = [
     type: 'email',
     title: 'Email Support',
     subtitle: 'Get help via email',
-    value: 'support@mescott.com',
+    value: 'support@mescott.co',
     icon: 'mail-outline',
     color: Colors.primary[500],
   },

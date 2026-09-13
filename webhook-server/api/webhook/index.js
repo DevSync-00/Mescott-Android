@@ -1,11 +1,22 @@
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
+let _supabase = null;
+function getSupabase() {
+  if (!_supabase) {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_ANON_KEY;
+    if (!url || !key) {
+      throw new Error('SUPABASE_URL and SUPABASE_ANON_KEY are not configured on the server');
+    }
+    _supabase = createClient(url, key);
+  }
+  return _supabase;
+}
+
+const supabase = {
+  from: (table) => getSupabase().from(table)
+};
 
 // Verify webhook signature
 function verifyWebhookSignature(payload, signature, secret) {
@@ -167,7 +178,7 @@ async function processSuccessfulPayment(payload) {
 }
 
 // Main webhook handler
-export default async function handler(req, res) {
+async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
@@ -195,12 +206,21 @@ export default async function handler(req, res) {
   // Handle POST requests (webhook)
   if (req.method === 'POST') {
     try {
-      const payload = req.body;
+      const payload = req.body || {};
+
+      // Mobile app Telegram auth (uses existing /api/webhook route on Vercel)
+      if (payload.mescott_action === 'telegram-request-session') {
+        return require('../telegram/request-session')(req, res);
+      }
+      if (payload.mescott_action === 'telegram-verify') {
+        return require('../telegram/verify')(req, res);
+      }
+
       const signature = req.headers['chapa-signature'] || req.headers['x-chapa-signature'];
       const webhookSecret = process.env.CHAPA_WEBHOOK_SECRET;
-    if (!webhookSecret) {
-      throw new Error('CHAPA_WEBHOOK_SECRET environment variable is required');
-    }
+      if (!webhookSecret) {
+        throw new Error('CHAPA_WEBHOOK_SECRET environment variable is required');
+      }
 
       console.log('Received webhook:', JSON.stringify(payload, null, 2));
 
@@ -256,3 +276,6 @@ export default async function handler(req, res) {
     error: 'Method not allowed' 
   });
 }
+
+module.exports = handler
+module.exports.default = handler

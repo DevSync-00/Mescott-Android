@@ -134,7 +134,7 @@ export default function Settings() {
           <TouchableOpacity
             style={styles.settingItem}
             onPress={() =>
-              showInfoAlert('Help & Support', 'For support, please contact us at support@mescott.com')
+              showInfoAlert('Help & Support', 'For support, please contact us at support@mescott.co')
             }
           >
             <View style={styles.settingLeft}>

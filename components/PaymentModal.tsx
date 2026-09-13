@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useToast } from '../contexts/ToastContext'
 import { PaymentService, Payment, PaymentMethod } from '../services/PaymentService'
 import { Colors } from '../constants/Colors'
-import { showInfoAlert, showSuccessAlert } from '../utils/alertHelper'
+import { showSuccessAlert } from '../utils/alertHelper'
 
 interface PaymentModalProps {
   visible: boolean
@@ -33,13 +33,7 @@ export default function PaymentModal({
   const [loading, setLoading] = useState(false)
   const [processing, setProcessing] = useState(false)
 
-  useEffect(() => {
-    if (visible && payment) {
-      loadPaymentMethods()
-    }
-  }, [visible, payment])
-
-  const loadPaymentMethods = async () => {
+  const loadPaymentMethods = useCallback(async () => {
     if (!payment) return
 
     try {
@@ -60,7 +54,13 @@ export default function PaymentModal({
     } finally {
       setLoading(false)
     }
-  }
+  }, [payment, showError])
+
+  useEffect(() => {
+    if (visible && payment) {
+      loadPaymentMethods()
+    }
+  }, [visible, payment, loadPaymentMethods])
 
   const handlePayment = async () => {
     if (!payment || !selectedMethod) {
