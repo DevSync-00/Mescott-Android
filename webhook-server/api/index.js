@@ -3,21 +3,22 @@
  * build: telegram-oidc-v1
  */
 const HANDLERS = {
-  '/api/auth/telegram-oidc': require('./auth/telegram-oidc'),
-  '/api/auth/telegram-callback': require('./auth/telegram-callback'),
-  '/api/auth/telegram-login': require('./auth/telegram-login'),
-  '/api/payment-return': require('./payment-return'),
-  '/api/webhook': require('./webhook/index'),
-  '/api/telegram-request-session': require('./telegram/request-session'),
-  '/api/telegram-verify': require('./telegram/verify'),
-  '/api/webhooks/telegram': require('./webhooks/telegram'),
-  '/api/webhooks-telegram': require('./webhooks/telegram'),
-  '/api/telegram/request-session': require('./telegram/request-session'),
-  '/api/telegram/verify': require('./telegram/verify'),
-  '/api/telegram/send': require('./telegram/send'),
-  '/api/telegram/messages': require('./telegram/messages'),
-  '/api/telegram': require('./telegram'),
-  '/api/test': require('./test/index'),
+  '/api/auth/telegram': './auth/telegram',
+  '/api/auth/telegram-oidc': './auth/telegram-oidc',
+  '/api/auth/telegram-callback': './auth/telegram-callback',
+  '/api/auth/telegram-login': './auth/telegram-login',
+  '/api/payment-return': './payment-return',
+  '/api/webhook': './webhook/index',
+  '/api/telegram-request-session': './telegram/request-session',
+  '/api/telegram-verify': './telegram/verify',
+  '/api/webhooks/telegram': './webhooks/telegram',
+  '/api/webhooks-telegram': './webhooks/telegram',
+  '/api/telegram/request-session': './telegram/request-session',
+  '/api/telegram/verify': './telegram/verify',
+  '/api/telegram/send': './telegram/send',
+  '/api/telegram/messages': './telegram/messages',
+  '/api/telegram': './telegram',
+  '/api/test': './test/index',
 }
 
 function unwrap(mod) {
@@ -46,7 +47,7 @@ module.exports = async function handler(req, res) {
       service: 'Mescott webhook server',
       build: 'telegram-oidc-v1',
       endpoints: {
-        telegramLogin: 'POST /api/auth/telegram-oidc',
+        telegramLogin: 'POST /api/auth/telegram',
         chapaWebhook: 'POST /api/webhook',
         paymentReturn: 'GET /api/payment-return?tx_ref=YOUR_TX_REF',
         test: 'GET /api/test',
@@ -54,8 +55,8 @@ module.exports = async function handler(req, res) {
     })
   }
 
-  const handlerFn = HANDLERS[urlPath]
-  if (!handlerFn) {
+  const handlerPath = HANDLERS[urlPath]
+  if (!handlerPath) {
     return res.status(404).json({
       ok: false,
       error: 'Not found',
@@ -65,6 +66,7 @@ module.exports = async function handler(req, res) {
   }
 
   try {
+    const handlerFn = require(handlerPath)
     return await unwrap(handlerFn)(req, res)
   } catch (error) {
     console.error('Router error:', urlPath, error)

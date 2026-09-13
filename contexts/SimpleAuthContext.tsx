@@ -323,11 +323,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const finishTelegramSignIn = async (payload: Record<string, string>) => {
-    const response = await fetch(getTelegramAuthEndpoint(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+    let response: Response;
+    try {
+      response = await fetch(getTelegramAuthEndpoint(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        throw new Error('Telegram sign-in timed out. Please try again.');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
     const result = await response.json();
     if (!response.ok || !result.tokenHash) {
       throw new Error(result.error || 'Telegram authentication failed.');

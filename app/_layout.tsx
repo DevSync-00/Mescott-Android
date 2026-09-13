@@ -623,7 +623,28 @@ function AppContent() {
   }, [appIsReady, isLoading, isAuthenticated, pathname, router, isTransitioning, fadeAnim])
 
   if (!appIsReady) {
-    return null // Native splash screen is showing
+    // Expo's native splash is not rendered on web. Keep the Mini App visible
+    // while session restoration and Telegram authentication are running.
+    return (
+      <View
+        style={{
+          flex: 1,
+          minHeight: '100%',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#7B42F6',
+        }}
+      >
+        <Animated.Image
+          source={require('../assets/images/splash-icon-light.png')}
+          resizeMode="contain"
+          style={{ width: 160, height: 160 }}
+        />
+        <Text style={{ marginTop: 16, color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>
+          Opening Mescott…
+        </Text>
+      </View>
+    )
   }
 
   // While auth is loading or transitioning, TabNavigator is still mounted below

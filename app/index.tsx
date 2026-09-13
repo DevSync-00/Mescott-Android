@@ -27,6 +27,7 @@ import NotificationsSheet from '../components/NotificationsSheet'
 import CategorySearchSheet from '../components/CategorySearchSheet'
 import { CATEGORIES } from '../constants/Categories'
 import TextureBackground from '../components/TextureBackground'
+import { isTelegramMiniAppLaunch } from '../lib/telegram'
 // import TaskDetailSheet from '../components/TaskDetailSheet'
 
 // Splash screen is handled in _layout.tsx
@@ -86,7 +87,7 @@ export default function Index() {
       } else {
         AsyncStorage.getItem('has_completed_onboarding')
           .then((completed) => {
-            if (completed === 'true') {
+            if (isTelegramMiniAppLaunch() || completed === 'true') {
               router.replace('/auth')
             } else {
               router.replace('/onboarding')
