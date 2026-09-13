@@ -13,12 +13,6 @@ import {
   FlatList,
   StatusBar,
 } from 'react-native'
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  interpolate,
-} from 'react-native-reanimated'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect } from 'expo-router'
@@ -79,25 +73,11 @@ export default function Jobs() {
   const { t } = useLanguage()
   const router = useRouter()
 
-  // Animation values for tab indicator
-  const tabIndicatorPosition = useSharedValue(0)
-  const tabScale = useSharedValue(1)
-
-  // Animation value for FAB button
-  const fabScale = useSharedValue(1)
   const [searchQuery] = useState('')
   const [selectedCategoryAvailable, setSelectedCategoryAvailable] = useState('All')
   const [selectedCategoryMyTasks, setSelectedCategoryMyTasks] = useState('All')
   const [activeTab, setActiveTab] = useState('available')
 
-  // Animate tab indicator when activeTab changes
-  useEffect(() => {
-    tabIndicatorPosition.value = withSpring(activeTab === 'available' ? 0 : 1, {
-      damping: 20,
-      stiffness: 300,
-      mass: 0.5,
-    })
-  }, [activeTab, tabIndicatorPosition])
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [appliedTasks, setAppliedTasks] = useState<Set<string>>(new Set())
@@ -241,35 +221,6 @@ export default function Jobs() {
 
   const fabBottomOffset = 40 + insets.bottom
   const listBottomPadding = fabBottomOffset + 0
-
-  // Animated styles for tab indicator
-  const tabIndicatorAnimatedStyle = useAnimatedStyle(() => {
-    const tabWidth = (width - 32 - 8) / 2 // container width minus padding and gap
-    return {
-      transform: [
-        {
-          translateX: interpolate(
-            tabIndicatorPosition.value,
-            [0, 1],
-            [4, tabWidth + 4], // 4px padding + tab width
-          ),
-        },
-      ],
-    }
-  })
-
-  // Animated style for tab scale effect
-  const tabScaleAnimatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: tabScale.value }],
-    }
-  })
-
-  const fabAnimatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: fabScale.value }],
-    }
-  })
 
   const handlePayNow = async (task: Task) => {
     if (!user || !task.id) return
@@ -491,38 +442,37 @@ export default function Jobs() {
         <View style={styles.headerControls}>
           {/* Tab Navigation (fixed) */}
           <View style={styles.tabContainer}>
-            <Animated.View style={[styles.tabIndicator, tabIndicatorAnimatedStyle]} />
+            <View
+              style={[
+                styles.tabIndicator,
+                { left: activeTab === 'available' ? 4 : (width - 32 - 8) / 2 + 4 },
+              ]}
+            />
             <TouchableOpacity
               style={[styles.tab, activeTab === 'available' && styles.activeTab]}
               onPress={() => {
-                tabScale.value = withSpring(0.95, { damping: 15, stiffness: 400 }, () => {
-                  tabScale.value = withSpring(1, { damping: 15, stiffness: 400 })
-                })
                 setActiveTab('available')
               }}
               activeOpacity={0.8}
             >
-              <Animated.View style={activeTab === 'available' ? tabScaleAnimatedStyle : undefined}>
+              <View>
                 <Text style={[styles.tabText, activeTab === 'available' && styles.activeTabText]}>
                   Available
                 </Text>
-              </Animated.View>
+              </View>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.tab, activeTab === 'my' && styles.activeTab]}
               onPress={() => {
-                tabScale.value = withSpring(0.95, { damping: 15, stiffness: 400 }, () => {
-                  tabScale.value = withSpring(1, { damping: 15, stiffness: 400 })
-                })
                 setActiveTab('my')
               }}
               activeOpacity={0.8}
             >
-              <Animated.View style={activeTab === 'my' ? tabScaleAnimatedStyle : undefined}>
+              <View>
                 <Text style={[styles.tabText, activeTab === 'my' && styles.activeTabText]}>
                   My Tasks
                 </Text>
-              </Animated.View>
+              </View>
             </TouchableOpacity>
           </View>
 
@@ -985,14 +935,13 @@ export default function Jobs() {
       {/* Task Detail navigates to full page now; sheet removed */}
 
       {/* Floating Create Task Button */}
-      <Animated.View
+      <View
         style={[
           styles.fab,
           {
             bottom: fabBottomOffset, // Moved up dynamically with safe area
             right: 20,
           },
-          fabAnimatedStyle,
         ]}
       >
         <View style={styles.fabRingOuter} pointerEvents="none" />
@@ -1000,17 +949,13 @@ export default function Jobs() {
         <TouchableOpacity
           style={styles.fabButton}
           onPress={() => {
-            // Scale animation on press
-            fabScale.value = withSpring(1.05, { damping: 10, stiffness: 400 }, () => {
-              fabScale.value = withSpring(1, { damping: 10, stiffness: 400 })
-            })
             router.push({ pathname: '/post-task' })
           }}
           activeOpacity={1}
         >
           <Ionicons name="add" size={28} color="#fff" />
         </TouchableOpacity>
-      </Animated.View>
+      </View>
     </SafeAreaView>
     </TextureBackground>
   )
