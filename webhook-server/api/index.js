@@ -2,6 +2,12 @@
  * Single Vercel serverless entry — static requires so all handlers are bundled.
  * build: telegram-oidc-v1
  */
+// Lazy handlers are copied via includeFiles, so explicitly trace their external
+// dependencies into the single Vercel function bundle.
+require('@supabase/supabase-js')
+const loadJose = () => import('jose')
+void loadJose
+
 const HANDLERS = {
   '/api/auth/telegram': './auth/telegram',
   '/api/auth/telegram-oidc': './auth/telegram-oidc',
