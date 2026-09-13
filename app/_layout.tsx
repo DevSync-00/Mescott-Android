@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
-import { View, Text, StatusBar, Animated, Easing } from 'react-native'
+import { View, Text, StatusBar, Animated, Easing, Platform, TouchableOpacity } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Tabs, usePathname, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -377,6 +377,7 @@ function AppContent() {
   const splashOpacity = useRef(new Animated.Value(1)).current
   const splashScale = useRef(new Animated.Value(0.92)).current
   const SPLASH_MAX_DURATION = 3000 // ms guardrail so all animation completes within 3s
+  const isTelegramLaunch = isTelegramMiniAppLaunch()
 
   useEffect(() => {
     const isRootScreen = pathname === '/' || pathname === '/index' || pathname === '/auth'
@@ -561,6 +562,9 @@ function AppContent() {
   // IMPORTANT: gate on appIsReady so TabNavigator is fully mounted before we call replace()
   useEffect(() => {
     if (!appIsReady || isLoading || isTransitioning) return
+      // Telegram Mini Apps authenticate silently from signed launch data.
+      // Never send them to the standalone mobile app's login screen.
+      if (isTelegramLaunch && !isAuthenticated) return
       // Only redirect if we're on the auth or onboarding page and user is authenticated
       if ((pathname === '/auth' || pathname === '/onboarding') && isAuthenticated) {
         setIsTransitioning(true)
@@ -594,11 +598,7 @@ function AppContent() {
         }).start(() => {
           AsyncStorage.getItem('has_completed_onboarding')
             .then((completed) => {
-              const target = isTelegramMiniAppLaunch()
-                ? '/auth'
-                : completed === 'true'
-                  ? '/auth'
-                  : '/onboarding'
+              const target = completed === 'true' ? '/auth' : '/onboarding'
               router.replace(target as any)
             })
             .catch(() => {
@@ -617,10 +617,8 @@ function AppContent() {
               }, 50)
             })
         })
-      } else if (!isAuthenticated && pathname === '/onboarding' && isTelegramMiniAppLaunch()) {
-        router.replace('/auth')
       }
-  }, [appIsReady, isLoading, isAuthenticated, pathname, router, isTransitioning, fadeAnim])
+  }, [appIsReady, isLoading, isAuthenticated, pathname, router, isTransitioning, fadeAnim, isTelegramLaunch])
 
   if (!appIsReady) {
     // Expo's native splash is not rendered on web. Keep the Mini App visible
@@ -643,6 +641,37 @@ function AppContent() {
         <Text style={{ marginTop: 16, color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>
           Opening Mescott…
         </Text>
+      </View>
+    )
+  }
+
+  if (isTelegramLaunch && !isAuthenticated) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingHorizontal: 32,
+          backgroundColor: '#FFFFFF',
+        }}
+      >
+        <Text style={{ color: '#111827', fontSize: 22, fontWeight: '700', textAlign: 'center' }}>
+          Couldn't open Mescott
+        </Text>
+        <Text
+          style={{ marginTop: 10, color: '#6B7280', fontSize: 15, lineHeight: 22, textAlign: 'center' }}
+        >
+          We couldn't verify this Telegram session. Please try again from the Mescott bot.
+        </Text>
+        <TouchableOpacity
+          style={{ marginTop: 22, borderRadius: 12, backgroundColor: '#7B42F6', paddingHorizontal: 22, paddingVertical: 12 }}
+          onPress={() => {
+            if (Platform.OS === 'web') window.location.reload()
+          }}
+        >
+          <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>Try again</Text>
+        </TouchableOpacity>
       </View>
     )
   }
