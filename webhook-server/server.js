@@ -67,7 +67,8 @@ function verifyWebhookSignature(payload, signature, secret) {
 // Process successful payment
 async function processSuccessfulPayment(payload) {
   try {
-    const { tx_ref, amount, meta } = payload.data;
+    const { tx_ref, amount } = payload.data;
+    const meta = payload.data.meta || {};
     
     console.log(`Processing successful payment for tx_ref: ${tx_ref}`);
     
@@ -81,6 +82,34 @@ async function processSuccessfulPayment(payload) {
     if (profileError || !taskerProfile) {
       console.error('Tasker profile not found:', profileError);
       return false;
+    }
+
+    const { data: existingDeposit, error: existingDepositError } = await supabase
+      .from('transactions')
+      .select('id')
+      .eq('user_id', taskerProfile.user_id)
+      .eq('type', 'deposit')
+      .eq('metadata->>tx_ref', tx_ref)
+      .maybeSingle();
+
+    if (existingDepositError && existingDepositError.code !== 'PGRST116') {
+      console.error('Error checking existing wallet transaction:', existingDepositError);
+      return false;
+    }
+
+    if (existingDeposit) {
+      if (meta.task_id) {
+        await supabase
+          .from('tasks')
+          .update({
+            payment_status: 'paid',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', meta.task_id);
+      }
+
+      console.log(`Payment ${tx_ref} already credited to tasker wallet`);
+      return true;
     }
 
     // Get or create tasker wallet
@@ -144,6 +173,7 @@ async function processSuccessfulPayment(payload) {
         metadata: {
           tx_ref: tx_ref,
           task_id: meta.task_id,
+          tasker_id: meta.tasker_id,
           platform_fee: meta.platform_fee,
           vat_amount: meta.vat_amount,
           source: 'chapa_payment'
@@ -160,7 +190,7 @@ async function processSuccessfulPayment(payload) {
       const { error: taskUpdateError } = await supabase
         .from('tasks')
         .update({
-          payment_status: 'completed',
+          payment_status: 'paid',
           updated_at: new Date().toISOString()
         })
         .eq('id', meta.task_id);

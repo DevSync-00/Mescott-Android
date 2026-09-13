@@ -22,6 +22,7 @@ import { TaskApplicationService } from '../services/TaskApplicationService'
 import { PaymentService } from '../services/PaymentService'
 import ChapaPaymentModal from '../components/ChapaPaymentModal'
 import { Colors } from '../constants/Colors'
+import { getPaymentStatusLabel, isPaymentPaid } from '../lib/paymentStatus'
 import { SkeletonCard } from '../components/SkeletonLoader'
 import { showConfirmation, showInfoAlert, showErrorAlert, showSuccessAlert } from '../utils/alertHelper'
 import TextureBackground from '../components/TextureBackground'
@@ -450,6 +451,32 @@ export default function TaskDetail() {
               <Text style={styles.priceLabel}>Budget</Text>
               <Text style={styles.price}>{task.budget} ETB</Text>
             </View>
+            {task.status === 'completed' && (
+              <View
+                style={[
+                  styles.paymentBadge,
+                  isPaymentPaid(task.payment_status) && styles.paymentBadgePaid,
+                ]}
+              >
+                <Ionicons
+                  name={isPaymentPaid(task.payment_status) ? 'checkmark-circle' : 'time-outline'}
+                  size={16}
+                  color={
+                    isPaymentPaid(task.payment_status)
+                      ? Colors.success[600]
+                      : Colors.warning[600]
+                  }
+                />
+                <Text
+                  style={[
+                    styles.paymentBadgeText,
+                    isPaymentPaid(task.payment_status) && styles.paymentBadgeTextPaid,
+                  ]}
+                >
+                  {getPaymentStatusLabel(task.payment_status)}
+                </Text>
+              </View>
+            )}
             <View style={styles.categoryContainer}>
               <Ionicons name="folder-outline" size={16} color={Colors.primary[500]} />
               <Text style={styles.categoryText}>{task.category_name}</Text>
@@ -873,6 +900,26 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 12,
     gap: 6,
+  },
+  paymentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.warning[50],
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    gap: 6,
+  },
+  paymentBadgePaid: {
+    backgroundColor: Colors.success[100],
+  },
+  paymentBadgeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.warning[600],
+  },
+  paymentBadgeTextPaid: {
+    color: Colors.success[600],
   },
   categoryText: {
     fontSize: 14,

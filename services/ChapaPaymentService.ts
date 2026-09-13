@@ -279,7 +279,8 @@ export class ChapaPaymentService {
         customerUserId,
         calculation,
         resolvedTxRef,
-        'pending'
+        'pending',
+        task.tasker_id
       )
 
       return {
@@ -354,8 +355,8 @@ export class ChapaPaymentService {
       }
 
       // If payment successful, process wallet credit
-      if (status === 'success' && meta?.tasker_id) {
-        await this.processSuccessfulPayment(tx_ref, meta.tasker_id, amount, meta)
+      if (status === 'success') {
+        await this.processSuccessfulPayment(tx_ref, meta?.tasker_id, amount, meta)
       }
 
       return true
@@ -368,22 +369,101 @@ export class ChapaPaymentService {
   }
 
   // Process successful payment and credit tasker wallet
-  private static async processSuccessfulPayment(
+  static async processSuccessfulPayment(
     txRef: string,
-    taskerId: string,
+    taskerId: string | undefined,
     amount: number,
     meta: any
   ): Promise<void> {
     try {
+      const paymentMeta = meta ?? {}
+      let resolvedTaskerId = taskerId || paymentMeta.tasker_id
+      let taskId = paymentMeta.task_id
+
+      if (!taskId || !resolvedTaskerId || paymentMeta.net_amount === undefined) {
+        const { data: localPayment } = await supabase
+          .from('transactions')
+          .select('task_id, amount, metadata')
+          .eq('metadata->>tx_ref', txRef)
+          .eq('type', 'task_payment')
+          .maybeSingle()
+
+        taskId = taskId || localPayment?.task_id || localPayment?.metadata?.task_id
+        resolvedTaskerId =
+          resolvedTaskerId ||
+          localPayment?.metadata?.tasker_id ||
+          localPayment?.metadata?.chapa_verification?.meta?.tasker_id
+
+        if (paymentMeta.net_amount === undefined) {
+          paymentMeta.net_amount =
+            localPayment?.metadata?.net_amount ??
+            localPayment?.metadata?.breakdown?.netToTasker ??
+            localPayment?.metadata?.chapa_verification?.meta?.net_amount
+        }
+
+        if (paymentMeta.platform_fee === undefined) {
+          paymentMeta.platform_fee =
+            localPayment?.metadata?.platform_fee ??
+            localPayment?.metadata?.breakdown?.platformFee ??
+            localPayment?.metadata?.chapa_verification?.meta?.platform_fee
+        }
+
+        if (paymentMeta.vat_amount === undefined) {
+          paymentMeta.vat_amount =
+            localPayment?.metadata?.vat_amount ??
+            localPayment?.metadata?.breakdown?.vat ??
+            localPayment?.metadata?.chapa_verification?.meta?.vat_amount
+        }
+      }
+
+      if (!resolvedTaskerId && taskId) {
+        const { data: task } = await supabase
+          .from('tasks')
+          .select('tasker_id')
+          .eq('id', taskId)
+          .maybeSingle()
+
+        resolvedTaskerId = task?.tasker_id
+      }
+
+      if (!resolvedTaskerId) {
+        throw new Error('Tasker id not found for payment')
+      }
+
       // Get tasker's user_id from profile
       const { data: taskerProfile, error: profileError } = await supabase
         .from('profiles')
         .select('user_id')
-        .eq('id', taskerId)
+        .eq('id', resolvedTaskerId)
         .single()
 
       if (profileError || !taskerProfile) {
         throw new Error('Tasker profile not found')
+      }
+
+      const { data: existingDeposit, error: existingDepositError } = await supabase
+        .from('transactions')
+        .select('id')
+        .eq('user_id', taskerProfile.user_id)
+        .eq('type', 'deposit')
+        .eq('metadata->>tx_ref', txRef)
+        .maybeSingle()
+
+      if (existingDepositError && existingDepositError.code !== 'PGRST116') {
+        throw existingDepositError
+      }
+
+      if (existingDeposit) {
+        if (taskId) {
+          await supabase
+            .from('tasks')
+            .update({
+              payment_status: 'paid',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', taskId)
+        }
+        return
       }
 
       // Get or create tasker wallet
@@ -413,7 +493,7 @@ export class ChapaPaymentService {
       }
 
       // Calculate net amount to credit (after platform fee)
-      const netAmount = meta.net_amount || (amount - (amount * CHAPA_CONFIG.platformFeeRate))
+      const netAmount = paymentMeta.net_amount || (amount - (amount * CHAPA_CONFIG.platformFeeRate))
 
       // Update wallet balance
       const { error: updateWalletError } = await supabase
@@ -438,9 +518,10 @@ export class ChapaPaymentService {
           description: `Payment received for task completion`,
           metadata: {
             tx_ref: txRef,
-            task_id: meta.task_id,
-            platform_fee: meta.platform_fee,
-            vat_amount: meta.vat_amount,
+            task_id: taskId,
+            tasker_id: resolvedTaskerId,
+            platform_fee: paymentMeta.platform_fee,
+            vat_amount: paymentMeta.vat_amount,
             source: 'chapa_payment'
           }
         }])
@@ -448,14 +529,14 @@ export class ChapaPaymentService {
       if (transactionError) throw transactionError
 
       // Update task payment status
-      if (meta.task_id) {
+      if (taskId) {
         await supabase
           .from('tasks')
           .update({
-            payment_status: 'completed',
+            payment_status: 'paid',
             updated_at: new Date().toISOString()
           })
-          .eq('id', meta.task_id)
+          .eq('id', taskId)
       }
 
     } catch (error) {
@@ -471,7 +552,8 @@ export class ChapaPaymentService {
     customerUserId: string,
     calculation: PaymentCalculation,
     txRef: string,
-    status: string
+    status: string,
+    taskerId?: string
   ): Promise<void> {
     try {
       const { error } = await supabase
@@ -487,7 +569,12 @@ export class ChapaPaymentService {
           metadata: {
             tx_ref: txRef,
             payment_gateway: 'chapa',
+            task_id: taskId,
+            tasker_id: taskerId,
             breakdown: calculation.breakdown,
+            vat_amount: calculation.vatAmount,
+            platform_fee: calculation.platformFee,
+            net_amount: calculation.netAmount,
             vat_rate: CHAPA_CONFIG.vatRate,
             platform_fee_rate: CHAPA_CONFIG.platformFeeRate
           }

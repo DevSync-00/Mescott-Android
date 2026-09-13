@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "project": {
+    "name": "mescott",
+    "schemaType": "kysely",
+    "id": "4af43687-280e-4fdc-97ec-8ee9f16c61fb"
+  },
+  "database": {
+    "mode": "auto",
+    "connectionString": "",
+    "writeAccess": false
+  },
+  "safety": {
+    "allowWrites": false,
+    "allowDbWrites": false,
+    "requirePlanApproval": true
+  },
+  "paths": {
+    "ignores": []
+  }
+}

@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { UnifiedNotificationService } from './UnifiedNotificationService'
+import { isPaymentPaid } from '../lib/paymentStatus'
 
 export interface Booking {
   id: string
@@ -152,7 +153,9 @@ export class BookingService {
           longitude: task?.longitude,
           status: bookingStatus,
           total_amount: app.proposed_price || task?.budget,
-          payment_status: task?.payment_status as 'pending' | 'paid' | 'refunded' || 'pending',
+          payment_status: isPaymentPaid(task?.payment_status)
+            ? 'paid'
+            : ((task?.payment_status as 'pending' | 'paid' | 'refunded') || 'pending'),
           customer_notes: task?.special_instructions,
           technician_notes: undefined,
           special_instructions: task?.special_instructions,
@@ -485,7 +488,8 @@ export class BookingService {
               city,
               state,
               zip_code,
-              customer_id
+              customer_id,
+              payment_status
             )
           `)
           .eq('id', taskApplicationId)
@@ -531,7 +535,7 @@ export class BookingService {
           longitude: undefined,
           status: 'confirmed' as const,
           total_amount: data.proposed_price || task?.budget,
-          payment_status: 'pending' as const,
+          payment_status: isPaymentPaid(task?.payment_status) ? 'paid' as const : 'pending' as const,
           customer_notes: undefined,
           technician_notes: undefined,
           special_instructions: undefined,

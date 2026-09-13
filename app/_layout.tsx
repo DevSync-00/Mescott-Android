@@ -23,6 +23,7 @@ import { useAppStore } from '../state/store'
 import { ChatService } from '../services/ChatService'
 import { TaskService } from '../services/TaskService'
 import { Colors } from '../constants/Colors'
+import { initializeTelegramMiniApp } from '../lib/telegram'
 
 // KeyboardProvider is owned by react-native-gifted-chat on the chat-detail screen.
 // Avoid wrapping the entire app to prevent double keyboard inset adjustment.
@@ -676,6 +677,10 @@ function AppContent() {
 }
 
 export default function RootLayout() {
+  useEffect(() => {
+    initializeTelegramMiniApp()
+  }, [])
+
   const content = (
     <AuthProvider>
       <LanguageProvider>

@@ -1,6 +1,7 @@
 import 'react-native-url-polyfill/auto'
 import { createClient } from '@supabase/supabase-js'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { Platform } from 'react-native'
 
 // Expo automatically loads .env files and makes EXPO_PUBLIC_* variables available via process.env
 const EXPO_PUBLIC_SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL
@@ -57,7 +58,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     storage: AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false, // Android only, no URL detection needed
+    detectSessionInUrl: Platform.OS === 'web',
+    flowType: 'pkce',
     storageKey: 'supabase.auth.token', // Explicit storage key
   },
   global: {

@@ -4,6 +4,7 @@ import { getIsOnline } from '../lib/connectivity'
 import { useAppStore } from '../state/store'
 import { handleError } from '../utils/errorHandler'
 import { UnifiedNotificationService } from './UnifiedNotificationService'
+import type { PaymentStatus } from '../lib/paymentStatus'
 
 export interface Task {
   id: string
@@ -43,7 +44,7 @@ export interface Task {
   customer_review?: string
   tasker_rating?: number
   tasker_review?: string
-  payment_status: 'pending' | 'partial' | 'completed' | 'refunded'
+  payment_status: PaymentStatus
   payment_method?: string
   transaction_id?: string
   final_price?: number

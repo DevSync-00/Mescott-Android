@@ -4,6 +4,14 @@ import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SimpleUserProfile } from '../types/SimpleUserProfile';
 import { ProfileSyncService } from '../services/ProfileSyncService';
+import { Platform } from 'react-native';
+import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
+import type { User } from '@supabase/supabase-js';
+import * as Crypto from 'expo-crypto';
+import { waitForTelegramMiniAppInitData } from '../lib/telegram';
+
+WebBrowser.maybeCompleteAuthSession();
 
 interface AuthContextType {
   user: SimpleUserProfile | null;
@@ -12,6 +20,8 @@ interface AuthContextType {
   isLoading: boolean; // Add this for backward compatibility
   sendVerificationCode: (phone: string) => Promise<{ success: boolean; message: string }>;
   verifyPhoneCode: (phone: string, code: string) => Promise<{ success: boolean; message: string; isNewUser?: boolean }>;
+  signInWithGoogle: () => Promise<{ success: boolean; message: string }>;
+  signInWithTelegram: () => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;
   refreshUserProfile: () => Promise<void>;
   switchMode: () => Promise<void>;
@@ -109,9 +119,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         session?.user
       ) {
         setTimeout(() => {
-          loadUserProfile(session.user!.id).catch((error) =>
-            handleProfileLoadError(error, event)
-          );
+          ensureUserProfile(session.user!)
+            .then(() => loadUserProfile(session.user!.id))
+            .catch((error) => handleProfileLoadError(error, event));
         }, 0);
       }
     });
@@ -145,6 +155,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       if (session?.user) {
         try {
+          await ensureUserProfile(session.user);
           await loadUserProfile(session.user.id);
         } catch (profileError) {
           console.error('Profile loading error:', profileError);
@@ -153,7 +164,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setUser(null);
         }
       } else {
-        setUser(null);
+        const initData = await waitForTelegramMiniAppInitData();
+        if (initData) {
+          const result = await signInWithTelegramMiniApp(initData);
+          if (!result.success) console.error('Telegram Mini App sign-in failed:', result.message);
+        } else {
+          setUser(null);
+        }
       }
     } catch (err: any) {
       console.error('Auth init error:', err);
@@ -169,6 +186,35 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       initDoneRef.current = true;
       setLoading(false);
     }
+  };
+
+  const ensureUserProfile = async (authUser: User) => {
+    const { data: existingProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('user_id', authUser.id)
+      .maybeSingle();
+
+    if (profileError) throw profileError;
+    if (existingProfile) return;
+
+    const metadata = authUser.user_metadata || {};
+    const fullName = metadata.full_name || metadata.name || '';
+    const preferredName = metadata.username || authUser.email?.split('@')[0] || 'user';
+    const safeName = preferredName.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 20) || 'user';
+
+    const { error: createError } = await supabase.from('profiles').insert({
+      user_id: authUser.id,
+      full_name: fullName,
+      username: `${safeName}-${authUser.id.slice(0, 6)}`,
+      phone: authUser.phone || metadata.phone || null,
+      avatar_url: metadata.avatar_url || metadata.picture || null,
+      role: 'customer',
+      current_mode: 'customer',
+    });
+
+    // A database trigger may create the same profile during OAuth signup.
+    if (createError && createError.code !== '23505') throw createError;
   };
 
   const loadUserProfile = async (userId: string) => {
@@ -211,6 +257,139 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.error('Error in loadUserProfile:', error);
       setUser(null);
       throw error;
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    try {
+      const redirectTo = Linking.createURL('auth');
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo, skipBrowserRedirect: true },
+      });
+
+      if (error) return { success: false, message: error.message };
+      if (!data.url) return { success: false, message: 'Unable to start Google sign-in.' };
+
+      if (Platform.OS === 'web') {
+        window.location.assign(data.url);
+        return { success: true, message: 'Opening Google sign-in…' };
+      }
+
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+      if (result.type !== 'success') {
+        return {
+          success: false,
+          message: result.type === 'cancel' ? 'Google sign-in was cancelled.' : 'Google sign-in did not complete.',
+        };
+      }
+
+      const callbackUrl = new URL(result.url);
+      const code = callbackUrl.searchParams.get('code');
+      if (code) {
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+        if (exchangeError) return { success: false, message: exchangeError.message };
+      } else {
+        const hash = new URLSearchParams(callbackUrl.hash.replace(/^#/, ''));
+        const accessToken = hash.get('access_token');
+        const refreshToken = hash.get('refresh_token');
+        if (!accessToken || !refreshToken) {
+          return { success: false, message: 'Google did not return a valid session.' };
+        }
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (sessionError) return { success: false, message: sessionError.message };
+      }
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session?.user) {
+        return { success: false, message: 'Google sign-in completed without a user session.' };
+      }
+      await ensureUserProfile(sessionData.session.user);
+      await loadUserProfile(sessionData.session.user.id);
+      return { success: true, message: 'Signed in with Google.' };
+    } catch (error: any) {
+      console.error('Google sign-in error:', error);
+      return { success: false, message: error?.message || 'Unable to sign in with Google.' };
+    }
+  };
+
+  const getTelegramAuthEndpoint = () => {
+    const apiBase = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/$/, '');
+    if (!apiBase) throw new Error('EXPO_PUBLIC_API_URL is not configured.');
+    return apiBase.endsWith('/api') ? `${apiBase}/auth/telegram` : `${apiBase}/api/auth/telegram`;
+  };
+
+  const finishTelegramSignIn = async (payload: Record<string, string>) => {
+    const response = await fetch(getTelegramAuthEndpoint(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.tokenHash) {
+      throw new Error(result.error || 'Telegram authentication failed.');
+    }
+
+    const { data, error } = await supabase.auth.verifyOtp({
+      token_hash: result.tokenHash,
+      type: 'email',
+    });
+    if (error || !data.user) throw error || new Error('Telegram session could not be created.');
+    await ensureUserProfile(data.user);
+    await loadUserProfile(data.user.id);
+  };
+
+  const signInWithTelegramMiniApp = async (initData: string) => {
+    try {
+      await finishTelegramSignIn({ mode: 'mini_app', initData });
+      return { success: true, message: 'Signed in with Telegram.' };
+    } catch (error: any) {
+      return { success: false, message: error?.message || 'Unable to sign in with Telegram.' };
+    }
+  };
+
+  const signInWithTelegram = async () => {
+    try {
+      const clientId = process.env.EXPO_PUBLIC_TELEGRAM_CLIENT_ID;
+      if (!clientId) throw new Error('Telegram Login is not configured.');
+
+      const redirectUri = Linking.createURL('auth');
+      const state = `${Crypto.randomUUID()}${Crypto.randomUUID()}`.replace(/-/g, '');
+      const nonce = Crypto.randomUUID();
+      const codeVerifier = `${Crypto.randomUUID()}${Crypto.randomUUID()}`.replace(/-/g, '');
+      const digest = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, codeVerifier, {
+        encoding: Crypto.CryptoEncoding.BASE64,
+      });
+      const codeChallenge = digest.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      const authorizeUrl = new URL('https://oauth.telegram.org/auth');
+      authorizeUrl.search = new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        response_type: 'code',
+        scope: 'openid profile phone',
+        state,
+        nonce,
+        code_challenge: codeChallenge,
+        code_challenge_method: 'S256',
+      }).toString();
+
+      const browserResult = await WebBrowser.openAuthSessionAsync(authorizeUrl.toString(), redirectUri);
+      if (browserResult.type !== 'success') {
+        return { success: false, message: 'Telegram sign-in was cancelled.' };
+      }
+      const callback = new URL(browserResult.url);
+      if (callback.searchParams.get('state') !== state) throw new Error('Telegram login state is invalid.');
+      const code = callback.searchParams.get('code');
+      if (!code) throw new Error(callback.searchParams.get('error_description') || 'Telegram returned no login code.');
+
+      await finishTelegramSignIn({ mode: 'oidc', code, redirectUri, codeVerifier, nonce });
+      return { success: true, message: 'Signed in with Telegram.' };
+    } catch (error: any) {
+      console.error('Telegram sign-in error:', error);
+      return { success: false, message: error?.message || 'Unable to sign in with Telegram.' };
     }
   };
 
@@ -368,6 +547,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     isLoading: loading, // Add this for backward compatibility
     sendVerificationCode,
     verifyPhoneCode,
+    signInWithGoogle,
+    signInWithTelegram,
     logout,
     refreshUserProfile,
     switchMode,

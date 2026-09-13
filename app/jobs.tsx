@@ -31,6 +31,7 @@ import { SearchService, SearchFilters } from '../services/SearchService'
 import { PaymentService, Payment } from '../services/PaymentService'
 import { supabase } from '../lib/supabase'
 import { getCache } from '../lib/cache'
+import { isPaymentPaid } from '../lib/paymentStatus'
 import AdvancedSearch from '../components/AdvancedSearch'
 import LoadingErrorState from '../components/LoadingErrorState'
 import ChapaPaymentModal from '../components/ChapaPaymentModal'
@@ -326,6 +327,8 @@ export default function Jobs() {
   const hasPendingPayment = (task: Task) => {
     return pendingPayments.some((p) => p.task_id === task.id)
   }
+
+  const isTaskPaid = (task: Task) => isPaymentPaid(task.payment_status)
 
   if (!isAuthenticated) {
     return null
@@ -857,25 +860,23 @@ export default function Jobs() {
                                   <Ionicons name="card" size={16} color="#fff" />
                                   <Text style={styles.actionButtonText}>Pay Now</Text>
                                 </TouchableOpacity>
-                              ) : task.payment_status === 'completed' ? (
-                                <TouchableOpacity
-                                  style={[styles.actionButton, styles.rateButton]}
-                                  onPress={(e) => {
-                                    e.stopPropagation()
-                                    openReviewForTask(task)
-                                  }}
-                                >
-                                  <Ionicons name="star" size={16} color="#fff" />
-                                  <Text style={styles.actionButtonText}>Rate & Review</Text>
-                                </TouchableOpacity>
-                              ) : (
+                              ) : isTaskPaid(task) ? (
                                 <View style={styles.completedBadge}>
                                   <Ionicons
                                     name="checkmark-circle"
                                     size={16}
                                     color={Colors.success[500]}
                                   />
-                                  <Text style={styles.completedText}>Completed & Paid</Text>
+                                  <Text style={styles.completedText}>Paid</Text>
+                                </View>
+                              ) : (
+                                <View style={styles.paymentPendingBadge}>
+                                  <Ionicons
+                                    name="time-outline"
+                                    size={16}
+                                    color={Colors.warning[600]}
+                                  />
+                                  <Text style={styles.paymentPendingText}>Payment Pending</Text>
                                 </View>
                               )
                             ) : task.tasker_id ? (
@@ -1575,6 +1576,20 @@ const styles = StyleSheet.create({
   },
   completedText: {
     color: Colors.success[600],
+    fontSize: moderateFont(12),
+    fontWeight: '600',
+  },
+  paymentPendingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.warning[100],
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  paymentPendingText: {
+    color: Colors.warning[600],
     fontSize: moderateFont(12),
     fontWeight: '600',
   },

@@ -166,7 +166,7 @@ export class PaymentService {
             await supabase
               .from('tasks')
               .update({
-                payment_status: 'completed',
+                payment_status: 'paid',
                 updated_at: new Date().toISOString()
               })
               .eq('id', payment.task_id)
@@ -538,6 +538,26 @@ export class PaymentService {
       }
 
       const taskId = chapaTransaction.task_id
+      const paymentMeta = chapaTransaction.metadata ?? {}
+      const chapaMeta = verification.data.meta ?? {}
+      const payoutMeta = {
+        ...paymentMeta,
+        ...chapaMeta,
+        task_id: paymentMeta.task_id || chapaMeta.task_id || taskId,
+        tasker_id: paymentMeta.tasker_id || chapaMeta.tasker_id,
+        net_amount:
+          paymentMeta.net_amount ??
+          paymentMeta.breakdown?.netToTasker ??
+          chapaMeta.net_amount,
+        platform_fee:
+          paymentMeta.platform_fee ??
+          paymentMeta.breakdown?.platformFee ??
+          chapaMeta.platform_fee,
+        vat_amount:
+          paymentMeta.vat_amount ??
+          paymentMeta.breakdown?.vat ??
+          chapaMeta.vat_amount,
+      }
 
       // Mark the Chapa transaction as completed (preserve existing metadata)
       const { error: updateError } = await supabase
@@ -569,10 +589,17 @@ export class PaymentService {
       await supabase
         .from('tasks')
         .update({
-          payment_status: 'completed',
+          payment_status: 'paid',
           updated_at: new Date().toISOString(),
         })
         .eq('id', taskId)
+
+      await ChapaPaymentService.processSuccessfulPayment(
+        txRef,
+        payoutMeta.tasker_id,
+        Number(verification.data.amount) || chapaTransaction.amount,
+        payoutMeta,
+      )
 
       await UnifiedNotificationService.notifyPaymentProcessed(
         chapaTransaction.user_id,

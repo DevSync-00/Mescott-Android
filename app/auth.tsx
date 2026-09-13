@@ -37,7 +37,7 @@ export default function Auth() {
     flag: 'https://flagcdn.com/w80/et.png',
   })
   const [countryPickerVisible, setCountryPickerVisible] = useState(false)
-  const { sendVerificationCode, verifyPhoneCode, isAuthenticated, loading: isLoading } = useAuth()
+  const { sendVerificationCode, verifyPhoneCode, signInWithGoogle, signInWithTelegram, isAuthenticated, loading: isLoading } = useAuth()
   const { showSuccess, showError } = useToast()
   const fadeAnim = useRef(new Animated.Value(0)).current
   const slideAnim = useRef(new Animated.Value(16)).current
@@ -216,6 +216,28 @@ export default function Auth() {
     }
   }
 
+  const handleGoogleSignIn = async () => {
+    setLoading(true)
+    try {
+      const result = await signInWithGoogle()
+      if (!result.success) showError(result.message)
+      else if (Platform.OS !== 'web') showSuccess(result.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleTelegramSignIn = async () => {
+    setLoading(true)
+    try {
+      const result = await signInWithTelegram()
+      if (result.success) showSuccess(result.message)
+      else showError(result.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor="#371F80" translucent={false} />
@@ -323,6 +345,38 @@ export default function Auth() {
                     >
                       <Text style={styles.buttonText}>{loading ? 'Sending...' : 'CONTINUE'}</Text>
                     </TouchableOpacity>
+
+                    <View style={styles.dividerRow}>
+                      <View style={styles.dividerLine} />
+                      <Text style={styles.dividerText}>OR</Text>
+                      <View style={styles.dividerLine} />
+                    </View>
+
+                    <TouchableOpacity
+                      style={[styles.googleButton, loading && styles.buttonDisabled]}
+                      onPress={handleGoogleSignIn}
+                      disabled={loading}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Continue with Google"
+                    >
+                      <Text style={styles.googleMark}>G</Text>
+                      <Text style={styles.googleButtonText}>Continue with Google</Text>
+                    </TouchableOpacity>
+
+                    {Platform.OS !== 'web' && (
+                      <TouchableOpacity
+                        style={[styles.telegramButton, loading && styles.buttonDisabled]}
+                        onPress={handleTelegramSignIn}
+                        disabled={loading}
+                        activeOpacity={0.8}
+                        accessibilityRole="button"
+                        accessibilityLabel="Continue with Telegram"
+                      >
+                        <Ionicons name="paper-plane" size={19} color="#FFFFFF" />
+                        <Text style={styles.telegramButtonText}>Continue with Telegram</Text>
+                      </TouchableOpacity>
+                    )}
                   </>
                 ) : (
                   <>
@@ -556,6 +610,60 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     letterSpacing: 0.5,
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 22,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E1E1E1',
+  },
+  dividerText: {
+    marginHorizontal: 14,
+    color: '#777777',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  googleButton: {
+    minHeight: 54,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#D8D8D8',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+  googleMark: {
+    color: '#4285F4',
+    fontSize: 20,
+    fontWeight: '900',
+    marginRight: 12,
+  },
+  googleButtonText: {
+    color: '#202124',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  telegramButton: {
+    minHeight: 54,
+    borderRadius: 24,
+    backgroundColor: '#229ED9',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    marginTop: 12,
+    gap: 10,
+  },
+  telegramButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
   },
   backLink: {
     marginBottom: 10,
