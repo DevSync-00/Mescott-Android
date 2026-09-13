@@ -1,19 +1,9 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": { "distDir": "tma/dist" }
-    },
-    { "src": "webhook-server/api/**/*.js", "use": "@vercel/node" }
-  ],
-  "routes": [
-    { "src": "/api/payment-return", "dest": "/webhook-server/api/payment-return.js" },
-    { "src": "/api/webhook", "dest": "/webhook-server/api/webhook/index.js" },
-    { "src": "/api/test", "dest": "/webhook-server/api/test/index.js" },
-    { "src": "/api/(.*)", "dest": "/webhook-server/api/$1.js" },
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "npm run build:tma",
+  "outputDirectory": "tma/dist",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
