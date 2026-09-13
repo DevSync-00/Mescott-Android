@@ -29,7 +29,7 @@ body { overflow: hidden; background: var(--tg-theme-bg-color, #ffffff); }
 #root {
   height: var(--tg-viewport-stable-height, 100dvh);
   max-height: var(--tg-viewport-stable-height, 100dvh);
-  padding: var(--mescott-tg-safe-top, 0px) var(--mescott-tg-safe-right, 0px)
+  padding: 0 var(--mescott-tg-safe-right, 0px)
     var(--mescott-tg-safe-bottom, 0px) var(--mescott-tg-safe-left, 0px);
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
