@@ -1,4 +1,6 @@
-import { create } from 'zustand'
+// Metro's web resolver selects Zustand's ESM entry for `import`, which contains
+// `import.meta.env` and cannot run inside Expo's classic module bundle.
+const { create } = require('zustand') as typeof import('zustand')
 import uuid from 'react-native-uuid'
 import { getIsOnline } from '../lib/connectivity'
 import { getJSON, setJSON } from '../lib/storage'
