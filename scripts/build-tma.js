@@ -10,6 +10,7 @@ const result = spawnSync(
     stdio: 'inherit',
     env: {
       ...process.env,
+      MESCOTT_TMA_BUILD: '1',
       // Payment secrets belong exclusively to server-side Vercel functions.
       // Explicit overrides prevent a developer's mobile .env from entering the TMA bundle.
       EXPO_PUBLIC_CHAPA_SECRET_KEY: 'TMA_SERVER_ONLY',

@@ -26,7 +26,9 @@ config.transformer = {
   getTransformOptions: async () => ({
     transform: {
       experimentalImportSupport: false,
-      inlineRequires: true,
+      // Worklets web-mode detection relies on eager module initialization.
+      // Keep native inline requires, but disable them for the Telegram web build.
+      inlineRequires: process.env.MESCOTT_TMA_BUILD !== '1',
     },
   }),
 }
