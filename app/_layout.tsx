@@ -3,7 +3,11 @@ import { View, Text, StatusBar, Animated, Easing, Platform, TouchableOpacity } f
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Tabs, usePathname, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
+import {
+  SafeAreaInsetsContext,
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { setStatusBarBackgroundColor, setStatusBarStyle } from 'expo-status-bar'
 import * as SplashScreen from 'expo-splash-screen'
@@ -736,6 +740,8 @@ function AppContent() {
 }
 
 export default function RootLayout() {
+  const isTelegramLaunch = isTelegramMiniAppLaunch()
+
   useEffect(() => {
     initializeTelegramMiniApp()
   }, [])
@@ -752,9 +758,20 @@ export default function RootLayout() {
     </AuthProvider>
   )
 
+  // Telegram already reserves space for its own native header. Supplying its
+  // viewport inset again to individual screens creates a large blank band at
+  // the top, so expose zero insets throughout the Mini App only.
+  const safeAreaContent = isTelegramLaunch ? (
+    <SafeAreaInsetsContext.Provider value={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+      {content}
+    </SafeAreaInsetsContext.Provider>
+  ) : (
+    content
+  )
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ErrorBoundary>{content}</ErrorBoundary>
+      <ErrorBoundary>{safeAreaContent}</ErrorBoundary>
     </GestureHandlerRootView>
   )
 }
